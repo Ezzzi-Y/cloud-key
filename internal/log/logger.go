@@ -9,7 +9,10 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var logger *zap.Logger
+var (
+	logger       *zap.Logger
+	lumberjackIO *lumberjack.Logger
+)
 
 // InitLogger 初始化日志系统
 func InitLogger(cfg config.LogConfig) error {
@@ -32,14 +35,14 @@ func InitLogger(cfg config.LogConfig) error {
 	// 配置输出
 	var writeSyncer zapcore.WriteSyncer
 	if cfg.Output == "file" && cfg.File.Path != "" {
-		lumberjackLogger := &lumberjack.Logger{
+		lumberjackIO = &lumberjack.Logger{
 			Filename:   cfg.File.Path,
 			MaxSize:    cfg.File.MaxSize,
 			MaxBackups: cfg.File.MaxBackups,
 			MaxAge:     cfg.File.MaxAge,
 			Compress:   cfg.File.Compress,
 		}
-		writeSyncer = zapcore.AddSync(lumberjackLogger)
+		writeSyncer = zapcore.AddSync(lumberjackIO)
 	} else {
 		writeSyncer = zapcore.AddSync(os.Stdout)
 	}
@@ -62,6 +65,14 @@ func InitLogger(cfg config.LogConfig) error {
 func Sync() error {
 	if logger != nil {
 		return logger.Sync()
+	}
+	return nil
+}
+
+// Close 关闭日志文件句柄
+func Close() error {
+	if lumberjackIO != nil {
+		return lumberjackIO.Close()
 	}
 	return nil
 }
