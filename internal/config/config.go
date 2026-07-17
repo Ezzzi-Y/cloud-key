@@ -70,11 +70,21 @@ type EncryptionConfig struct {
 	Key       string `yaml:"key"`
 }
 
+// setDefaults 设置默认值
+func setDefaults(v *viper.Viper) {
+	// encryption.enabled 默认 false
+	v.SetDefault("security.encryption.enabled", false)
+
+	// app.debug 默认 false
+	v.SetDefault("app.debug", false)
+}
+
 // LoadConfig 加载配置文件
 // path: 配置文件路径（支持 JSON、YAML、TOML 格式）
 func LoadConfig(path string) (*AppConfig, error) {
 	v := viper.New()
 	v.SetConfigFile(path)
+	setDefaults(v)
 
 	if err := v.ReadInConfig(); err != nil {
 		return nil, err
