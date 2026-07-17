@@ -1,5 +1,7 @@
 package config
 
+import "github.com/spf13/viper"
+
 // AppConfig 定义应用程序配置结构
 // 字段名与 YAML tag 保持一致
 type AppConfig struct {
@@ -66,4 +68,22 @@ type EncryptionConfig struct {
 	Enabled   bool   `yaml:"enabled"`
 	Algorithm string `yaml:"algorithm"`
 	Key       string `yaml:"key"`
+}
+
+// LoadConfig 加载配置文件
+// path: 配置文件路径（支持 JSON、YAML、TOML 格式）
+func LoadConfig(path string) (*AppConfig, error) {
+	v := viper.New()
+	v.SetConfigFile(path)
+
+	if err := v.ReadInConfig(); err != nil {
+		return nil, err
+	}
+
+	var config AppConfig
+	if err := v.Unmarshal(&config); err != nil {
+		return nil, err
+	}
+
+	return &config, nil
 }
