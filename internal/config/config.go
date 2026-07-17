@@ -20,19 +20,13 @@ type ServerConfig struct {
 
 // DatabaseConfig 数据库配置
 type DatabaseConfig struct {
-	Type     string       `yaml:"type"`
-	Host     string       `yaml:"host"`
-	Port     int          `yaml:"port"`
-	User     string       `yaml:"user"`
-	Password string       `yaml:"password"`
-	DBName   string       `yaml:"dbname"`
-	SSLMode  string       `yaml:"sslmode"`
-	SQLite   SQLiteConfig `yaml:"sqlite"`
-}
-
-// SQLiteConfig SQLite 配置
-type SQLiteConfig struct {
-	Path string `yaml:"path"`
+	Type     string `yaml:"type"`
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+	DBName   string `yaml:"dbname"`
+	SSLMode  string `yaml:"sslmode"`
 }
 
 // LogConfig 日志配置

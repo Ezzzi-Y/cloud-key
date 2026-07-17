@@ -6,12 +6,11 @@ import (
 	"time"
 
 	"gorm.io/driver/mysql"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 // Connect 建立数据库连接
-// 支持 MySQL 和 SQLite 两种类型
+// 仅支持 MySQL 8.0+
 func Connect(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	var dialector gorm.Dialector
 
@@ -21,16 +20,8 @@ func Connect(cfg config.DatabaseConfig) (*gorm.DB, error) {
 			cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DBName)
 		dialector = mysql.Open(dsn)
 
-	case "sqlite":
-		// SQLite 文件名固定为 cloudkey.db
-		dbPath := cfg.SQLite.Path
-		if dbPath == "" {
-			dbPath = "cloudkey.db"
-		}
-		dialector = sqlite.Open(dbPath)
-
 	default:
-		return nil, fmt.Errorf("unsupported database type: %s", cfg.Type)
+		return nil, fmt.Errorf("unsupported database type: %s (only mysql is supported)", cfg.Type)
 	}
 
 	db, err := gorm.Open(dialector, &gorm.Config{})

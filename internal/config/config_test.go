@@ -17,10 +17,12 @@ func TestLoadConfig_JSON(t *testing.T) {
 			"host": "localhost"
 		},
 		"database": {
-			"type": "sqlite",
-			"sqlite": {
-				"path": "cloudkey.db"
-			}
+			"type": "mysql",
+			"host": "localhost",
+			"port": 3306,
+			"user": "root",
+			"password": "secret",
+			"dbname": "cloudkey"
 		},
 		"log": {
 			"level": "info",
@@ -45,8 +47,8 @@ func TestLoadConfig_JSON(t *testing.T) {
 	if config.Server.Port != 8080 {
 		t.Errorf("expected port 8080, got %d", config.Server.Port)
 	}
-	if config.Database.Type != "sqlite" {
-		t.Errorf("expected db type sqlite, got %s", config.Database.Type)
+	if config.Database.Type != "mysql" {
+		t.Errorf("expected db type mysql, got %s", config.Database.Type)
 	}
 	if config.Security.Encryption.Enabled != false {
 		t.Error("expected encryption.enabled to be false")
