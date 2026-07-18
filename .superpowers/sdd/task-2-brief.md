@@ -1,116 +1,79 @@
-# Task 2: Config 定义
+### Task 2: 错误码包
 
 **Files:**
-- Create: `internal/config/config.go`
+- Create: `internal/errcode/errcode.go`
 
 **Interfaces:**
-- Produces: `AppConfig` struct, `LoadConfig(path string) (*AppConfig, error)` 函数
+- Produces: 错误码常量 `CodeSuccess`, `CodeKeyNotFound` 等，供 handler 和 service 共用
 
-## Steps
-
-- [ ] **Step 1: 创建目录结构**
+- [ ] **Step 1: 创建 errcode 目录**
 
 ```bash
-mkdir -p internal/config
+mkdir -p internal/errcode
 ```
 
-- [ ] **Step 2: 编写 config.go**
+- [ ] **Step 2: 编写 errcode.go**
 
 ```go
-package config
+package errcode
 
-// AppConfig 定义应用程序配置结构
-// 字段名与 YAML tag 保持一致
-type AppConfig struct {
-	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
-	Log      LogConfig      `yaml:"log"`
-	Auth     AuthConfig     `yaml:"auth"`
-	Security SecurityConfig `yaml:"security"`
+const (
+	CodeSuccess = 0
+
+	// 卡密相关 1001~1999
+	CodeKeyNotFound     = 1001
+	CodeKeyDisabled     = 1002
+	CodeKeyExhausted    = 1003
+	CodeKeyInsufficient = 1004
+
+	// 管理员认证相关 2001~2999
+	CodeInvalidCredentials = 2001
+	CodeTOTPFailed         = 2002
+	CodeJWTInvalid         = 2003
+	CodeForbidden          = 2004
+
+	// 服务账号相关 3001~3999
+	CodeServiceKeyInvalid = 3001
+
+	// 系统 9999
+	CodeInternalError = 9999
+)
+
+var codeMessages = map[int]string{
+	CodeSuccess:            "success",
+	CodeKeyNotFound:        "卡密不存在",
+	CodeKeyDisabled:        "卡密已禁用",
+	CodeKeyExhausted:       "卡密额度已用尽",
+	CodeKeyInsufficient:    "扣减数量超过剩余额度",
+	CodeInvalidCredentials: "管理员账号或密码错误",
+	CodeTOTPFailed:         "TOTP 验证失败",
+	CodeJWTInvalid:         "JWT Token 无效或已过期",
+	CodeForbidden:          "无权限执行此操作",
+	CodeServiceKeyInvalid:  "服务账号密钥无效",
+	CodeInternalError:      "系统内部错误",
 }
 
-// ServerConfig 服务器配置
-type ServerConfig struct {
-	Port int    `yaml:"port"`
-	Host string `yaml:"host"`
-}
-
-// DatabaseConfig 数据库配置
-type DatabaseConfig struct {
-	Type     string `yaml:"type"`
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	DBName   string `yaml:"dbname"`
-	SSLMode  string `yaml:"sslmode"`
-	SQLite   SQLiteConfig `yaml:"sqlite"`
-}
-
-// SQLiteConfig SQLite 配置
-type SQLiteConfig struct {
-	Path string `yaml:"path"`
-}
-
-// LogConfig 日志配置
-type LogConfig struct {
-	Level  string `yaml:"level"`
-	Format string `yaml:"format"`
-	Output string `yaml:"output"`
-	File   FileConfig `yaml:"file"`
-}
-
-// FileConfig 日志文件配置
-type FileConfig struct {
-	Path       string `yaml:"path"`
-	MaxSize    int    `yaml:"max_size"`
-	MaxBackups int    `yaml:"max_backups"`
-	MaxAge     int    `yaml:"max_age"`
-	Compress   bool   `yaml:"compress"`
-}
-
-// AuthConfig 认证配置
-type AuthConfig struct {
-	Secret     string `yaml:"secret"`
-	Expiration int    `yaml:"expiration"`
-}
-
-// SecurityConfig 安全配置
-type SecurityConfig struct {
-	Encryption EncryptionConfig `yaml:"encryption"`
-}
-
-// EncryptionConfig 加密配置
-type EncryptionConfig struct {
-	Enabled   bool   `yaml:"enabled"`
-	Algorithm string `yaml:"algorithm"`
-	Key       string `yaml:"key"`
+func GetMessage(code int) string {
+	if msg, ok := codeMessages[code]; ok {
+		return msg
+	}
+	return "未知错误"
 }
 ```
 
-- [ ] **Step 3: 格式化代码**
+- [ ] **Step 3: 格式化并编译**
 
 ```bash
-gofmt -w internal/config/config.go
+gofmt -w internal/errcode/errcode.go
+go build ./internal/errcode/
 ```
 
-- [ ] **Step 4: 验证编译**
+- [ ] **Step 4: 提交**
 
 ```bash
-go build ./internal/config/
+git add internal/errcode/
+git commit -m "feat(errcode): add shared error code constants"
 ```
 
-Expected: 无错误
+---
 
-- [ ] **Step 5: 提交**
-
-```bash
-git add internal/config/config.go
-git commit -m "feat(config): define AppConfig struct with YAML tags"
-```
-
-## Global Constraints
-
-- 配置文件字段名与结构体 YAML tag 必须一致
-- `encryption.enabled` 默认 `false`
-- `app.debug` 默认 `false`

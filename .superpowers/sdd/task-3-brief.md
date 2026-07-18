@@ -1,60 +1,82 @@
-# Task 3: Config LoadConfig 函数
+### Task 3: 卡密数据模型
 
 **Files:**
-- Modify: `internal/config/config.go`
+- Create: `internal/model/key.go`
 
 **Interfaces:**
-- Produces: `LoadConfig(path string) (*AppConfig, error)` 函数
+- Produces: `model.Key` struct (GORM model, 表名 `keys`)
+- Produces: `model.KeyBillingMode`, `model.KeyStatus` 类型和常量
 
-## Steps
+- [ ] **Step 1: 创建 model 目录**
 
-- [ ] **Step 1: 添加 LoadConfig 函数**
+```bash
+mkdir -p internal/model
+```
 
-在 `config.go` 末尾添加：
+- [ ] **Step 2: 编写 key.go**
 
 ```go
-import (
-	"github.com/spf13/viper"
+package model
+
+import "time"
+
+type KeyBillingMode string
+
+const (
+	BillingModeCount  KeyBillingMode = "count"
+	BillingModeCredit KeyBillingMode = "credit"
 )
 
-// LoadConfig 加载配置文件
-// path: 配置文件路径（支持 JSON、YAML、TOML 格式）
-func LoadConfig(path string) (*AppConfig, error) {
-	v := viper.New()
-	v.SetConfigFile(path)
+type KeyStatus string
 
-	if err := v.ReadInConfig(); err != nil {
-		return nil, err
-	}
+const (
+	KeyStatusUnused   KeyStatus = "unused"
+	KeyStatusUsed     KeyStatus = "used"
+	KeyStatusDisabled KeyStatus = "disabled"
+	KeyStatusExpired  KeyStatus = "expired"
+)
 
-	var config AppConfig
-	if err := v.Unmarshal(&config); err != nil {
-		return nil, err
-	}
+type Key struct {
+	ID              uint64         `gorm:"primaryKey;autoIncrement" json:"id"`
+	Alias           string         `gorm:"type:varchar(255);not null" json:"alias"`
+	KeyHash         string         `gorm:"type:varchar(255);uniqueIndex;not null" json:"-"`
+	KeyPrefix       string         `gorm:"type:varchar(50);not null" json:"key_prefix"`
+	KeySuffix       string         `gorm:"type:varchar(10);not null" json:"key_suffix"`
+	BillingMode     KeyBillingMode `gorm:"type:varchar(20);not null" json:"billing_mode"`
+	InitialAmount   int64          `gorm:"type:bigint;not null" json:"initial_amount"`
+	RemainingAmount int64          `gorm:"type:bigint;not null" json:"remaining_amount"`
+	Version         int64          `gorm:"type:bigint;not null;default:0" json:"-"`
+	Status          KeyStatus      `gorm:"type:varchar(20);not null;default:unused" json:"status"`
+	CreatedBy       string         `gorm:"type:varchar(100);not null" json:"created_by"`
+	CreatedAt       time.Time      `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt       time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	UsedAt          *time.Time     `gorm:"default:null" json:"used_at"`
+}
 
-	return &config, nil
+func (Key) TableName() string { return "keys" }
+
+func (k *Key) IsUsable() bool {
+	return k.Status == KeyStatusUnused && k.RemainingAmount > 0
+}
+
+func (k *Key) CanDeduct(amount int64) bool {
+	return k.IsUsable() && k.RemainingAmount >= amount
 }
 ```
 
-- [ ] **Step 2: 格式化代码**
+- [ ] **Step 3: 格式化并编译**
 
 ```bash
-gofmt -w internal/config/config.go
-```
-
-- [ ] **Step 3: 验证编译**
-
-```bash
-go build ./internal/config/
+gofmt -w internal/model/key.go
+go build ./internal/model/
 ```
 
 - [ ] **Step 4: 提交**
 
 ```bash
-git add internal/config/config.go
-git commit -m "feat(config): implement LoadConfig with Viper"
+git add internal/model/key.go
+git commit -m "feat(model): add Key GORM model with optimistic lock"
 ```
 
-## Global Constraints
+---
 
-- 配置文件字段名与结构体 YAML tag 必须一致

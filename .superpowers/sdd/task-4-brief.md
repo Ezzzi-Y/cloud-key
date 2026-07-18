@@ -1,56 +1,47 @@
-# Task 4: Config SetDefaults 和验证
+### Task 4: 使用记录数据模型
 
 **Files:**
-- Modify: `internal/config/config.go`
+- Create: `internal/model/usage_log.go`
 
 **Interfaces:**
-- Produces: `setDefaults(v *viper.Viper)` 函数，集成到 LoadConfig
+- Produces: `model.UsageLog` struct (表名 `usage_logs`)
 
-## Steps
-
-- [x] **Step 1: 添加 setDefaults 函数**
-
-在 `config.go` 中添加：
+- [ ] **Step 1: 编写 usage_log.go**
 
 ```go
-// setDefaults 设置默认值
-func setDefaults(v *viper.Viper) {
-	// encryption.enabled 默认 false
-	v.SetDefault("security.encryption.enabled", false)
+package model
 
-	// app.debug 默认 false
-	v.SetDefault("app.debug", false)
+import "time"
+
+type UsageLog struct {
+	ID             uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	KeyID          uint64    `gorm:"type:bigint;index;not null" json:"key_id"`
+	KeyAlias       string    `gorm:"type:varchar(255);not null" json:"key_alias"`
+	Amount         int64     `gorm:"type:bigint;not null" json:"amount"`
+	IP             string    `gorm:"type:varchar(50);not null" json:"ip"`
+	UserAgent      string    `gorm:"type:varchar(500)" json:"user_agent"`
+	RequestPath    string    `gorm:"type:varchar(500)" json:"request_path"`
+	RequestParams  string    `gorm:"type:text" json:"request_params"`
+	ResponseStatus int       `gorm:"type:int;not null" json:"response_status"`
+	CreatedAt      time.Time `gorm:"autoCreateTime;index" json:"created_at"`
 }
+
+func (UsageLog) TableName() string { return "usage_logs" }
 ```
 
-- [x] **Step 2: 在 LoadConfig 中调用 setDefaults**
-
-修改 LoadConfig 函数，在 `v.SetConfigFile(path)` 之后添加：
-
-```go
-	setDefaults(v)
-```
-
-- [x] **Step 3: 格式化代码**
+- [ ] **Step 2: 格式化并编译**
 
 ```bash
-gofmt -w internal/config/config.go
+gofmt -w internal/model/usage_log.go
+go build ./internal/model/
 ```
 
-- [x] **Step 4: 验证编译**
+- [ ] **Step 3: 提交**
 
 ```bash
-go build ./internal/config/
+git add internal/model/usage_log.go
+git commit -m "feat(model): add UsageLog GORM model"
 ```
 
-- [x] **Step 5: 提交**
+---
 
-```bash
-git add internal/config/config.go
-git commit -m "feat(config): add defaults for encryption.enabled and app.debug"
-```
-
-## Global Constraints
-
-- `encryption.enabled` 默认 `false`
-- `app.debug` 默认 `false`

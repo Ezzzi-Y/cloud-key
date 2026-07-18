@@ -1,123 +1,176 @@
-# Task 8: Log 测试
+### Task 8: 卡密服务 — 生成、创建、查询
 
 **Files:**
-- Create: `internal/log/logger_test.go`
+- Create: `internal/service/key_service.go`
 
 **Interfaces:**
-- Tests: `InitLogger` 函数的各种场景
+- Produces: `service.KeyService`, `service.NewKeyService(db)`, `service.CreateKeyRequest`, `service.CreateKeyResult`
+- Produces: `GenerateRawKey()`, `CreateKey()`, `FindByRawKey()`, `GetKeyStatus()` 方法
+- Consumes: `model.Key`, `model.KeyBillingMode`, `model.KeyStatus`
 
-## Steps
+- [ ] **Step 1: 创建 service 目录**
 
-- [ ] **Step 1: 编写测试文件**
+```bash
+mkdir -p internal/service
+```
+
+- [ ] **Step 2: 编写 key_service.go（第一部分：生成 + 创建 + 查询）**
 
 ```go
-package log
+package service
 
 import (
-	"CloudKey/internal/config"
-	"os"
-	"path/filepath"
-	"testing"
+	"CloudKey/internal/model"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 
-	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
-func TestInitLogger_Console(t *testing.T) {
-	cfg := config.LogConfig{
-		Level:  "info",
-		Format: "console",
-		Output: "stdout",
-	}
-
-	err := InitLogger(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	Info("test message", zap.String("key", "value"))
-	Sync()
+type KeyService struct {
+	db        *gorm.DB
+	keyPrefix string
+	keyLength int
+	suffixLen int
 }
 
-func TestInitLogger_JSON(t *testing.T) {
-	cfg := config.LogConfig{
-		Level:  "debug",
-		Format: "json",
-		Output: "stdout",
-	}
-
-	err := InitLogger(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	Debug("debug message")
-	Info("info message")
-	Warn("warn message")
-	Error("error message")
-	Sync()
-}
-
-func TestInitLogger_File(t *testing.T) {
-	tmpDir := t.TempDir()
-	logPath := filepath.Join(tmpDir, "test.log")
-
-	cfg := config.LogConfig{
-		Level:  "info",
-		Format: "json",
-		Output: "file",
-		File: config.FileConfig{
-			Path:       logPath,
-			MaxSize:    10,
-			MaxBackups: 3,
-			MaxAge:     7,
-			Compress:   false,
-		},
-	}
-
-	err := InitLogger(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	Info("file log test")
-	Sync()
-
-	// 验证日志文件已创建
-	if _, err := os.Stat(logPath); os.IsNotExist(err) {
-		t.Error("expected log file to be created")
+func NewKeyService(db *gorm.DB) *KeyService {
+	return &KeyService{
+		db:        db,
+		keyPrefix: "sk-",
+		keyLength: 16,
+		suffixLen: 4,
 	}
 }
 
-func TestInitLogger_InvalidLevel(t *testing.T) {
-	cfg := config.LogConfig{
-		Level:  "invalid",
-		Format: "console",
-		Output: "stdout",
+func (s *KeyService) WithConfig(prefix string, keyLen, suffixLen int) *KeyService {
+	s.keyPrefix = prefix
+	s.keyLength = keyLen
+	s.suffixLen = suffixLen
+	return s
+}
+
+func (s *KeyService) generateRawKey() (string, error) {
+	bytes := make([]byte, s.keyLength)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", fmt.Errorf("generate random: %w", err)
+	}
+	return s.keyPrefix + hex.EncodeToString(bytes), nil
+}
+
+func (s *KeyService) hashKey(rawKey string) string {
+	h := sha256.Sum256([]byte(rawKey))
+	return hex.EncodeToString(h[:])
+}
+
+type CreateKeyRequest struct {
+	Alias         string              `json:"alias"`
+	BillingMode   model.KeyBillingMode `json:"billing_mode"`
+	InitialAmount int64               `json:"initial_amount"`
+	CreatedBy     string              `json:"created_by"`
+}
+
+type CreateKeyResult struct {
+	RawKey string    `json:"raw_key"`
+	Key    model.Key `json:"key"`
+}
+
+func (s *KeyService) CreateKey(req CreateKeyRequest) (*CreateKeyResult, error) {
+	rawKey, err := s.generateRawKey()
+	if err != nil {
+		return nil, err
 	}
 
-	// 应该使用默认级别，不返回错误
-	err := InitLogger(cfg)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+	suffixLen := s.suffixLen
+	if len(rawKey) < suffixLen {
+		suffixLen = len(rawKey)
 	}
+	suffix := rawKey[len(rawKey)-suffixLen:]
+
+	keyHash := s.hashKey(rawKey)
+
+	key := model.Key{
+		Alias:           req.Alias,
+		KeyHash:         keyHash,
+		KeyPrefix:       s.keyPrefix,
+		KeySuffix:       suffix,
+		BillingMode:     req.BillingMode,
+		InitialAmount:   req.InitialAmount,
+		RemainingAmount: req.InitialAmount,
+		Version:         0,
+		Status:          model.KeyStatusUnused,
+		CreatedBy:       req.CreatedBy,
+	}
+
+	if err := s.db.Create(&key).Error; err != nil {
+		return nil, fmt.Errorf("create key: %w", err)
+	}
+
+	return &CreateKeyResult{RawKey: rawKey, Key: key}, nil
+}
+
+func (s *KeyService) FindByRawKey(rawKey string) (*model.Key, error) {
+	keyHash := s.hashKey(rawKey)
+	var key model.Key
+	if err := s.db.Where("key_hash = ?", keyHash).First(&key).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &key, nil
+}
+
+type KeyStatusResult struct {
+	Alias           string              `json:"alias"`
+	BillingMode     model.KeyBillingMode `json:"billing_mode"`
+	RemainingAmount int64               `json:"remaining_amount"`
+	Status          model.KeyStatus     `json:"status"`
+	CreatedAt       string              `json:"created_at"`
+	UsedAt          *string             `json:"used_at"`
+}
+
+func (s *KeyService) GetKeyStatus(rawKey string) (*KeyStatusResult, error) {
+	key, err := s.FindByRawKey(rawKey)
+	if err != nil {
+		return nil, err
+	}
+	if key == nil {
+		return nil, nil
+	}
+
+	var usedAt *string
+	if key.UsedAt != nil {
+		t := key.UsedAt.Format("2006-01-02 15:04:05")
+		usedAt = &t
+	}
+
+	return &KeyStatusResult{
+		Alias:           key.Alias,
+		BillingMode:     key.BillingMode,
+		RemainingAmount: key.RemainingAmount,
+		Status:          key.Status,
+		CreatedAt:       key.CreatedAt.Format("2006-01-02 15:04:05"),
+		UsedAt:          usedAt,
+	}, nil
 }
 ```
 
-- [ ] **Step 2: 运行测试**
+- [ ] **Step 3: 格式化并编译**
 
 ```bash
-go test ./internal/log/ -v
+gofmt -w internal/service/key_service.go
+go build ./internal/service/
 ```
 
-Expected: 全部 PASS
-
-- [ ] **Step 3: 提交**
+- [ ] **Step 4: 提交**
 
 ```bash
-git add internal/log/logger_test.go
-git commit -m "test(log): add unit tests for InitLogger"
+git add internal/service/key_service.go
+git commit -m "feat(service): add KeyService with key generation, creation, and status query"
 ```
 
-## Global Constraints
+---
 
-- 测试使用 `t.TempDir()` 生成临时目录

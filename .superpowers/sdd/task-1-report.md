@@ -91,5 +91,5 @@ gorm.io/driver/sqlite v1.6.0
 ### Commit
 
 ```
-cc67823 fix(deps): actually install 5 required Go dependencies in go.mod
+81629f7 fix(deps): actually install 5 required Go dependencies in go.mod
 ```

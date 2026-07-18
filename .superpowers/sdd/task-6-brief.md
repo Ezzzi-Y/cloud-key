@@ -1,42 +1,47 @@
-# Task 6: 安装 Log 依赖
+### Task 6: 数据库自动迁移
 
 **Files:**
-- Modify: `go.mod`
+- Create: `internal/model/migrate.go`
 
 **Interfaces:**
-- Produces: `go.mod` 包含 Zap 和 Lumberjack 依赖
+- Produces: `model.AutoMigrate(db *gorm.DB) error`
 
-## Steps
+- [ ] **Step 1: 编写 migrate.go**
 
-- [ ] **Step 1: 添加 Zap 依赖**
+```go
+package model
 
-```bash
-go get go.uber.org/zap@v1.27.0
+import "gorm.io/gorm"
+
+func AutoMigrate(db *gorm.DB) error {
+	return db.AutoMigrate(
+		&Key{},
+		&UsageLog{},
+		&Admin{},
+		&ServiceAccount{},
+		&LoginLog{},
+		&SysConfig{},
+	)
+}
 ```
 
-- [ ] **Step 2: 添加 Lumberjack 依赖**
+- [ ] **Step 2: 格式化并编译**
 
 ```bash
-go get gopkg.in/natefinish/lumberjack.v2@v2.2.1
+gofmt -w internal/model/migrate.go
+go build ./internal/model/
 ```
 
-- [ ] **Step 3: 运行 go mod tidy**
+- [ ] **Step 3: 提交**
 
 ```bash
-go mod tidy
+git add internal/model/migrate.go
+git commit -m "feat(model): add AutoMigrate for all models"
 ```
 
-- [ ] **Step 4: 验证 go.mod**
+---
 
-```bash
-cat go.mod
-```
+## 阶段二：统一响应 + 服务层 (Task 7-11)
 
-Expected: 包含 zap 和 lumberjack 依赖
+---
 
-- [ ] **Step 5: 提交**
-
-```bash
-git add go.mod go.sum
-git commit -m "feat(deps): add Zap and Lumberjack for logging"
-```
