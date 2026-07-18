@@ -25,19 +25,27 @@ type KeyOverview struct {
 func (s *StatsService) GetKeyOverview() (*KeyOverview, error) {
 	ov := &KeyOverview{StatusCounts: make(map[string]int64)}
 
-	s.db.Model(&model.Key{}).Count(&ov.TotalKeys)
+	if err := s.db.Model(&model.Key{}).Count(&ov.TotalKeys).Error; err != nil {
+		return nil, err
+	}
 
 	var rows []struct {
 		Status string
 		Count  int64
 	}
-	s.db.Model(&model.Key{}).Select("status, COUNT(*) as count").Group("status").Scan(&rows)
+	if err := s.db.Model(&model.Key{}).Select("status, COUNT(*) as count").Group("status").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
 	for _, r := range rows {
 		ov.StatusCounts[r.Status] = r.Count
 	}
 
-	s.db.Model(&model.Key{}).Select("COALESCE(SUM(initial_amount), 0)").Scan(&ov.TotalInitial)
-	s.db.Model(&model.Key{}).Select("COALESCE(SUM(remaining_amount), 0)").Scan(&ov.TotalRemain)
+	if err := s.db.Model(&model.Key{}).Select("COALESCE(SUM(initial_amount), 0)").Scan(&ov.TotalInitial).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.Model(&model.Key{}).Select("COALESCE(SUM(remaining_amount), 0)").Scan(&ov.TotalRemain).Error; err != nil {
+		return nil, err
+	}
 
 	return ov, nil
 }
@@ -65,10 +73,12 @@ func (s *StatsService) GetTrends(period string) ([]TrendPoint, error) {
 	}
 
 	var points []TrendPoint
-	s.db.Model(&model.UsageLog{}).
+	if err := s.db.Model(&model.UsageLog{}).
 		Select("DATE_FORMAT(created_at, ?) as date, COUNT(*) as count", dateFormat).
 		Where("created_at >= ?", startTime).
-		Group("date").Order("date ASC").Scan(&points)
+		Group("date").Order("date ASC").Scan(&points).Error; err != nil {
+		return nil, err
+	}
 
 	return points, nil
 }
@@ -80,17 +90,21 @@ type TopItem struct {
 
 func (s *StatsService) GetTopKeys() ([]TopItem, error) {
 	var items []TopItem
-	s.db.Model(&model.UsageLog{}).
+	if err := s.db.Model(&model.UsageLog{}).
 		Select("key_alias as name, COUNT(*) as count").
-		Group("key_alias").Order("count DESC").Limit(10).Scan(&items)
+		Group("key_alias").Order("count DESC").Limit(10).Scan(&items).Error; err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 
 func (s *StatsService) GetTopIPs() ([]TopItem, error) {
 	var items []TopItem
-	s.db.Model(&model.UsageLog{}).
+	if err := s.db.Model(&model.UsageLog{}).
 		Select("ip as name, COUNT(*) as count").
-		Group("ip").Order("count DESC").Limit(10).Scan(&items)
+		Group("ip").Order("count DESC").Limit(10).Scan(&items).Error; err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 
@@ -114,12 +128,20 @@ func (s *StatsService) GetDashboard() (*DashboardStats, error) {
 	monthStart := now.AddDate(0, -1, 0)
 
 	var todayCalls, weekCalls, monthCalls int64
-	s.db.Model(&model.UsageLog{}).Where("created_at >= ?", todayStart).Count(&todayCalls)
-	s.db.Model(&model.UsageLog{}).Where("created_at >= ?", weekStart).Count(&weekCalls)
-	s.db.Model(&model.UsageLog{}).Where("created_at >= ?", monthStart).Count(&monthCalls)
+	if err := s.db.Model(&model.UsageLog{}).Where("created_at >= ?", todayStart).Count(&todayCalls).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.Model(&model.UsageLog{}).Where("created_at >= ?", weekStart).Count(&weekCalls).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.Model(&model.UsageLog{}).Where("created_at >= ?", monthStart).Count(&monthCalls).Error; err != nil {
+		return nil, err
+	}
 
 	var recentLogs []model.UsageLog
-	s.db.Order("created_at DESC").Limit(20).Find(&recentLogs)
+	if err := s.db.Order("created_at DESC").Limit(20).Find(&recentLogs).Error; err != nil {
+		return nil, err
+	}
 
 	return &DashboardStats{
 		Overview:   overview,

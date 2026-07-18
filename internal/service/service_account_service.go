@@ -19,8 +19,11 @@ func NewServiceAccountService(db *gorm.DB) *ServiceAccountService {
 	return &ServiceAccountService{db: db}
 }
 
+var hmacServiceKeySecret = []byte("cloudkey-service-account-hmac-secret")
+
 func hashServiceKey(key string) string {
-	h := hmac.New(sha256.New, []byte(key))
+	h := hmac.New(sha256.New, hmacServiceKeySecret)
+	h.Write([]byte(key))
 	return hex.EncodeToString(h.Sum(nil))
 }
 

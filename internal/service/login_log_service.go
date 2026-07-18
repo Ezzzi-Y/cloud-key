@@ -28,9 +28,13 @@ func (s *LoginLogService) ListLoginLogs(page, pageSize int) ([]model.LoginLog, i
 	var logs []model.LoginLog
 	var total int64
 
-	s.db.Model(&model.LoginLog{}).Count(&total)
+	if err := s.db.Model(&model.LoginLog{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 	offset := (page - 1) * pageSize
-	s.db.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&logs)
+	if err := s.db.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&logs).Error; err != nil {
+		return nil, 0, err
+	}
 
 	return logs, total, nil
 }
