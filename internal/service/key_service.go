@@ -1,6 +1,7 @@
 package service
 
 import (
+	"CloudKey/internal/errcode"
 	"CloudKey/internal/model"
 	"crypto/rand"
 	"crypto/sha256"
@@ -136,4 +137,73 @@ func (s *KeyService) GetKeyStatus(rawKey string) (*KeyStatusResult, error) {
 		CreatedAt:       key.CreatedAt.Format("2006-01-02 15:04:05"),
 		UsedAt:          usedAt,
 	}, nil
+}
+
+type ConsumeResult struct {
+	RemainingAmount int64           `json:"remaining_amount"`
+	Status          model.KeyStatus `json:"status"`
+	Exhausted       bool            `json:"exhausted"`
+}
+
+func (s *KeyService) ConsumeKey(rawKey string, amount int64) (*ConsumeResult, int, error) {
+	key, err := s.FindByRawKey(rawKey)
+	if err != nil {
+		return nil, 0, err
+	}
+	if key == nil {
+		return nil, errcode.CodeKeyNotFound, nil
+	}
+	if key.Status == model.KeyStatusDisabled {
+		return nil, errcode.CodeKeyDisabled, nil
+	}
+	if key.Status == model.KeyStatusUsed {
+		return nil, errcode.CodeKeyExhausted, nil
+	}
+	if !key.CanDeduct(amount) {
+		if key.RemainingAmount <= 0 {
+			return nil, errcode.CodeKeyExhausted, nil
+		}
+		return nil, errcode.CodeKeyInsufficient, nil
+	}
+
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	result := tx.Model(&model.Key{}).
+		Where("id = ? AND version = ?", key.ID, key.Version).
+		Updates(map[string]interface{}{
+			"remaining_amount": gorm.Expr("remaining_amount - ?", amount),
+			"version":          gorm.Expr("version + 1"),
+			"status":           gorm.Expr("CASE WHEN remaining_amount - ? <= 0 THEN 'used' ELSE status END", amount),
+			"used_at":          gorm.Expr("NOW()"),
+		})
+
+	if result.Error != nil {
+		tx.Rollback()
+		return nil, 0, result.Error
+	}
+	if result.RowsAffected == 0 {
+		tx.Rollback()
+		return s.ConsumeKey(rawKey, amount) // optimistic lock conflict, retry once
+	}
+
+	var updatedKey model.Key
+	if err := tx.Where("id = ?", key.ID).First(&updatedKey).Error; err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, 0, err
+	}
+
+	return &ConsumeResult{
+		RemainingAmount: updatedKey.RemainingAmount,
+		Status:          updatedKey.Status,
+		Exhausted:       updatedKey.Status == model.KeyStatusUsed,
+	}, 0, nil
 }
