@@ -86,18 +86,19 @@ func main() {
 	adminAuthMW := middleware.AuthMiddleware(cfg.Auth.Secret)
 	serviceAuthMW := middleware.ServiceAuthMiddleware(serviceAccountSvc)
 
+	// Gin mode
+	if cfg.App.Debug {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	// Router
 	r := router.SetupRouter(
 		keyHandler, usageLogHandler, statsHandler,
 		adminHandler, serviceHandler, configHandler,
 		adminAuthMW, serviceAuthMW,
 	)
-
-	if cfg.App.Debug {
-		gin.SetMode(gin.DebugMode)
-	} else {
-		gin.SetMode(gin.ReleaseMode)
-	}
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	log.Info("服务器启动", zap.String("address", addr))
