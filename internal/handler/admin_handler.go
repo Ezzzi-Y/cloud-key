@@ -105,8 +105,12 @@ func (h *AdminHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	adminID, _ := c.Get("admin_id")
-	id, _ := adminID.(uint64)
+	adminIDI, _ := c.Get("admin_id")
+	id, ok := adminIDI.(uint64)
+	if !ok {
+		Unauthorized(c, errcode.CodeJWTInvalid, errcode.GetMessage(errcode.CodeJWTInvalid))
+		return
+	}
 
 	if err := h.adminSvc.ChangePassword(id, req.OldPassword, req.NewPassword); err != nil {
 		BadRequest(c, errcode.CodeForbidden, err.Error())
@@ -116,8 +120,12 @@ func (h *AdminHandler) ChangePassword(c *gin.Context) {
 }
 
 func (h *AdminHandler) SetupTOTP(c *gin.Context) {
-	adminID, _ := c.Get("admin_id")
-	id, _ := adminID.(uint64)
+	adminIDI, _ := c.Get("admin_id")
+	id, ok := adminIDI.(uint64)
+	if !ok {
+		Unauthorized(c, errcode.CodeJWTInvalid, errcode.GetMessage(errcode.CodeJWTInvalid))
+		return
+	}
 
 	secret, url, err := h.adminSvc.GenerateTOTPSecret(id)
 	if err != nil {
@@ -134,8 +142,12 @@ func (h *AdminHandler) ConfirmTOTP(c *gin.Context) {
 		return
 	}
 
-	adminID, _ := c.Get("admin_id")
-	id, _ := adminID.(uint64)
+	adminIDI, _ := c.Get("admin_id")
+	id, ok := adminIDI.(uint64)
+	if !ok {
+		Unauthorized(c, errcode.CodeJWTInvalid, errcode.GetMessage(errcode.CodeJWTInvalid))
+		return
+	}
 
 	if err := h.adminSvc.ConfirmTOTPSetup(id, req.Code); err != nil {
 		BadRequest(c, errcode.CodeTOTPFailed, err.Error())
