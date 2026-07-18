@@ -146,31 +146,33 @@ type ConsumeResult struct {
 }
 
 func (s *KeyService) ConsumeKey(rawKey string, amount int64) (*ConsumeResult, int, error) {
-	key, err := s.FindByRawKey(rawKey)
-	if err != nil {
-		return nil, 0, err
-	}
-	if key == nil {
-		return nil, errcode.CodeKeyNotFound, nil
-	}
-	if key.Status == model.KeyStatusDisabled {
-		return nil, errcode.CodeKeyDisabled, nil
-	}
-	if key.Status == model.KeyStatusUsed {
-		return nil, errcode.CodeKeyExhausted, nil
-	}
 	if amount <= 0 {
 		return nil, 0, fmt.Errorf("invalid amount: %d", amount)
-	}
-	if !key.CanDeduct(amount) {
-		if key.RemainingAmount <= 0 {
-			return nil, errcode.CodeKeyExhausted, nil
-		}
-		return nil, errcode.CodeKeyInsufficient, nil
 	}
 
 	const maxRetries = 3
 	for retry := 0; retry < maxRetries; retry++ {
+		// Re-fetch key each attempt to get the latest version
+		key, err := s.FindByRawKey(rawKey)
+		if err != nil {
+			return nil, 0, err
+		}
+		if key == nil {
+			return nil, errcode.CodeKeyNotFound, nil
+		}
+		if key.Status == model.KeyStatusDisabled {
+			return nil, errcode.CodeKeyDisabled, nil
+		}
+		if key.Status == model.KeyStatusUsed {
+			return nil, errcode.CodeKeyExhausted, nil
+		}
+		if !key.CanDeduct(amount) {
+			if key.RemainingAmount <= 0 {
+				return nil, errcode.CodeKeyExhausted, nil
+			}
+			return nil, errcode.CodeKeyInsufficient, nil
+		}
+
 		tx := s.db.Begin()
 		if tx.Error != nil {
 			return nil, 0, tx.Error
@@ -191,7 +193,7 @@ func (s *KeyService) ConsumeKey(rawKey string, amount int64) (*ConsumeResult, in
 		}
 		if result.RowsAffected == 0 {
 			tx.Rollback()
-			continue // optimistic lock conflict, retry
+			continue // optimistic lock conflict, retry with fresh key
 		}
 
 		var updatedKey model.Key
