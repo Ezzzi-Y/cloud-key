@@ -159,6 +159,9 @@ func (s *KeyService) ConsumeKey(rawKey string, amount int64) (*ConsumeResult, in
 	if key.Status == model.KeyStatusUsed {
 		return nil, errcode.CodeKeyExhausted, nil
 	}
+	if amount <= 0 {
+		return nil, 0, fmt.Errorf("invalid amount: %d", amount)
+	}
 	if !key.CanDeduct(amount) {
 		if key.RemainingAmount <= 0 {
 			return nil, errcode.CodeKeyExhausted, nil
@@ -166,44 +169,46 @@ func (s *KeyService) ConsumeKey(rawKey string, amount int64) (*ConsumeResult, in
 		return nil, errcode.CodeKeyInsufficient, nil
 	}
 
-	tx := s.db.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	const maxRetries = 3
+	for retry := 0; retry < maxRetries; retry++ {
+		tx := s.db.Begin()
+		if tx.Error != nil {
+			return nil, 0, tx.Error
 		}
-	}()
 
-	result := tx.Model(&model.Key{}).
-		Where("id = ? AND version = ?", key.ID, key.Version).
-		Updates(map[string]interface{}{
-			"remaining_amount": gorm.Expr("remaining_amount - ?", amount),
-			"version":          gorm.Expr("version + 1"),
-			"status":           gorm.Expr("CASE WHEN remaining_amount - ? <= 0 THEN 'used' ELSE status END", amount),
-			"used_at":          gorm.Expr("NOW()"),
-		})
+		result := tx.Model(&model.Key{}).
+			Where("id = ? AND version = ?", key.ID, key.Version).
+			Updates(map[string]interface{}{
+				"remaining_amount": gorm.Expr("remaining_amount - ?", amount),
+				"version":          gorm.Expr("version + 1"),
+				"status":           gorm.Expr("CASE WHEN remaining_amount - ? <= 0 THEN 'used' ELSE status END", amount),
+				"used_at":          gorm.Expr("CASE WHEN remaining_amount - ? <= 0 THEN NOW() ELSE used_at END", amount),
+			})
 
-	if result.Error != nil {
-		tx.Rollback()
-		return nil, 0, result.Error
+		if result.Error != nil {
+			tx.Rollback()
+			return nil, 0, result.Error
+		}
+		if result.RowsAffected == 0 {
+			tx.Rollback()
+			continue // optimistic lock conflict, retry
+		}
+
+		var updatedKey model.Key
+		if err := tx.Where("id = ?", key.ID).First(&updatedKey).Error; err != nil {
+			tx.Rollback()
+			return nil, 0, err
+		}
+
+		if err := tx.Commit().Error; err != nil {
+			return nil, 0, err
+		}
+
+		return &ConsumeResult{
+			RemainingAmount: updatedKey.RemainingAmount,
+			Status:          updatedKey.Status,
+			Exhausted:       updatedKey.Status == model.KeyStatusUsed,
+		}, 0, nil
 	}
-	if result.RowsAffected == 0 {
-		tx.Rollback()
-		return s.ConsumeKey(rawKey, amount) // optimistic lock conflict, retry once
-	}
-
-	var updatedKey model.Key
-	if err := tx.Where("id = ?", key.ID).First(&updatedKey).Error; err != nil {
-		tx.Rollback()
-		return nil, 0, err
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return nil, 0, err
-	}
-
-	return &ConsumeResult{
-		RemainingAmount: updatedKey.RemainingAmount,
-		Status:          updatedKey.Status,
-		Exhausted:       updatedKey.Status == model.KeyStatusUsed,
-	}, 0, nil
+	return nil, 0, fmt.Errorf("concurrency conflict after %d retries", maxRetries)
 }
