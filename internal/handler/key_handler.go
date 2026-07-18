@@ -25,7 +25,7 @@ func NewKeyHandler(keySvc *service.KeyService, usageLogSvc *service.UsageLogServ
 func (h *KeyHandler) Status(c *gin.Context) {
 	rawKey := c.Query("sk")
 	if rawKey == "" {
-		BadRequest(c, errcode.CodeKeyNotFound, "缺少卡密参数")
+		BadRequest(c, http.StatusBadRequest, "缺少卡密参数")
 		return
 	}
 
@@ -51,11 +51,16 @@ type ConsumeRequest struct {
 func (h *KeyHandler) Consume(c *gin.Context) {
 	var req ConsumeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		BadRequest(c, errcode.CodeKeyNotFound, "参数错误")
+		BadRequest(c, http.StatusBadRequest, "参数错误")
 		return
 	}
 	if req.Amount <= 0 {
 		req.Amount = 1
+	}
+
+	requestParams := ""
+	if h.recordParams {
+		requestParams = c.Request.URL.RawQuery
 	}
 
 	result, code, err := h.keySvc.ConsumeKey(req.Key, req.Amount)
@@ -72,7 +77,7 @@ func (h *KeyHandler) Consume(c *gin.Context) {
 		h.usageLogSvc.Record(service.RecordUsageParams{
 			KeyID: keyID, KeyAlias: keyAlias, Amount: req.Amount,
 			IP: c.ClientIP(), UserAgent: c.GetHeader("User-Agent"),
-			RequestPath: c.Request.URL.Path, ResponseStatus: code,
+			RequestPath: c.Request.URL.Path, RequestParams: requestParams, ResponseStatus: code,
 		})
 		BadRequest(c, code, errcode.GetMessage(code))
 		return
@@ -86,7 +91,7 @@ func (h *KeyHandler) Consume(c *gin.Context) {
 	h.usageLogSvc.Record(service.RecordUsageParams{
 		KeyID: keyID, KeyAlias: keyAlias, Amount: req.Amount,
 		IP: c.ClientIP(), UserAgent: c.GetHeader("User-Agent"),
-		RequestPath: c.Request.URL.Path, ResponseStatus: http.StatusOK,
+		RequestPath: c.Request.URL.Path, RequestParams: requestParams, ResponseStatus: http.StatusOK,
 	})
 
 	Success(c, result)
@@ -104,7 +109,7 @@ type CreateKeyJSON struct {
 func (h *KeyHandler) CreateKey(c *gin.Context) {
 	var req CreateKeyJSON
 	if err := c.ShouldBindJSON(&req); err != nil {
-		BadRequest(c, errcode.CodeKeyNotFound, "参数错误")
+		BadRequest(c, http.StatusBadRequest, "参数错误")
 		return
 	}
 
@@ -150,7 +155,7 @@ func (h *KeyHandler) ListKeys(c *gin.Context) {
 func (h *KeyHandler) GetKey(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		BadRequest(c, errcode.CodeKeyNotFound, "无效的卡密 ID")
+		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
 		return
 	}
 
@@ -170,13 +175,13 @@ func (h *KeyHandler) GetKey(c *gin.Context) {
 func (h *KeyHandler) UpdateKey(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		BadRequest(c, errcode.CodeKeyNotFound, "无效的卡密 ID")
+		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
 		return
 	}
 
 	var req service.UpdateKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		BadRequest(c, errcode.CodeKeyNotFound, "参数错误")
+		BadRequest(c, http.StatusBadRequest, "参数错误")
 		return
 	}
 
@@ -191,7 +196,7 @@ func (h *KeyHandler) UpdateKey(c *gin.Context) {
 func (h *KeyHandler) DisableKey(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		BadRequest(c, errcode.CodeKeyNotFound, "无效的卡密 ID")
+		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
 		return
 	}
 	if err := h.keySvc.DisableKey(id); err != nil {
@@ -205,7 +210,7 @@ func (h *KeyHandler) DisableKey(c *gin.Context) {
 func (h *KeyHandler) EnableKey(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		BadRequest(c, errcode.CodeKeyNotFound, "无效的卡密 ID")
+		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
 		return
 	}
 	if err := h.keySvc.EnableKey(id); err != nil {
@@ -219,7 +224,7 @@ func (h *KeyHandler) EnableKey(c *gin.Context) {
 func (h *KeyHandler) DeleteKey(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		BadRequest(c, errcode.CodeKeyNotFound, "无效的卡密 ID")
+		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
 		return
 	}
 	if err := h.keySvc.DeleteKey(id); err != nil {
