@@ -104,3 +104,12 @@ func Error(msg string, fields ...zap.Field) {
 		logger.Error(msg, fields...)
 	}
 }
+
+// Fatal 记录 FATAL 级别日志并退出程序
+func Fatal(msg string, fields ...zap.Field) {
+	if logger != nil {
+		logger.Fatal(msg, fields...)
+	} else {
+		os.Exit(1)
+	}
+}
