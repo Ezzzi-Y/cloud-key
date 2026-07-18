@@ -1,0 +1,36 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+
+database:
+  type: "mysql"
+  host: "mysql"
+  port: 3306
+  user: "cloudkey"
+  password: "cloudkey123"
+  dbname: "cloudkey"
+  sslmode: "disable"
+
+log:
+  level: "info"
+  format: "json"
+  output: "stdout"
+  file:
+    path: "logs/cloudkey.log"
+    max_size: 100
+    max_backups: 10
+    max_age: 30
+    compress: true
+
+auth:
+  secret: "your-jwt-secret-change-me"
+  expiration: 24
+
+app:
+  debug: false
+
+security:
+  encryption:
+    enabled: false
+    algorithm: ""
+    key: ""
