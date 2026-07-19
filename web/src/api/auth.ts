@@ -5,16 +5,16 @@ export function login(username: string, password: string) {
   return api.post<unknown, ApiResponse<LoginStep1Data>>('/auth/login', { username, password })
 }
 
-export function verify2FA(userId: number, code: string) {
-  return api.post<unknown, ApiResponse<LoginResponse>>('/auth/verify-2fa', { user_id: userId, code })
+export function verify2FA(userId: number, code: string, preAuthToken: string) {
+  return api.post<unknown, ApiResponse<LoginResponse>>('/auth/verify-2fa', { user_id: userId, code, pre_auth_token: preAuthToken })
 }
 
 export function setupTOTPInit(userId: number) {
   return api.post<unknown, ApiResponse<{ secret: string; url: string }>>('/auth/totp/setup-init', { user_id: userId })
 }
 
-export function confirmTOTPInit(userId: number, code: string) {
-  return api.post<unknown, ApiResponse<LoginResponse>>('/auth/totp/confirm-init', { user_id: userId, code })
+export function confirmTOTPInit(userId: number, code: string, preAuthToken: string) {
+  return api.post<unknown, ApiResponse<LoginResponse>>('/auth/totp/confirm-init', { user_id: userId, code, pre_auth_token: preAuthToken })
 }
 
 export function setupTOTP(role: string) {

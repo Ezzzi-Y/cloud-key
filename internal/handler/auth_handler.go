@@ -4,6 +4,7 @@ import (
 	"CloudKey/internal/errcode"
 	"CloudKey/internal/model"
 	"CloudKey/internal/service"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -27,12 +28,17 @@ type LoginRequest struct {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		BadRequest(c, errcode.CodeInvalidCredentials, "参数错误")
+		Unauthorized(c, errcode.CodeInvalidCredentials, errcode.GetMessage(errcode.CodeInvalidCredentials))
 		return
 	}
 
 	result, err := h.authSvc.Login(req.Username, req.Password)
 	if err != nil {
+		// Account locked
+		if strings.Contains(err.Error(), "锁定") {
+			Forbidden(c, errcode.CodeAccountLocked, errcode.GetMessage(errcode.CodeAccountLocked))
+			return
+		}
 		InternalError(c)
 		return
 	}
@@ -42,44 +48,56 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// TenantID is only available after TOTP verification (in LoginResponse).
-	// For pre-TOTP login logs, tenantID is recorded as nil.
-	h.loginLogSvc.RecordLogin(result.UserID, nil, c.ClientIP(), c.GetHeader("User-Agent"), !result.RequireTOTP)
+	// Record login with tenant ID from the user record.
+	// For TOTP-required users, login is not fully successful until TOTP is verified.
+	h.loginLogSvc.RecordLogin(result.UserID, result.TenantID, c.ClientIP(), c.GetHeader("User-Agent"), !result.RequireTOTP)
 
 	if result.RequireTOTP {
-		Success(c, gin.H{"require_totp": true, "user_id": result.UserID})
+		Success(c, gin.H{
+			"require_totp":  true,
+			"user_id":       result.UserID,
+			"pre_auth_token": result.PreAuthToken,
+		})
 		return
 	}
 
 	Success(c, gin.H{
-		"require_totp": false, "need_setup": true,
-		"user_id": result.UserID, "message": "请设置 TOTP 两步验证",
+		"require_totp":  false,
+		"need_setup":    true,
+		"user_id":       result.UserID,
+		"pre_auth_token": result.PreAuthToken,
+		"message":       "请设置 TOTP 两步验证",
 	})
 }
 
 // ========== 2FA ==========
 
 type Verify2FARequest struct {
-	UserID uint64 `json:"user_id" binding:"required"`
-	Code   string `json:"code" binding:"required"`
+	UserID       uint64 `json:"user_id" binding:"required"`
+	Code         string `json:"code" binding:"required"`
+	PreAuthToken string `json:"pre_auth_token" binding:"required"`
 }
 
 func (h *AuthHandler) Verify2FA(c *gin.Context) {
 	var req Verify2FARequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		BadRequest(c, errcode.CodeTOTPFailed, "参数错误")
+		Unauthorized(c, errcode.CodeTOTPFailed, errcode.GetMessage(errcode.CodeTOTPFailed))
 		return
 	}
 
-	_, resp, err := h.authSvc.VerifyTOTP(req.UserID, req.Code)
+	_, resp, err := h.authSvc.VerifyTOTP(req.UserID, req.Code, req.PreAuthToken)
 	if err != nil {
 		InternalError(c)
 		return
 	}
 	if resp == nil {
+		h.loginLogSvc.RecordLogin(req.UserID, nil, c.ClientIP(), c.GetHeader("User-Agent"), false)
 		Unauthorized(c, errcode.CodeTOTPFailed, errcode.GetMessage(errcode.CodeTOTPFailed))
 		return
 	}
+
+	// Record successful login after TOTP verification
+	h.loginLogSvc.RecordLogin(req.UserID, resp.TenantID, c.ClientIP(), c.GetHeader("User-Agent"), true)
 
 	Success(c, gin.H{
 		"token":      resp.Token,
@@ -108,7 +126,9 @@ func (h *AuthHandler) SetupTOTP(c *gin.Context) {
 }
 
 func (h *AuthHandler) ConfirmTOTP(c *gin.Context) {
-	var req Verify2FARequest
+	var req struct {
+		Code string `json:"code" binding:"required"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		BadRequest(c, errcode.CodeTOTPFailed, "参数错误")
 		return
@@ -134,17 +154,17 @@ func (h *AuthHandler) SetupTOTPPublic(c *gin.Context) {
 		UserID uint64 `json:"user_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		BadRequest(c, errcode.CodeTOTPFailed, "参数错误")
+		Unauthorized(c, errcode.CodeInvalidCredentials, errcode.GetMessage(errcode.CodeInvalidCredentials))
 		return
 	}
 
 	profile, err := h.authSvc.GetProfile(req.UserID)
 	if err != nil || profile == nil {
-		BadRequest(c, errcode.CodeInvalidCredentials, "用户不存在")
+		Unauthorized(c, errcode.CodeInvalidCredentials, errcode.GetMessage(errcode.CodeInvalidCredentials))
 		return
 	}
 	if profile.TotpSetup {
-		BadRequest(c, errcode.CodeTOTPFailed, "TOTP 已设置，请直接登录")
+		Unauthorized(c, errcode.CodeInvalidCredentials, errcode.GetMessage(errcode.CodeInvalidCredentials))
 		return
 	}
 
@@ -158,34 +178,46 @@ func (h *AuthHandler) SetupTOTPPublic(c *gin.Context) {
 
 func (h *AuthHandler) ConfirmTOTPPublic(c *gin.Context) {
 	var req struct {
-		UserID uint64 `json:"user_id" binding:"required"`
-		Code   string `json:"code" binding:"required"`
+		UserID       uint64 `json:"user_id" binding:"required"`
+		Code         string `json:"code" binding:"required"`
+		PreAuthToken string `json:"pre_auth_token" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		BadRequest(c, errcode.CodeTOTPFailed, "参数错误")
+		Unauthorized(c, errcode.CodeTOTPFailed, errcode.GetMessage(errcode.CodeTOTPFailed))
+		return
+	}
+
+	// Validate pre-auth token first
+	if _, err := h.authSvc.ValidatePreAuthToken(req.UserID, req.PreAuthToken); err != nil {
+		Unauthorized(c, errcode.CodePreAuthInvalid, errcode.GetMessage(errcode.CodePreAuthInvalid))
 		return
 	}
 
 	profile, err := h.authSvc.GetProfile(req.UserID)
 	if err != nil || profile == nil {
-		BadRequest(c, errcode.CodeInvalidCredentials, "用户不存在")
+		Unauthorized(c, errcode.CodeTOTPFailed, errcode.GetMessage(errcode.CodeTOTPFailed))
 		return
 	}
 	if profile.TotpSetup {
-		BadRequest(c, errcode.CodeTOTPFailed, "TOTP 已设置，请直接登录")
+		Unauthorized(c, errcode.CodeTOTPFailed, errcode.GetMessage(errcode.CodeTOTPFailed))
 		return
 	}
 
 	if err := h.authSvc.ConfirmTOTPSetup(req.UserID, req.Code); err != nil {
-		BadRequest(c, errcode.CodeTOTPFailed, "验证码错误")
+		BadRequest(c, errcode.CodeTOTPFailed, errcode.GetMessage(errcode.CodeTOTPFailed))
 		return
 	}
 
-	_, resp, err := h.authSvc.VerifyTOTP(req.UserID, req.Code)
+	// TOTP setup confirmed — issue JWT directly (pre-auth token already validated above)
+	resp, err := h.authSvc.GenerateLoginJWT(req.UserID)
 	if err != nil {
+		// TOTP saved but JWT failed — user can re-login
 		Success(c, gin.H{"message": "TOTP 设置成功，请重新登录"})
 		return
 	}
+
+	// Record successful login
+	h.loginLogSvc.RecordLogin(req.UserID, resp.TenantID, c.ClientIP(), c.GetHeader("User-Agent"), true)
 
 	Success(c, gin.H{
 		"token":      resp.Token,

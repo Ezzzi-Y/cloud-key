@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -24,6 +25,7 @@ func SetupRouter(
 	jwtSecret string,
 	db *gorm.DB,
 	saSvc *service.ServiceAccountService,
+	rdb *redis.Client,
 ) *gin.Engine {
 	r := gin.Default()
 	r.Use(middleware.CORSMiddleware())
@@ -55,10 +57,11 @@ func SetupRouter(
 
 	// ========== 认证（公开） ==========
 	{
-		api.POST("/auth/login", authHandler.Login)
-		api.POST("/auth/verify-2fa", authHandler.Verify2FA)
-		api.POST("/auth/totp/setup-init", authHandler.SetupTOTPPublic)
-		api.POST("/auth/totp/confirm-init", authHandler.ConfirmTOTPPublic)
+		authLimiter := middleware.RateLimitMiddleware(rdb, middleware.DefaultRateLimitWindow, middleware.DefaultRateLimitMaxRequests)
+		api.POST("/auth/login", authLimiter, authHandler.Login)
+		api.POST("/auth/verify-2fa", authLimiter, authHandler.Verify2FA)
+		api.POST("/auth/totp/setup-init", authLimiter, authHandler.SetupTOTPPublic)
+		api.POST("/auth/totp/confirm-init", authLimiter, authHandler.ConfirmTOTPPublic)
 	}
 
 	// ========== 公共 API ==========
@@ -122,7 +125,6 @@ func SetupRouter(
 			tenantStats.GET("/overview", tenantStatsHandler.Overview)
 			tenantStats.GET("/trends", tenantStatsHandler.Trends)
 			tenantStats.GET("/top-keys", tenantStatsHandler.TopKeys)
-			tenantStats.GET("/top-ips", tenantStatsHandler.TopIPs)
 		}
 
 		// 使用日志（不 guard）

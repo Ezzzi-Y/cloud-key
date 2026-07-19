@@ -47,8 +47,16 @@ func main() {
 	}
 	log.Info("数据库迁移完成")
 
+	// Redis
+	rdb, err := database.ConnectRedis(cfg.Redis)
+	if err != nil {
+		log.Fatal("Redis 连接失败", zap.Error(err))
+	}
+	defer database.CloseRedis(rdb)
+	log.Info("Redis 连接成功")
+
 	// Services
-	authSvc := service.NewAuthService(db, cfg.Auth.Secret, cfg.Auth.Expiration)
+	authSvc := service.NewAuthService(db, rdb, cfg.Auth.Secret, cfg.Auth.Expiration)
 	keySvc := service.NewKeyService(db)
 	usageLogSvc := service.NewUsageLogService(db)
 	statsSvc := service.NewStatsService(db)
@@ -63,19 +71,13 @@ func main() {
 	}
 
 	// Seed super admin
-	superAdminUser := os.Getenv("SUPER_ADMIN_USERNAME")
-	if superAdminUser == "" {
-		superAdminUser = cfg.Auth.SuperAdminUsername
-	}
+	superAdminUser := cfg.Auth.SuperAdminUsername
 	if superAdminUser == "" {
 		superAdminUser = "admin"
 	}
-	superAdminPass := os.Getenv("SUPER_ADMIN_PASSWORD")
+	superAdminPass := cfg.Auth.SuperAdminPassword
 	if superAdminPass == "" {
-		superAdminPass = cfg.Auth.SuperAdminPassword
-	}
-	if superAdminPass == "" {
-		log.Fatal("请设置 SUPER_ADMIN_PASSWORD 环境变量或在 config.yaml 的 auth.super_admin_password 中配置")
+		log.Fatal("请在 config.yaml 的 auth.super_admin_password 中配置超级管理员密码")
 	}
 	if err := authSvc.SeedSuperAdmin(superAdminUser, superAdminPass); err != nil {
 		log.Warn("创建超级管理员失败", zap.Error(err))
@@ -101,7 +103,7 @@ func main() {
 	r := router.SetupRouter(
 		keyHandler, authHandler, superHandler,
 		tenantKeyHandler, tenantSAHandler, tenantStatsHandler, tenantUsageLogHandler,
-		cfg.Auth.Secret, db, serviceAccountSvc,
+		cfg.Auth.Secret, db, serviceAccountSvc, rdb,
 	)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)

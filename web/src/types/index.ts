@@ -25,6 +25,7 @@ export interface LoginStep1Data {
   require_totp: boolean
   need_setup?: boolean
   user_id: number
+  pre_auth_token: string
 }
 
 export interface Tenant {

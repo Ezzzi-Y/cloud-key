@@ -27,6 +27,11 @@ const (
 	CodeSuperAdminRequired  = 5001
 	CodeTenantAdminRequired = 5002
 
+	// 登录安全相关 6001~6099
+	CodeRateLimit      = 6001
+	CodeAccountLocked  = 6002
+	CodePreAuthInvalid = 6003
+
 	// 系统 9999
 	CodeInternalError = 9999
 )
@@ -47,6 +52,9 @@ var codeMessages = map[int]string{
 	CodeTenantNotFound:        "租户不存在",
 	CodeSuperAdminRequired:    "需要系统管理员权限",
 	CodeTenantAdminRequired:   "需要租户管理员权限",
+	CodeRateLimit:             "请求过于频繁，请稍后再试",
+	CodeAccountLocked:         "账号已被锁定，请稍后再试",
+	CodePreAuthInvalid:        "认证凭证无效或已过期，请重新登录",
 	CodeInternalError:         "系统内部错误",
 }
 
