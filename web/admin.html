@@ -273,7 +273,7 @@ let totpSecret = '';
 async function doSetupTOTP() {
   const errEl = document.getElementById('loginError');
   errEl.classList.add('hidden');
-  const res = await fetch(API + '/api/admin/totp/setup', {
+  const res = await fetch(API + '/api/admin/totp/setup-init', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ admin_id: adminId })
   });
@@ -292,7 +292,7 @@ async function doConfirmTOTP() {
   const errEl = document.getElementById('loginError');
   errEl.classList.add('hidden');
   if (code.length !== 6) { errEl.textContent = '请输入 6 位验证码'; errEl.classList.remove('hidden'); return; }
-  const res = await fetch(API + '/api/admin/totp/confirm', {
+  const res = await fetch(API + '/api/admin/totp/confirm-init', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ admin_id: adminId, code })
   });

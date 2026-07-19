@@ -33,8 +33,8 @@ func SetupRouter(
 	{
 		adminPublic.POST("/login", adminHandler.Login)
 		adminPublic.POST("/login/verify-2fa", adminHandler.Verify2FA)
-		adminPublic.POST("/totp/setup", adminHandler.SetupTOTPPublic)
-		adminPublic.POST("/totp/confirm", adminHandler.ConfirmTOTPPublic)
+		adminPublic.POST("/totp/setup-init", adminHandler.SetupTOTPPublic)
+		adminPublic.POST("/totp/confirm-init", adminHandler.ConfirmTOTPPublic)
 	}
 
 	// 管理后台（需 JWT 认证）
