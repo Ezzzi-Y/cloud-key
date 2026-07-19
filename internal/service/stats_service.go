@@ -58,6 +58,7 @@ type TrendPoint struct {
 func (s *StatsService) GetTrends(period string) ([]TrendPoint, error) {
 	var dateFormat string
 	var startTime time.Time
+	var points []TrendPoint
 	now := time.Now()
 
 	switch period {
@@ -67,17 +68,20 @@ func (s *StatsService) GetTrends(period string) ([]TrendPoint, error) {
 	case "month":
 		dateFormat = "%Y-%m-%d"
 		startTime = now.AddDate(0, -1, 0)
-	default:
+	default: // "today"
 		dateFormat = "%Y-%m-%d %H"
-		startTime = now.AddDate(0, 0, -1)
+		startTime = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	}
 
-	var points []TrendPoint
 	if err := s.db.Model(&model.UsageLog{}).
 		Select("DATE_FORMAT(created_at, ?) as date, COUNT(*) as count", dateFormat).
 		Where("created_at >= ?", startTime).
 		Group("date").Order("date ASC").Scan(&points).Error; err != nil {
 		return nil, err
+	}
+
+	if points == nil {
+		points = make([]TrendPoint, 0)
 	}
 
 	return points, nil
