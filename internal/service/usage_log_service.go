@@ -16,6 +16,7 @@ func NewUsageLogService(db *gorm.DB) *UsageLogService {
 }
 
 type RecordUsageParams struct {
+	TenantID       uint64
 	KeyID          uint64
 	KeyAlias       string
 	Amount         int64
@@ -28,6 +29,7 @@ type RecordUsageParams struct {
 
 func (s *UsageLogService) Record(params RecordUsageParams) error {
 	return s.db.Create(&model.UsageLog{
+		TenantID:       params.TenantID,
 		KeyID:          params.KeyID,
 		KeyAlias:       params.KeyAlias,
 		Amount:         params.Amount,
@@ -49,11 +51,11 @@ type UsageLogQuery struct {
 	EndTime   string `form:"end_time"`
 }
 
-func (s *UsageLogService) ListLogs(query UsageLogQuery) ([]model.UsageLog, int64, error) {
+func (s *UsageLogService) ListLogs(query UsageLogQuery, tenantID uint64) ([]model.UsageLog, int64, error) {
 	var logs []model.UsageLog
 	var total int64
 
-	db := s.db.Model(&model.UsageLog{})
+	db := s.db.Model(&model.UsageLog{}).Where("tenant_id = ?", tenantID)
 	if query.KeyAlias != "" {
 		db = db.Where("key_alias = ?", query.KeyAlias)
 	}
@@ -78,9 +80,9 @@ func (s *UsageLogService) ListLogs(query UsageLogQuery) ([]model.UsageLog, int64
 	return logs, total, nil
 }
 
-func (s *UsageLogService) ExportLogs(query UsageLogQuery) ([]model.UsageLog, error) {
+func (s *UsageLogService) ExportLogs(query UsageLogQuery, tenantID uint64) ([]model.UsageLog, error) {
 	var logs []model.UsageLog
-	db := s.db.Model(&model.UsageLog{})
+	db := s.db.Model(&model.UsageLog{}).Where("tenant_id = ?", tenantID)
 	if query.KeyAlias != "" {
 		db = db.Where("key_alias = ?", query.KeyAlias)
 	}

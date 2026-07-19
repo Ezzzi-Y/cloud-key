@@ -14,6 +14,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	}
 	db.Exec(`CREATE TABLE IF NOT EXISTS keys (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		tenant_id INTEGER NOT NULL DEFAULT 1,
 		alias TEXT NOT NULL,
 		key_hash TEXT NOT NULL UNIQUE,
 		key_prefix TEXT NOT NULL,
@@ -26,10 +27,14 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		created_by TEXT NOT NULL,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		used_at DATETIME
+		used_at DATETIME,
+		expire_at DATETIME,
+		max_usage INTEGER
 	)`)
 	return db
 }
+
+const testTenantID uint64 = 1
 
 func TestCreateKey(t *testing.T) {
 	db := setupTestDB(t)
@@ -37,7 +42,7 @@ func TestCreateKey(t *testing.T) {
 
 	result, err := svc.CreateKey(CreateKeyRequest{
 		Alias: "test-key", BillingMode: "count", InitialAmount: 100, CreatedBy: "admin",
-	})
+	}, testTenantID, "sk-", 32, 4)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +63,7 @@ func TestFindByRawKey(t *testing.T) {
 
 	result, _ := svc.CreateKey(CreateKeyRequest{
 		Alias: "find-test", BillingMode: "count", InitialAmount: 50, CreatedBy: "admin",
-	})
+	}, testTenantID, "sk-", 32, 4)
 
 	found, err := svc.FindByRawKey(result.RawKey)
 	if err != nil {
@@ -91,7 +96,7 @@ func TestGetKeyStatus(t *testing.T) {
 
 	result, _ := svc.CreateKey(CreateKeyRequest{
 		Alias: "status-test", BillingMode: "count", InitialAmount: 10, CreatedBy: "admin",
-	})
+	}, testTenantID, "sk-", 32, 4)
 
 	status, err := svc.GetKeyStatus(result.RawKey)
 	if err != nil {
@@ -115,10 +120,10 @@ func TestListKeys(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		svc.CreateKey(CreateKeyRequest{
 			Alias: "key-" + string(rune('A'+i)), BillingMode: "count", InitialAmount: 10, CreatedBy: "admin",
-		})
+		}, testTenantID, "sk-", 32, 4)
 	}
 
-	keys, total, err := svc.ListKeys(KeyListQuery{Page: 1, PageSize: 3})
+	keys, total, err := svc.ListKeys(KeyListQuery{Page: 1, PageSize: 3}, testTenantID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,22 +141,22 @@ func TestDisableEnableKey(t *testing.T) {
 
 	result, _ := svc.CreateKey(CreateKeyRequest{
 		Alias: "toggle-test", BillingMode: "count", InitialAmount: 10, CreatedBy: "admin",
-	})
+	}, testTenantID, "sk-", 32, 4)
 
-	if err := svc.DisableKey(result.Key.ID); err != nil {
+	if err := svc.DisableKey(result.Key.ID, testTenantID); err != nil {
 		t.Fatal(err)
 	}
 
-	key, _ := svc.GetKeyDetail(result.Key.ID)
+	key, _ := svc.GetKeyDetail(result.Key.ID, testTenantID)
 	if key.Status != "disabled" {
 		t.Errorf("expected disabled, got %s", key.Status)
 	}
 
-	if err := svc.EnableKey(result.Key.ID); err != nil {
+	if err := svc.EnableKey(result.Key.ID, testTenantID); err != nil {
 		t.Fatal(err)
 	}
 
-	key, _ = svc.GetKeyDetail(result.Key.ID)
+	key, _ = svc.GetKeyDetail(result.Key.ID, testTenantID)
 	if key.Status != "unused" {
 		t.Errorf("expected unused, got %s", key.Status)
 	}

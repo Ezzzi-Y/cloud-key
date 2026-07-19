@@ -4,21 +4,32 @@ import (
 	"CloudKey/internal/errcode"
 	"CloudKey/internal/model"
 	"CloudKey/internal/service"
+	"fmt"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
-type ServiceHandler struct {
+type TenantServiceAccountHandler struct {
 	keySvc            *service.KeyService
 	serviceAccountSvc *service.ServiceAccountService
+	db                *gorm.DB
 }
 
-func NewServiceHandler(keySvc *service.KeyService, saSvc *service.ServiceAccountService) *ServiceHandler {
-	return &ServiceHandler{keySvc: keySvc, serviceAccountSvc: saSvc}
+func NewTenantServiceAccountHandler(keySvc *service.KeyService, saSvc *service.ServiceAccountService, db *gorm.DB) *TenantServiceAccountHandler {
+	return &TenantServiceAccountHandler{keySvc: keySvc, serviceAccountSvc: saSvc, db: db}
 }
 
-func (h *ServiceHandler) ServiceCreateKey(c *gin.Context) {
+func (h *TenantServiceAccountHandler) getTenantKeyConfig(tenantID uint64) (string, int, int, error) {
+	var tenant model.Tenant
+	if err := h.db.First(&tenant, tenantID).Error; err != nil {
+		return "", 0, 0, fmt.Errorf("failed to get tenant key config: %w", err)
+	}
+	return tenant.KeyPrefix, tenant.KeyLength, tenant.KeySuffixLength, nil
+}
+
+func (h *TenantServiceAccountHandler) ServiceCreateKey(c *gin.Context) {
 	saI, exists := c.Get("service_account")
 	if !exists {
 		Unauthorized(c, errcode.CodeServiceKeyInvalid, "未认证的服务账号")
@@ -50,11 +61,17 @@ func (h *ServiceHandler) ServiceCreateKey(c *gin.Context) {
 		return
 	}
 
+	prefix, keyLen, suffixLen, err := h.getTenantKeyConfig(sa.TenantID)
+	if err != nil {
+		InternalError(c)
+		return
+	}
+
 	result, err := h.keySvc.CreateKey(service.CreateKeyRequest{
 		Alias: req.Alias, BillingMode: model.KeyBillingMode(req.BillingMode),
 		InitialAmount: req.InitialAmount, CreatedBy: createdBy,
 		ExpireAt: expireAt, MaxUsage: req.MaxUsage,
-	})
+	}, sa.TenantID, prefix, keyLen, suffixLen)
 	if err != nil {
 		InternalError(c)
 		return
@@ -69,7 +86,7 @@ func (h *ServiceHandler) ServiceCreateKey(c *gin.Context) {
 	})
 }
 
-func (h *ServiceHandler) ServiceListKeys(c *gin.Context) {
+func (h *TenantServiceAccountHandler) ServiceListKeys(c *gin.Context) {
 	saI, exists := c.Get("service_account")
 	if !exists {
 		Unauthorized(c, errcode.CodeServiceKeyInvalid, "未认证的服务账号")
@@ -80,10 +97,9 @@ func (h *ServiceHandler) ServiceListKeys(c *gin.Context) {
 		Unauthorized(c, errcode.CodeServiceKeyInvalid, "服务账号信息异常")
 		return
 	}
-	createdBy := "sa:" + sa.Name
 	page, pageSize := pageParams(c)
 
-	keys, total, err := h.keySvc.ListKeysByCreatedBy(createdBy, page, pageSize)
+	keys, total, err := h.keySvc.ListKeysByTenant(sa.TenantID, page, pageSize)
 	if err != nil {
 		InternalError(c)
 		return
@@ -91,8 +107,9 @@ func (h *ServiceHandler) ServiceListKeys(c *gin.Context) {
 	SuccessPaginated(c, keys, total, page, pageSize)
 }
 
-func (h *ServiceHandler) ListServiceAccounts(c *gin.Context) {
-	accounts, err := h.serviceAccountSvc.ListServiceAccounts()
+func (h *TenantServiceAccountHandler) ListServiceAccounts(c *gin.Context) {
+	tenantID := getTenantID(c)
+	accounts, err := h.serviceAccountSvc.ListServiceAccounts(tenantID)
 	if err != nil {
 		InternalError(c)
 		return
@@ -100,7 +117,8 @@ func (h *ServiceHandler) ListServiceAccounts(c *gin.Context) {
 	Success(c, accounts)
 }
 
-func (h *ServiceHandler) CreateServiceAccount(c *gin.Context) {
+func (h *TenantServiceAccountHandler) CreateServiceAccount(c *gin.Context) {
+	tenantID := getTenantID(c)
 	var req struct {
 		Name string `json:"name" binding:"required"`
 	}
@@ -109,7 +127,7 @@ func (h *ServiceHandler) CreateServiceAccount(c *gin.Context) {
 		return
 	}
 
-	account, rawKey, err := h.serviceAccountSvc.CreateServiceAccount(req.Name)
+	account, rawKey, err := h.serviceAccountSvc.CreateServiceAccount(req.Name, tenantID)
 	if err != nil {
 		InternalError(c)
 		return
@@ -121,7 +139,8 @@ func (h *ServiceHandler) CreateServiceAccount(c *gin.Context) {
 	})
 }
 
-func (h *ServiceHandler) ToggleServiceAccount(c *gin.Context) {
+func (h *TenantServiceAccountHandler) ToggleServiceAccount(c *gin.Context) {
+	tenantID := getTenantID(c)
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		BadRequest(c, errcode.CodeServiceKeyInvalid, "无效的服务账号 ID")
@@ -136,21 +155,22 @@ func (h *ServiceHandler) ToggleServiceAccount(c *gin.Context) {
 		return
 	}
 
-	if err := h.serviceAccountSvc.ToggleServiceAccount(id, req.IsActive); err != nil {
+	if err := h.serviceAccountSvc.ToggleServiceAccount(id, tenantID, req.IsActive); err != nil {
 		InternalError(c)
 		return
 	}
 	Success(c, nil)
 }
 
-func (h *ServiceHandler) DeleteServiceAccount(c *gin.Context) {
+func (h *TenantServiceAccountHandler) DeleteServiceAccount(c *gin.Context) {
+	tenantID := getTenantID(c)
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		BadRequest(c, errcode.CodeServiceKeyInvalid, "无效的服务账号 ID")
 		return
 	}
 
-	if err := h.serviceAccountSvc.DeleteServiceAccount(id); err != nil {
+	if err := h.serviceAccountSvc.DeleteServiceAccount(id, tenantID); err != nil {
 		InternalError(c)
 		return
 	}

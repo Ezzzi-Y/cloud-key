@@ -4,6 +4,7 @@ import "time"
 
 type UsageLog struct {
 	ID             uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	TenantID       uint64    `gorm:"type:bigint;index;not null" json:"tenant_id"`
 	KeyID          uint64    `gorm:"type:bigint;index;not null" json:"key_id"`
 	KeyAlias       string    `gorm:"type:varchar(255);not null" json:"key_alias"`
 	Amount         int64     `gorm:"type:bigint;not null" json:"amount"`

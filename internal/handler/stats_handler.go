@@ -13,7 +13,6 @@ func extractDateRange(c *gin.Context) *service.DateRange {
 	if start == "" && end == "" {
 		return nil
 	}
-	// Validate: if both provided, start must be <= end
 	if start != "" && end != "" && start > end {
 		BadRequest(c, errcode.CodeForbidden, "start_date 不能晚于 end_date")
 		c.Abort()
@@ -22,16 +21,17 @@ func extractDateRange(c *gin.Context) *service.DateRange {
 	return &service.DateRange{StartDate: start, EndDate: end}
 }
 
-type StatsHandler struct {
+type TenantStatsHandler struct {
 	statsSvc *service.StatsService
 }
 
-func NewStatsHandler(svc *service.StatsService) *StatsHandler {
-	return &StatsHandler{statsSvc: svc}
+func NewTenantStatsHandler(svc *service.StatsService) *TenantStatsHandler {
+	return &TenantStatsHandler{statsSvc: svc}
 }
 
-func (h *StatsHandler) Dashboard(c *gin.Context) {
-	dash, err := h.statsSvc.GetDashboard()
+func (h *TenantStatsHandler) Dashboard(c *gin.Context) {
+	tenantID := getTenantID(c)
+	dash, err := h.statsSvc.GetDashboard(tenantID)
 	if err != nil {
 		InternalError(c)
 		return
@@ -39,12 +39,13 @@ func (h *StatsHandler) Dashboard(c *gin.Context) {
 	Success(c, dash)
 }
 
-func (h *StatsHandler) Overview(c *gin.Context) {
+func (h *TenantStatsHandler) Overview(c *gin.Context) {
+	tenantID := getTenantID(c)
 	dr := extractDateRange(c)
 	if c.IsAborted() {
 		return
 	}
-	overview, err := h.statsSvc.GetKeyOverview(dr)
+	overview, err := h.statsSvc.GetKeyOverview(dr, tenantID)
 	if err != nil {
 		InternalError(c)
 		return
@@ -52,13 +53,14 @@ func (h *StatsHandler) Overview(c *gin.Context) {
 	Success(c, overview)
 }
 
-func (h *StatsHandler) Trends(c *gin.Context) {
+func (h *TenantStatsHandler) Trends(c *gin.Context) {
+	tenantID := getTenantID(c)
 	period := c.DefaultQuery("period", "today")
 	dr := extractDateRange(c)
 	if c.IsAborted() {
 		return
 	}
-	points, err := h.statsSvc.GetTrends(period, dr)
+	points, err := h.statsSvc.GetTrends(period, dr, tenantID)
 	if err != nil {
 		InternalError(c)
 		return
@@ -66,12 +68,13 @@ func (h *StatsHandler) Trends(c *gin.Context) {
 	Success(c, points)
 }
 
-func (h *StatsHandler) TopKeys(c *gin.Context) {
+func (h *TenantStatsHandler) TopKeys(c *gin.Context) {
+	tenantID := getTenantID(c)
 	dr := extractDateRange(c)
 	if c.IsAborted() {
 		return
 	}
-	items, err := h.statsSvc.GetTopKeys(dr)
+	items, err := h.statsSvc.GetTopKeys(dr, tenantID)
 	if err != nil {
 		InternalError(c)
 		return
@@ -79,12 +82,13 @@ func (h *StatsHandler) TopKeys(c *gin.Context) {
 	Success(c, items)
 }
 
-func (h *StatsHandler) TopIPs(c *gin.Context) {
+func (h *TenantStatsHandler) TopIPs(c *gin.Context) {
+	tenantID := getTenantID(c)
 	dr := extractDateRange(c)
 	if c.IsAborted() {
 		return
 	}
-	items, err := h.statsSvc.GetTopIPs(dr)
+	items, err := h.statsSvc.GetTopIPs(dr, tenantID)
 	if err != nil {
 		InternalError(c)
 		return

@@ -43,10 +43,10 @@ type KeyOverview struct {
 	TotalRemain  int64            `json:"total_remaining"`
 }
 
-func (s *StatsService) GetKeyOverview(dateRange *DateRange) (*KeyOverview, error) {
+func (s *StatsService) GetKeyOverview(dateRange *DateRange, tenantID uint64) (*KeyOverview, error) {
 	ov := &KeyOverview{StatusCounts: make(map[string]int64)}
 
-	keyDB := applyDateFilter(s.db.Model(&model.Key{}), dateRange)
+	keyDB := applyDateFilter(s.db.Model(&model.Key{}), dateRange).Where("tenant_id = ?", tenantID)
 	if err := keyDB.Count(&ov.KeyCount).Error; err != nil {
 		return nil, err
 	}
@@ -56,6 +56,7 @@ func (s *StatsService) GetKeyOverview(dateRange *DateRange) (*KeyOverview, error
 		Count  int64
 	}
 	if err := applyDateFilter(s.db.Model(&model.Key{}), dateRange).
+		Where("tenant_id = ?", tenantID).
 		Select("status, COUNT(*) as count").Group("status").Scan(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -64,10 +65,12 @@ func (s *StatsService) GetKeyOverview(dateRange *DateRange) (*KeyOverview, error
 	}
 
 	if err := applyDateFilter(s.db.Model(&model.Key{}), dateRange).
+		Where("tenant_id = ?", tenantID).
 		Select("COALESCE(SUM(initial_amount), 0)").Scan(&ov.TotalInitial).Error; err != nil {
 		return nil, err
 	}
 	if err := applyDateFilter(s.db.Model(&model.Key{}), dateRange).
+		Where("tenant_id = ?", tenantID).
 		Select("COALESCE(SUM(remaining_amount), 0)").Scan(&ov.TotalRemain).Error; err != nil {
 		return nil, err
 	}
@@ -80,7 +83,7 @@ type TrendPoint struct {
 	Count int64  `json:"count"`
 }
 
-func (s *StatsService) GetTrends(period string, dateRange *DateRange) ([]TrendPoint, error) {
+func (s *StatsService) GetTrends(period string, dateRange *DateRange, tenantID uint64) ([]TrendPoint, error) {
 	var dateFormat string
 	var startTime time.Time
 	var points []TrendPoint
@@ -110,7 +113,8 @@ func (s *StatsService) GetTrends(period string, dateRange *DateRange) ([]TrendPo
 
 	db := s.db.Model(&model.UsageLog{}).
 		Select("DATE_FORMAT(created_at, ?) as date, COUNT(*) as count", dateFormat).
-		Where("created_at >= ?", startTime)
+		Where("created_at >= ?", startTime).
+		Where("tenant_id = ?", tenantID)
 	db = applyDateFilter(db, dateRange)
 
 	if err := db.Group("date").Order("date ASC").Scan(&points).Error; err != nil {
@@ -129,9 +133,9 @@ type TopItem struct {
 	Count int64  `json:"count"`
 }
 
-func (s *StatsService) GetTopKeys(dateRange *DateRange) ([]TopItem, error) {
+func (s *StatsService) GetTopKeys(dateRange *DateRange, tenantID uint64) ([]TopItem, error) {
 	items := make([]TopItem, 0)
-	db := applyDateFilter(s.db.Model(&model.UsageLog{}), dateRange)
+	db := applyDateFilter(s.db.Model(&model.UsageLog{}), dateRange).Where("tenant_id = ?", tenantID)
 	if err := db.
 		Select("key_alias as name, COUNT(*) as count").
 		Group("key_alias").Order("count DESC").Limit(10).Scan(&items).Error; err != nil {
@@ -140,9 +144,9 @@ func (s *StatsService) GetTopKeys(dateRange *DateRange) ([]TopItem, error) {
 	return items, nil
 }
 
-func (s *StatsService) GetTopIPs(dateRange *DateRange) ([]TopItem, error) {
+func (s *StatsService) GetTopIPs(dateRange *DateRange, tenantID uint64) ([]TopItem, error) {
 	items := make([]TopItem, 0)
-	db := applyDateFilter(s.db.Model(&model.UsageLog{}), dateRange)
+	db := applyDateFilter(s.db.Model(&model.UsageLog{}), dateRange).Where("tenant_id = ?", tenantID)
 	if err := db.
 		Select("ip as name, COUNT(*) as count").
 		Group("ip").Order("count DESC").Limit(10).Scan(&items).Error; err != nil {
@@ -159,8 +163,8 @@ type DashboardStats struct {
 	RecentLogs []model.UsageLog `json:"recent_logs"`
 }
 
-func (s *StatsService) GetDashboard() (*DashboardStats, error) {
-	overview, err := s.GetKeyOverview(nil)
+func (s *StatsService) GetDashboard(tenantID uint64) (*DashboardStats, error) {
+	overview, err := s.GetKeyOverview(nil, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -171,18 +175,18 @@ func (s *StatsService) GetDashboard() (*DashboardStats, error) {
 	monthStart := now.AddDate(0, -1, 0)
 
 	var todayCalls, weekCalls, monthCalls int64
-	if err := s.db.Model(&model.UsageLog{}).Where("created_at >= ?", todayStart).Count(&todayCalls).Error; err != nil {
+	if err := s.db.Model(&model.UsageLog{}).Where("created_at >= ?", todayStart).Where("tenant_id = ?", tenantID).Count(&todayCalls).Error; err != nil {
 		return nil, err
 	}
-	if err := s.db.Model(&model.UsageLog{}).Where("created_at >= ?", weekStart).Count(&weekCalls).Error; err != nil {
+	if err := s.db.Model(&model.UsageLog{}).Where("created_at >= ?", weekStart).Where("tenant_id = ?", tenantID).Count(&weekCalls).Error; err != nil {
 		return nil, err
 	}
-	if err := s.db.Model(&model.UsageLog{}).Where("created_at >= ?", monthStart).Count(&monthCalls).Error; err != nil {
+	if err := s.db.Model(&model.UsageLog{}).Where("created_at >= ?", monthStart).Where("tenant_id = ?", tenantID).Count(&monthCalls).Error; err != nil {
 		return nil, err
 	}
 
 	var recentLogs []model.UsageLog
-	if err := s.db.Order("created_at DESC").Limit(20).Find(&recentLogs).Error; err != nil {
+	if err := s.db.Where("tenant_id = ?", tenantID).Order("created_at DESC").Limit(20).Find(&recentLogs).Error; err != nil {
 		return nil, err
 	}
 

@@ -36,11 +36,15 @@ func (s *KeyService) WithConfig(prefix string, keyLen, suffixLen int) *KeyServic
 }
 
 func (s *KeyService) generateRawKey() (string, error) {
-	bytes := make([]byte, s.keyLength)
+	return s.generateRawKeyWithConfig(s.keyPrefix, s.keyLength)
+}
+
+func (s *KeyService) generateRawKeyWithConfig(prefix string, keyLen int) (string, error) {
+	bytes := make([]byte, keyLen)
 	if _, err := rand.Read(bytes); err != nil {
 		return "", fmt.Errorf("generate random: %w", err)
 	}
-	return s.keyPrefix + hex.EncodeToString(bytes), nil
+	return prefix + hex.EncodeToString(bytes), nil
 }
 
 func (s *KeyService) hashKey(rawKey string) string {
@@ -62,13 +66,12 @@ type CreateKeyResult struct {
 	Key    model.Key `json:"key"`
 }
 
-func (s *KeyService) CreateKey(req CreateKeyRequest) (*CreateKeyResult, error) {
-	rawKey, err := s.generateRawKey()
+func (s *KeyService) CreateKey(req CreateKeyRequest, tenantID uint64, keyPrefix string, keyLen, suffixLen int) (*CreateKeyResult, error) {
+	rawKey, err := s.generateRawKeyWithConfig(keyPrefix, keyLen)
 	if err != nil {
 		return nil, err
 	}
 
-	suffixLen := s.suffixLen
 	if len(rawKey) < suffixLen {
 		suffixLen = len(rawKey)
 	}
@@ -77,9 +80,10 @@ func (s *KeyService) CreateKey(req CreateKeyRequest) (*CreateKeyResult, error) {
 	keyHash := s.hashKey(rawKey)
 
 	key := model.Key{
+		TenantID:        tenantID,
 		Alias:           req.Alias,
 		KeyHash:         keyHash,
-		KeyPrefix:       s.keyPrefix,
+		KeyPrefix:       keyPrefix,
 		KeySuffix:       suffix,
 		BillingMode:     req.BillingMode,
 		InitialAmount:   req.InitialAmount,
@@ -227,19 +231,19 @@ type KeyListQuery struct {
 	Search   string `form:"search"`
 }
 
-func (s *KeyService) GetKeyDetail(id uint64) (*model.Key, error) {
+func (s *KeyService) GetKeyDetail(id, tenantID uint64) (*model.Key, error) {
 	var key model.Key
-	if err := s.db.First(&key, id).Error; err != nil {
+	if err := s.db.Where("id = ? AND tenant_id = ?", id, tenantID).First(&key).Error; err != nil {
 		return nil, err
 	}
 	return &key, nil
 }
 
-func (s *KeyService) ListKeys(query KeyListQuery) ([]model.Key, int64, error) {
+func (s *KeyService) ListKeys(query KeyListQuery, tenantID uint64) ([]model.Key, int64, error) {
 	var keys []model.Key
 	var total int64
 
-	db := s.db.Model(&model.Key{})
+	db := s.db.Model(&model.Key{}).Where("tenant_id = ?", tenantID)
 	if query.Status != "" {
 		db = db.Where("status = ?", query.Status)
 	}
@@ -258,11 +262,27 @@ func (s *KeyService) ListKeys(query KeyListQuery) ([]model.Key, int64, error) {
 	return keys, total, nil
 }
 
-func (s *KeyService) ListKeysByCreatedBy(createdBy string, page, pageSize int) ([]model.Key, int64, error) {
+func (s *KeyService) ListKeysByCreatedBy(createdBy string, tenantID uint64, page, pageSize int) ([]model.Key, int64, error) {
 	var keys []model.Key
 	var total int64
 
-	db := s.db.Model(&model.Key{}).Where("created_by = ?", createdBy)
+	db := s.db.Model(&model.Key{}).Where("created_by = ? AND tenant_id = ?", createdBy, tenantID)
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	if err := db.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&keys).Error; err != nil {
+		return nil, 0, err
+	}
+	return keys, total, nil
+}
+
+func (s *KeyService) ListKeysByTenant(tenantID uint64, page, pageSize int) ([]model.Key, int64, error) {
+	var keys []model.Key
+	var total int64
+
+	db := s.db.Model(&model.Key{}).Where("tenant_id = ?", tenantID)
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -279,7 +299,7 @@ type UpdateKeyRequest struct {
 	RemainingAmount *int64  `json:"remaining_amount"`
 }
 
-func (s *KeyService) UpdateKey(id uint64, req UpdateKeyRequest) error {
+func (s *KeyService) UpdateKey(id, tenantID uint64, req UpdateKeyRequest) error {
 	updates := map[string]interface{}{}
 	if req.Alias != nil {
 		updates["alias"] = *req.Alias
@@ -294,19 +314,19 @@ func (s *KeyService) UpdateKey(id uint64, req UpdateKeyRequest) error {
 	if len(updates) == 0 {
 		return nil
 	}
-	return s.db.Model(&model.Key{}).Where("id = ?", id).Updates(updates).Error
+	return s.db.Model(&model.Key{}).Where("id = ? AND tenant_id = ?", id, tenantID).Updates(updates).Error
 }
 
-func (s *KeyService) DisableKey(id uint64) error {
-	return s.db.Model(&model.Key{}).Where("id = ?", id).Update("status", model.KeyStatusDisabled).Error
+func (s *KeyService) DisableKey(id, tenantID uint64) error {
+	return s.db.Model(&model.Key{}).Where("id = ? AND tenant_id = ?", id, tenantID).Update("status", model.KeyStatusDisabled).Error
 }
 
-func (s *KeyService) EnableKey(id uint64) error {
-	return s.db.Model(&model.Key{}).Where("id = ?", id).Update("status", model.KeyStatusUnused).Error
+func (s *KeyService) EnableKey(id, tenantID uint64) error {
+	return s.db.Model(&model.Key{}).Where("id = ? AND tenant_id = ?", id, tenantID).Update("status", model.KeyStatusUnused).Error
 }
 
-func (s *KeyService) DeleteKey(id uint64) error {
-	return s.db.Delete(&model.Key{}, id).Error
+func (s *KeyService) DeleteKey(id, tenantID uint64) error {
+	return s.db.Where("id = ? AND tenant_id = ?", id, tenantID).Delete(&model.Key{}).Error
 }
 
 type ExportKeyItem struct {
@@ -323,9 +343,9 @@ type ExportKeyItem struct {
 	MaxUsage        *int64              `json:"max_usage"`
 }
 
-func (s *KeyService) ExportKeysJSON() ([]ExportKeyItem, error) {
+func (s *KeyService) ExportKeysJSON(tenantID uint64) ([]ExportKeyItem, error) {
 	var keys []model.Key
-	if err := s.db.Order("created_at DESC").Find(&keys).Error; err != nil {
+	if err := s.db.Where("tenant_id = ?", tenantID).Order("created_at DESC").Find(&keys).Error; err != nil {
 		return nil, err
 	}
 
@@ -348,9 +368,18 @@ func (s *KeyService) ExportKeysJSON() ([]ExportKeyItem, error) {
 	return items, nil
 }
 
-func (s *KeyService) ExportKeys() ([]model.Key, error) {
+func (s *KeyService) ExportKeys(tenantID uint64) ([]model.Key, error) {
 	var keys []model.Key
-	if err := s.db.Order("created_at DESC").Find(&keys).Error; err != nil {
+	if err := s.db.Where("tenant_id = ?", tenantID).Order("created_at DESC").Find(&keys).Error; err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
+
+// FindKeysByTenant returns all keys for a given tenant, used by service accounts.
+func (s *KeyService) FindKeysByTenant(tenantID uint64) ([]model.Key, error) {
+	var keys []model.Key
+	if err := s.db.Where("tenant_id = ?", tenantID).Find(&keys).Error; err != nil {
 		return nil, err
 	}
 	return keys, nil

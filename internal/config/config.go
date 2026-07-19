@@ -54,10 +54,10 @@ type FileConfig struct {
 
 // AuthConfig 认证配置
 type AuthConfig struct {
-	Secret        string `yaml:"secret" mapstructure:"secret"`
-	Expiration    int    `yaml:"expiration" mapstructure:"expiration"`
-	AdminUsername string `yaml:"admin_username" mapstructure:"admin_username"`
-	AdminPassword string `yaml:"admin_password" mapstructure:"admin_password"`
+	Secret             string `yaml:"secret" mapstructure:"secret"`
+	Expiration         int    `yaml:"expiration" mapstructure:"expiration"`
+	SuperAdminUsername string `yaml:"super_admin_username" mapstructure:"super_admin_username"`
+	SuperAdminPassword string `yaml:"super_admin_password" mapstructure:"super_admin_password"`
 }
 
 // SecurityConfig 安全配置

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"CloudKey/internal/errcode"
+	"CloudKey/internal/model"
 	"net/http"
 	"strings"
 
@@ -10,8 +11,10 @@ import (
 )
 
 type Claims struct {
-	AdminID  uint64 `json:"admin_id"`
-	Username string `json:"username"`
+	UserID   uint64         `json:"user_id"`
+	Username string         `json:"username"`
+	Role     model.UserRole `json:"role"`
+	TenantID *uint64        `json:"tenant_id"`
 	jwt.RegisteredClaims
 }
 
@@ -45,8 +48,12 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
-		c.Set("admin_id", claims.AdminID)
+		c.Set("user_id", claims.UserID)
 		c.Set("username", claims.Username)
+		c.Set("role", claims.Role)
+		if claims.TenantID != nil {
+			c.Set("tenant_id", *claims.TenantID)
+		}
 		c.Next()
 	}
 }

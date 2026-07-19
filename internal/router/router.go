@@ -2,91 +2,136 @@ package router
 
 import (
 	"CloudKey/internal/handler"
+	"CloudKey/internal/middleware"
+	"CloudKey/internal/service"
+	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func SetupRouter(
 	keyHandler *handler.KeyHandler,
-	usageLogHandler *handler.UsageLogHandler,
-	statsHandler *handler.StatsHandler,
-	adminHandler *handler.AdminHandler,
-	serviceHandler *handler.ServiceHandler,
-	configHandler *handler.ConfigHandler,
-	adminAuthMW gin.HandlerFunc,
-	serviceAuthMW gin.HandlerFunc,
+	authHandler *handler.AuthHandler,
+	superHandler *handler.SuperHandler,
+	tenantKeyHandler *handler.TenantKeyHandler,
+	tenantSAHandler *handler.TenantServiceAccountHandler,
+	tenantStatsHandler *handler.TenantStatsHandler,
+	tenantUsageLogHandler *handler.TenantUsageLogHandler,
+	jwtSecret string,
+	db *gorm.DB,
+	saSvc *service.ServiceAccountService,
 ) *gin.Engine {
 	r := gin.Default()
+	r.Use(middleware.CORSMiddleware())
 
-	// 管理页面
+	// 静态文件
 	r.StaticFile("/", "web/admin.html")
+	r.NoRoute(func(c *gin.Context) {
+		if c.Request.URL.Path != "/" {
+			if !strings.HasPrefix(c.Request.URL.Path, "/api") {
+				http.ServeFile(c.Writer, c.Request, "web/admin.html")
+				return
+			}
+		}
+	})
 
-	// 公开接口（无需认证）
 	api := r.Group("/api")
+
+	// ========== 认证（公开） ==========
 	{
-		api.GET("/key/status", keyHandler.Status)
-		api.POST("/key/consume", keyHandler.Consume)
+		api.POST("/auth/login", authHandler.Login)
+		api.POST("/auth/verify-2fa", authHandler.Verify2FA)
+		api.POST("/auth/totp/setup-init", authHandler.SetupTOTPPublic)
+		api.POST("/auth/totp/confirm-init", authHandler.ConfirmTOTPPublic)
 	}
 
-	// 管理后台登录（无需认证）
-	adminPublic := r.Group("/api/admin")
+	// ========== 公共 API ==========
 	{
-		adminPublic.POST("/login", adminHandler.Login)
-		adminPublic.POST("/login/verify-2fa", adminHandler.Verify2FA)
-		adminPublic.POST("/totp/setup-init", adminHandler.SetupTOTPPublic)
-		adminPublic.POST("/totp/confirm-init", adminHandler.ConfirmTOTPPublic)
+		api.GET("/key/status", keyHandler.Status)   // 无 auth
+		api.POST("/key/consume", keyHandler.Consume) // 无 auth
 	}
 
-	// 管理后台（需 JWT 认证）
-	adminAuth := r.Group("/api/admin")
-	adminAuth.Use(adminAuthMW)
+	// ========== 系统管理员 ==========
+	super := api.Group("/super")
+	super.Use(middleware.AuthMiddleware(jwtSecret))
+	super.Use(middleware.RequireSuperAdmin())
 	{
-		// 管理员自身
-		adminAuth.GET("/profile", adminHandler.Profile)
-		adminAuth.PUT("/password", adminHandler.ChangePassword)
-		adminAuth.POST("/totp/setup", adminHandler.SetupTOTP)
-		adminAuth.POST("/totp/confirm", adminHandler.ConfirmTOTP)
-		adminAuth.GET("/login-logs", adminHandler.LoginLogs)
+		super.GET("/tenants", superHandler.ListTenants)
+		super.POST("/tenants", superHandler.CreateTenant)
+		super.GET("/tenants/:id", superHandler.GetTenant)
+		super.PATCH("/tenants/:id", superHandler.UpdateTenant)
+		super.PATCH("/tenants/:id/reset-password", superHandler.ResetPassword)
 
-		// 卡密管理
-		adminAuth.POST("/keys", keyHandler.CreateKey)
-		adminAuth.GET("/keys", keyHandler.ListKeys)
-		adminAuth.GET("/keys/export", keyHandler.ExportKeys)
-		adminAuth.GET("/export/json", keyHandler.ExportKeysJSON)
-		adminAuth.GET("/keys/:id", keyHandler.GetKey)
-		adminAuth.PATCH("/keys/:id", keyHandler.UpdateKey)
-		adminAuth.PATCH("/keys/:id/disable", keyHandler.DisableKey)
-		adminAuth.PATCH("/keys/:id/enable", keyHandler.EnableKey)
-		adminAuth.DELETE("/keys/:id", keyHandler.DeleteKey)
+		super.GET("/configs", superHandler.GetConfigs)
+		super.PUT("/configs", superHandler.UpdateConfigs)
 
-		// 使用记录
-		adminAuth.GET("/usage-logs", usageLogHandler.ListLogs)
-		adminAuth.GET("/usage-logs/export", usageLogHandler.ExportLogs)
-
-		// 数据统计
-		adminAuth.GET("/stats/dashboard", statsHandler.Dashboard)
-		adminAuth.GET("/stats/overview", statsHandler.Overview)
-		adminAuth.GET("/stats/trends", statsHandler.Trends)
-		adminAuth.GET("/stats/top-keys", statsHandler.TopKeys)
-		adminAuth.GET("/stats/top-ips", statsHandler.TopIPs)
-
-		// 系统管理
-		adminAuth.GET("/configs", configHandler.GetConfigs)
-		adminAuth.PUT("/configs", configHandler.UpdateConfigs)
-
-		// 服务账号管理
-		adminAuth.GET("/service-accounts", serviceHandler.ListServiceAccounts)
-		adminAuth.POST("/service-accounts", serviceHandler.CreateServiceAccount)
-		adminAuth.PATCH("/service-accounts/:id/toggle", serviceHandler.ToggleServiceAccount)
-		adminAuth.DELETE("/service-accounts/:id", serviceHandler.DeleteServiceAccount)
+		super.GET("/profile", authHandler.Profile)
+		super.PUT("/password", authHandler.ChangePassword)
+		super.POST("/totp/setup", authHandler.SetupTOTP)
+		super.POST("/totp/confirm", authHandler.ConfirmTOTP)
+		super.GET("/login-logs", superHandler.LoginLogs)
 	}
 
-	// 服务账号接口（需服务密钥认证）
-	svc := r.Group("/api/service")
-	svc.Use(serviceAuthMW)
+	// ========== 租户管理员 ==========
+	tenant := api.Group("/tenant")
+	tenant.Use(middleware.AuthMiddleware(jwtSecret))
+	tenant.Use(middleware.RequireTenantAdmin(db))
 	{
-		svc.POST("/keys", serviceHandler.ServiceCreateKey)
-		svc.GET("/keys", serviceHandler.ServiceListKeys)
+		// Key 管理（业务操作加 BusinessGuard）
+		tenantKeys := tenant.Group("/keys")
+		tenantKeys.POST("", middleware.TenantBusinessGuard(db), tenantKeyHandler.CreateKey)
+		tenantKeys.GET("", tenantKeyHandler.ListKeys)
+		tenantKeys.GET("/export", tenantKeyHandler.ExportKeys)
+		tenantKeys.GET("/export/json", tenantKeyHandler.ExportKeysJSON)
+		tenantKeys.GET("/:id", tenantKeyHandler.GetKey)
+		tenantKeys.PATCH("/:id", middleware.TenantBusinessGuard(db), tenantKeyHandler.UpdateKey)
+		tenantKeys.PATCH("/:id/disable", middleware.TenantBusinessGuard(db), tenantKeyHandler.DisableKey)
+		tenantKeys.PATCH("/:id/enable", middleware.TenantBusinessGuard(db), tenantKeyHandler.EnableKey)
+		tenantKeys.DELETE("/:id", middleware.TenantBusinessGuard(db), tenantKeyHandler.DeleteKey)
+
+		// 服务账号（全部加 BusinessGuard）
+		tenantSA := tenant.Group("/service-accounts")
+		tenantSA.Use(middleware.TenantBusinessGuard(db))
+		{
+			tenantSA.GET("", tenantSAHandler.ListServiceAccounts)
+			tenantSA.POST("", tenantSAHandler.CreateServiceAccount)
+			tenantSA.PATCH("/:id/toggle", tenantSAHandler.ToggleServiceAccount)
+			tenantSA.DELETE("/:id", tenantSAHandler.DeleteServiceAccount)
+		}
+
+		// 统计（不 guard，expired 可查看）
+		tenantStats := tenant.Group("/stats")
+		{
+			tenantStats.GET("/dashboard", tenantStatsHandler.Dashboard)
+			tenantStats.GET("/overview", tenantStatsHandler.Overview)
+			tenantStats.GET("/trends", tenantStatsHandler.Trends)
+			tenantStats.GET("/top-keys", tenantStatsHandler.TopKeys)
+			tenantStats.GET("/top-ips", tenantStatsHandler.TopIPs)
+		}
+
+		// 使用日志（不 guard）
+		tenantLogs := tenant.Group("/usage-logs")
+		{
+			tenantLogs.GET("", tenantUsageLogHandler.ListLogs)
+			tenantLogs.GET("/export", tenantUsageLogHandler.ExportLogs)
+		}
+
+		// 个人设置
+		tenant.GET("/profile", authHandler.Profile)
+		tenant.PUT("/password", authHandler.ChangePassword)
+		tenant.POST("/totp/setup", authHandler.SetupTOTP)
+		tenant.POST("/totp/confirm", authHandler.ConfirmTOTP)
+		tenant.GET("/login-logs", tenantUsageLogHandler.LoginLogs)
+	}
+
+	// ========== 服务账号 API ==========
+	serviceAPI := api.Group("/service")
+	serviceAPI.Use(middleware.ServiceAuthMiddleware(saSvc, db))
+	{
+		serviceAPI.POST("/keys", tenantSAHandler.ServiceCreateKey)
+		serviceAPI.GET("/keys", tenantSAHandler.ServiceListKeys)
 	}
 
 	return r

@@ -20,6 +20,7 @@ const (
 
 type Key struct {
 	ID              uint64         `gorm:"primaryKey;autoIncrement" json:"id"`
+	TenantID        uint64         `gorm:"type:bigint;index;not null" json:"tenant_id"`
 	Alias           string         `gorm:"type:varchar(255);not null" json:"alias"`
 	KeyHash         string         `gorm:"type:varchar(255);uniqueIndex;not null" json:"-"`
 	KeyPrefix       string         `gorm:"type:varchar(50);not null" json:"key_prefix"`

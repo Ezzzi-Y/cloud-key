@@ -35,13 +35,13 @@ func (s *ServiceAccountService) GenerateServiceKey() (string, error) {
 	return "svc-" + hex.EncodeToString(bytes), nil
 }
 
-func (s *ServiceAccountService) CreateServiceAccount(name string) (*model.ServiceAccount, string, error) {
+func (s *ServiceAccountService) CreateServiceAccount(name string, tenantID uint64) (*model.ServiceAccount, string, error) {
 	rawKey, err := s.GenerateServiceKey()
 	if err != nil {
 		return nil, "", err
 	}
 
-	account := model.ServiceAccount{Name: name, KeyHash: hashServiceKey(rawKey)}
+	account := model.ServiceAccount{Name: name, KeyHash: hashServiceKey(rawKey), TenantID: tenantID}
 	if err := s.db.Create(&account).Error; err != nil {
 		return nil, "", fmt.Errorf("create service account: %w", err)
 	}
@@ -64,18 +64,18 @@ func (s *ServiceAccountService) ValidateServiceKey(serviceKey string) (*model.Se
 	return &account, nil
 }
 
-func (s *ServiceAccountService) ListServiceAccounts() ([]model.ServiceAccount, error) {
+func (s *ServiceAccountService) ListServiceAccounts(tenantID uint64) ([]model.ServiceAccount, error) {
 	var accounts []model.ServiceAccount
-	if err := s.db.Order("created_at DESC").Find(&accounts).Error; err != nil {
+	if err := s.db.Where("tenant_id = ?", tenantID).Order("created_at DESC").Find(&accounts).Error; err != nil {
 		return nil, err
 	}
 	return accounts, nil
 }
 
-func (s *ServiceAccountService) ToggleServiceAccount(id uint64, isActive bool) error {
-	return s.db.Model(&model.ServiceAccount{}).Where("id = ?", id).Update("is_active", isActive).Error
+func (s *ServiceAccountService) ToggleServiceAccount(id, tenantID uint64, isActive bool) error {
+	return s.db.Model(&model.ServiceAccount{}).Where("id = ? AND tenant_id = ?", id, tenantID).Update("is_active", isActive).Error
 }
 
-func (s *ServiceAccountService) DeleteServiceAccount(id uint64) error {
-	return s.db.Delete(&model.ServiceAccount{}, id).Error
+func (s *ServiceAccountService) DeleteServiceAccount(id, tenantID uint64) error {
+	return s.db.Where("id = ? AND tenant_id = ?", id, tenantID).Delete(&model.ServiceAccount{}).Error
 }

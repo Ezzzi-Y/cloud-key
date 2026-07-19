@@ -4,9 +4,10 @@ import "gorm.io/gorm"
 
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
+		&Tenant{},
+		&User{},
 		&Key{},
 		&UsageLog{},
-		&Admin{},
 		&ServiceAccount{},
 		&LoginLog{},
 		&SysConfig{},

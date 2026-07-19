@@ -5,7 +5,6 @@ import (
 	"CloudKey/internal/database"
 	"CloudKey/internal/handler"
 	"CloudKey/internal/log"
-	"CloudKey/internal/middleware"
 	"CloudKey/internal/model"
 	"CloudKey/internal/router"
 	"CloudKey/internal/service"
@@ -49,49 +48,47 @@ func main() {
 	log.Info("数据库迁移完成")
 
 	// Services
+	authSvc := service.NewAuthService(db, cfg.Auth.Secret, cfg.Auth.Expiration)
 	keySvc := service.NewKeyService(db)
 	usageLogSvc := service.NewUsageLogService(db)
 	statsSvc := service.NewStatsService(db)
-	adminSvc := service.NewAdminService(db, cfg.Auth.Secret, cfg.Auth.Expiration)
 	serviceAccountSvc := service.NewServiceAccountService(db)
 	configSvc := service.NewConfigService(db)
 	loginLogSvc := service.NewLoginLogService(db)
+	tenantSvc := service.NewTenantService(db)
 
 	// Init defaults
 	if err := configSvc.InitDefaultConfigs(); err != nil {
 		log.Warn("初始化默认配置失败", zap.Error(err))
 	}
 
-	// 管理员初始凭据：优先环境变量，其次配置文件
-	adminUser := os.Getenv("ADMIN_USERNAME")
-	if adminUser == "" {
-		adminUser = cfg.Auth.AdminUsername
+	// Seed super admin
+	superAdminUser := os.Getenv("SUPER_ADMIN_USERNAME")
+	if superAdminUser == "" {
+		superAdminUser = cfg.Auth.SuperAdminUsername
 	}
-	if adminUser == "" {
-		adminUser = "admin"
+	if superAdminUser == "" {
+		superAdminUser = "admin"
 	}
-	adminPass := os.Getenv("ADMIN_PASSWORD")
-	if adminPass == "" {
-		adminPass = cfg.Auth.AdminPassword
+	superAdminPass := os.Getenv("SUPER_ADMIN_PASSWORD")
+	if superAdminPass == "" {
+		superAdminPass = cfg.Auth.SuperAdminPassword
 	}
-	if adminPass == "" {
-		log.Fatal("请设置 ADMIN_PASSWORD 环境变量或在 config.yaml 的 auth.admin_password 中配置")
+	if superAdminPass == "" {
+		log.Fatal("请设置 SUPER_ADMIN_PASSWORD 环境变量或在 config.yaml 的 auth.super_admin_password 中配置")
 	}
-	if err := adminSvc.SeedAdmin(adminUser, adminPass); err != nil {
-		log.Warn("创建初始管理员失败", zap.Error(err))
+	if err := authSvc.SeedSuperAdmin(superAdminUser, superAdminPass); err != nil {
+		log.Warn("创建超级管理员失败", zap.Error(err))
 	}
 
 	// Handlers
 	keyHandler := handler.NewKeyHandler(keySvc, usageLogSvc, false)
-	usageLogHandler := handler.NewUsageLogHandler(usageLogSvc)
-	statsHandler := handler.NewStatsHandler(statsSvc)
-	adminHandler := handler.NewAdminHandler(adminSvc, loginLogSvc)
-	serviceHandler := handler.NewServiceHandler(keySvc, serviceAccountSvc)
-	configHandler := handler.NewConfigHandler(configSvc)
-
-	// Middleware
-	adminAuthMW := middleware.AuthMiddleware(cfg.Auth.Secret)
-	serviceAuthMW := middleware.ServiceAuthMiddleware(serviceAccountSvc)
+	authHandler := handler.NewAuthHandler(authSvc, loginLogSvc)
+	superHandler := handler.NewSuperHandler(tenantSvc, configSvc, loginLogSvc)
+	tenantKeyHandler := handler.NewTenantKeyHandler(keySvc, usageLogSvc, db, false)
+	tenantSAHandler := handler.NewTenantServiceAccountHandler(keySvc, serviceAccountSvc, db)
+	tenantStatsHandler := handler.NewTenantStatsHandler(statsSvc)
+	tenantUsageLogHandler := handler.NewTenantUsageLogHandler(usageLogSvc, loginLogSvc)
 
 	// Gin mode
 	if cfg.App.Debug {
@@ -102,9 +99,9 @@ func main() {
 
 	// Router
 	r := router.SetupRouter(
-		keyHandler, usageLogHandler, statsHandler,
-		adminHandler, serviceHandler, configHandler,
-		adminAuthMW, serviceAuthMW,
+		keyHandler, authHandler, superHandler,
+		tenantKeyHandler, tenantSAHandler, tenantStatsHandler, tenantUsageLogHandler,
+		cfg.Auth.Secret, db, serviceAccountSvc,
 	)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)

@@ -13,6 +13,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// ========== Public API (no auth, no tenant scope) ==========
+
+// KeyHandler handles public Status and Consume endpoints.
 type KeyHandler struct {
 	keySvc       *service.KeyService
 	usageLogSvc  *service.UsageLogService
@@ -36,7 +39,7 @@ func parseExpireAt(raw *string) (*time.Time, error) {
 	return &t, nil
 }
 
-// Status 查询卡密状态（不扣减）
+// Status queries key status (no deduction).
 func (h *KeyHandler) Status(c *gin.Context) {
 	rawKey := c.Query("sk")
 	if rawKey == "" {
@@ -62,7 +65,7 @@ type ConsumeRequest struct {
 	Amount int64  `json:"amount"`
 }
 
-// Consume 扣减卡密额度
+// Consume deducts key amount (public API, no tenant scope).
 func (h *KeyHandler) Consume(c *gin.Context) {
 	var req ConsumeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -85,12 +88,12 @@ func (h *KeyHandler) Consume(c *gin.Context) {
 	}
 	if code != 0 {
 		key, _ := h.keySvc.FindByRawKey(req.Key)
-		keyID, keyAlias := uint64(0), ""
+		keyID, keyAlias, keyTenantID := uint64(0), "", uint64(0)
 		if key != nil {
-			keyID, keyAlias = key.ID, key.Alias
+			keyID, keyAlias, keyTenantID = key.ID, key.Alias, key.TenantID
 		}
 		h.usageLogSvc.Record(service.RecordUsageParams{
-			KeyID: keyID, KeyAlias: keyAlias, Amount: req.Amount,
+			TenantID: keyTenantID, KeyID: keyID, KeyAlias: keyAlias, Amount: req.Amount,
 			IP: c.ClientIP(), UserAgent: c.GetHeader("User-Agent"),
 			RequestPath: c.Request.URL.Path, RequestParams: requestParams, ResponseStatus: code,
 		})
@@ -99,12 +102,12 @@ func (h *KeyHandler) Consume(c *gin.Context) {
 	}
 
 	key, _ := h.keySvc.FindByRawKey(req.Key)
-	keyID, keyAlias := uint64(0), ""
+	keyID, keyAlias, keyTenantID := uint64(0), "", uint64(0)
 	if key != nil {
-		keyID, keyAlias = key.ID, key.Alias
+		keyID, keyAlias, keyTenantID = key.ID, key.Alias, key.TenantID
 	}
 	h.usageLogSvc.Record(service.RecordUsageParams{
-		KeyID: keyID, KeyAlias: keyAlias, Amount: req.Amount,
+		TenantID: keyTenantID, KeyID: keyID, KeyAlias: keyAlias, Amount: req.Amount,
 		IP: c.ClientIP(), UserAgent: c.GetHeader("User-Agent"),
 		RequestPath: c.Request.URL.Path, RequestParams: requestParams, ResponseStatus: http.StatusOK,
 	})
@@ -112,7 +115,19 @@ func (h *KeyHandler) Consume(c *gin.Context) {
 	Success(c, result)
 }
 
-// ========== 管理员接口 ==========
+// ========== Tenant Admin API (tenant-scoped) ==========
+
+// TenantKeyHandler handles tenant-scoped key management endpoints.
+type TenantKeyHandler struct {
+	keySvc       *service.KeyService
+	usageLogSvc  *service.UsageLogService
+	db           *gorm.DB
+	recordParams bool
+}
+
+func NewTenantKeyHandler(keySvc *service.KeyService, usageLogSvc *service.UsageLogService, db *gorm.DB, recordParams bool) *TenantKeyHandler {
+	return &TenantKeyHandler{keySvc: keySvc, usageLogSvc: usageLogSvc, db: db, recordParams: recordParams}
+}
 
 type CreateKeyJSON struct {
 	Alias         string  `json:"alias" binding:"required"`
@@ -122,19 +137,31 @@ type CreateKeyJSON struct {
 	MaxUsage      *int64  `json:"max_usage"`
 }
 
-// CreateKey 管理员创建卡密
-func (h *KeyHandler) CreateKey(c *gin.Context) {
+func (h *TenantKeyHandler) getTenantKeyConfig(tenantID uint64) (string, int, int, error) {
+	var tenant model.Tenant
+	if err := h.db.First(&tenant, tenantID).Error; err != nil {
+		return "", 0, 0, fmt.Errorf("failed to get tenant key config: %w", err)
+	}
+	return tenant.KeyPrefix, tenant.KeyLength, tenant.KeySuffixLength, nil
+}
+
+// CreateKey creates a key scoped to the authenticated tenant.
+func (h *TenantKeyHandler) CreateKey(c *gin.Context) {
 	var req CreateKeyJSON
 	if err := c.ShouldBindJSON(&req); err != nil {
 		BadRequest(c, http.StatusBadRequest, "参数错误")
 		return
 	}
 
-	adminID, _ := c.Get("admin_id")
-	createdBy := ""
-	if adminID != nil {
-		createdBy = "admin"
+	tenantID := getTenantID(c)
+
+	keyPrefix, keyLen, suffixLen, err := h.getTenantKeyConfig(tenantID)
+	if err != nil {
+		InternalError(c)
+		return
 	}
+
+	createdBy := "tenant_admin"
 
 	expireAt, err := parseExpireAt(req.ExpireAt)
 	if err != nil {
@@ -146,7 +173,7 @@ func (h *KeyHandler) CreateKey(c *gin.Context) {
 		Alias: req.Alias, BillingMode: model.KeyBillingMode(req.BillingMode),
 		InitialAmount: req.InitialAmount, CreatedBy: createdBy,
 		ExpireAt: expireAt, MaxUsage: req.MaxUsage,
-	})
+	}, tenantID, keyPrefix, keyLen, suffixLen)
 	if err != nil {
 		InternalError(c)
 		return
@@ -162,13 +189,15 @@ func (h *KeyHandler) CreateKey(c *gin.Context) {
 	})
 }
 
-// ListKeys 管理员查询卡密列表
-func (h *KeyHandler) ListKeys(c *gin.Context) {
+// ListKeys lists keys scoped to the authenticated tenant.
+func (h *TenantKeyHandler) ListKeys(c *gin.Context) {
+	tenantID := getTenantID(c)
 	page, pageSize := pageParams(c)
+
 	keys, total, err := h.keySvc.ListKeys(service.KeyListQuery{
 		Page: page, PageSize: pageSize,
 		Status: c.Query("status"), Search: c.Query("search"),
-	})
+	}, tenantID)
 	if err != nil {
 		InternalError(c)
 		return
@@ -176,15 +205,17 @@ func (h *KeyHandler) ListKeys(c *gin.Context) {
 	SuccessPaginated(c, keys, total, page, pageSize)
 }
 
-// GetKey 管理员查看卡密详情
-func (h *KeyHandler) GetKey(c *gin.Context) {
+// GetKey retrieves a key detail scoped to the authenticated tenant.
+func (h *TenantKeyHandler) GetKey(c *gin.Context) {
+	tenantID := getTenantID(c)
+
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
 		return
 	}
 
-	key, err := h.keySvc.GetKeyDetail(id)
+	key, err := h.keySvc.GetKeyDetail(id, tenantID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			NotFound(c, errcode.CodeKeyNotFound, errcode.GetMessage(errcode.CodeKeyNotFound))
@@ -196,8 +227,10 @@ func (h *KeyHandler) GetKey(c *gin.Context) {
 	Success(c, key)
 }
 
-// UpdateKey 管理员修改卡密
-func (h *KeyHandler) UpdateKey(c *gin.Context) {
+// UpdateKey updates a key scoped to the authenticated tenant.
+func (h *TenantKeyHandler) UpdateKey(c *gin.Context) {
+	tenantID := getTenantID(c)
+
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
@@ -210,58 +243,66 @@ func (h *KeyHandler) UpdateKey(c *gin.Context) {
 		return
 	}
 
-	if err := h.keySvc.UpdateKey(id, req); err != nil {
+	if err := h.keySvc.UpdateKey(id, tenantID, req); err != nil {
 		InternalError(c)
 		return
 	}
 	Success(c, nil)
 }
 
-// DisableKey 管理员禁用卡密
-func (h *KeyHandler) DisableKey(c *gin.Context) {
+// DisableKey disables a key scoped to the authenticated tenant.
+func (h *TenantKeyHandler) DisableKey(c *gin.Context) {
+	tenantID := getTenantID(c)
+
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
 		return
 	}
-	if err := h.keySvc.DisableKey(id); err != nil {
+	if err := h.keySvc.DisableKey(id, tenantID); err != nil {
 		InternalError(c)
 		return
 	}
 	Success(c, nil)
 }
 
-// EnableKey 管理员启用卡密
-func (h *KeyHandler) EnableKey(c *gin.Context) {
+// EnableKey enables a key scoped to the authenticated tenant.
+func (h *TenantKeyHandler) EnableKey(c *gin.Context) {
+	tenantID := getTenantID(c)
+
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
 		return
 	}
-	if err := h.keySvc.EnableKey(id); err != nil {
+	if err := h.keySvc.EnableKey(id, tenantID); err != nil {
 		InternalError(c)
 		return
 	}
 	Success(c, nil)
 }
 
-// DeleteKey 管理员删除卡密
-func (h *KeyHandler) DeleteKey(c *gin.Context) {
+// DeleteKey deletes a key scoped to the authenticated tenant.
+func (h *TenantKeyHandler) DeleteKey(c *gin.Context) {
+	tenantID := getTenantID(c)
+
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
 		return
 	}
-	if err := h.keySvc.DeleteKey(id); err != nil {
+	if err := h.keySvc.DeleteKey(id, tenantID); err != nil {
 		InternalError(c)
 		return
 	}
 	Success(c, nil)
 }
 
-// ExportKeys 管理员导出卡密
-func (h *KeyHandler) ExportKeys(c *gin.Context) {
-	keys, err := h.keySvc.ExportKeys()
+// ExportKeys exports keys scoped to the authenticated tenant.
+func (h *TenantKeyHandler) ExportKeys(c *gin.Context) {
+	tenantID := getTenantID(c)
+
+	keys, err := h.keySvc.ExportKeys(tenantID)
 	if err != nil {
 		InternalError(c)
 		return
@@ -269,9 +310,11 @@ func (h *KeyHandler) ExportKeys(c *gin.Context) {
 	Success(c, keys)
 }
 
-// ExportKeysJSON 管理员导出卡密（JSON 格式）
-func (h *KeyHandler) ExportKeysJSON(c *gin.Context) {
-	items, err := h.keySvc.ExportKeysJSON()
+// ExportKeysJSON exports keys as JSON scoped to the authenticated tenant.
+func (h *TenantKeyHandler) ExportKeysJSON(c *gin.Context) {
+	tenantID := getTenantID(c)
+
+	items, err := h.keySvc.ExportKeysJSON(tenantID)
 	if err != nil {
 		InternalError(c)
 		return
@@ -281,6 +324,8 @@ func (h *KeyHandler) ExportKeysJSON(c *gin.Context) {
 	}
 	Success(c, items)
 }
+
+// ========== Shared helpers ==========
 
 func pageParams(c *gin.Context) (int, int) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
