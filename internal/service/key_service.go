@@ -309,6 +309,45 @@ func (s *KeyService) DeleteKey(id uint64) error {
 	return s.db.Delete(&model.Key{}, id).Error
 }
 
+type ExportKeyItem struct {
+	ID              uint64              `json:"id"`
+	KeyPrefix       string              `json:"key_prefix"`
+	KeySuffix       string              `json:"key_suffix"`
+	Alias           string              `json:"alias"`
+	BillingMode     model.KeyBillingMode `json:"billing_mode"`
+	InitialAmount   int64               `json:"initial_amount"`
+	RemainingAmount int64               `json:"remaining_amount"`
+	Status          model.KeyStatus     `json:"status"`
+	CreatedAt       time.Time           `json:"created_at"`
+	ExpireAt        *time.Time          `json:"expire_at"`
+	MaxUsage        *int64              `json:"max_usage"`
+}
+
+func (s *KeyService) ExportKeysJSON() ([]ExportKeyItem, error) {
+	var keys []model.Key
+	if err := s.db.Order("created_at DESC").Find(&keys).Error; err != nil {
+		return nil, err
+	}
+
+	items := make([]ExportKeyItem, len(keys))
+	for i, k := range keys {
+		items[i] = ExportKeyItem{
+			ID:              k.ID,
+			KeyPrefix:       k.KeyPrefix,
+			KeySuffix:       k.KeySuffix,
+			Alias:           k.Alias,
+			BillingMode:     k.BillingMode,
+			InitialAmount:   k.InitialAmount,
+			RemainingAmount: k.RemainingAmount,
+			Status:          k.Status,
+			CreatedAt:       k.CreatedAt,
+			ExpireAt:        k.ExpireAt,
+			MaxUsage:        k.MaxUsage,
+		}
+	}
+	return items, nil
+}
+
 func (s *KeyService) ExportKeys() ([]model.Key, error) {
 	var keys []model.Key
 	if err := s.db.Order("created_at DESC").Find(&keys).Error; err != nil {

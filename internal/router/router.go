@@ -52,6 +52,7 @@ func SetupRouter(
 		adminAuth.POST("/keys", keyHandler.CreateKey)
 		adminAuth.GET("/keys", keyHandler.ListKeys)
 		adminAuth.GET("/keys/export", keyHandler.ExportKeys)
+		adminAuth.GET("/export/json", keyHandler.ExportKeysJSON)
 		adminAuth.GET("/keys/:id", keyHandler.GetKey)
 		adminAuth.PATCH("/keys/:id", keyHandler.UpdateKey)
 		adminAuth.PATCH("/keys/:id/disable", keyHandler.DisableKey)

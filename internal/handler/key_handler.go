@@ -259,6 +259,19 @@ func (h *KeyHandler) ExportKeys(c *gin.Context) {
 	Success(c, keys)
 }
 
+// ExportKeysJSON 管理员导出卡密（JSON 格式）
+func (h *KeyHandler) ExportKeysJSON(c *gin.Context) {
+	items, err := h.keySvc.ExportKeysJSON()
+	if err != nil {
+		InternalError(c)
+		return
+	}
+	if items == nil {
+		items = make([]service.ExportKeyItem, 0)
+	}
+	Success(c, items)
+}
+
 func pageParams(c *gin.Context) (int, int) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
