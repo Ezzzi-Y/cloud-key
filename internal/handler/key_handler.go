@@ -6,6 +6,7 @@ import (
 	"CloudKey/internal/service"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -100,9 +101,11 @@ func (h *KeyHandler) Consume(c *gin.Context) {
 // ========== 管理员接口 ==========
 
 type CreateKeyJSON struct {
-	Alias         string `json:"alias" binding:"required"`
-	BillingMode   string `json:"billing_mode" binding:"required"`
-	InitialAmount int64  `json:"initial_amount" binding:"required"`
+	Alias         string  `json:"alias" binding:"required"`
+	BillingMode   string  `json:"billing_mode" binding:"required"`
+	InitialAmount int64   `json:"initial_amount" binding:"required"`
+	ExpireAt      *string `json:"expire_at"`
+	MaxUsage      *int64  `json:"max_usage"`
 }
 
 // CreateKey 管理员创建卡密
@@ -119,9 +122,20 @@ func (h *KeyHandler) CreateKey(c *gin.Context) {
 		createdBy = "admin"
 	}
 
+	var expireAt *time.Time
+	if req.ExpireAt != nil && *req.ExpireAt != "" {
+		t, err := time.Parse("2006-01-02 15:04:05", *req.ExpireAt)
+		if err != nil {
+			BadRequest(c, http.StatusBadRequest, "expire_at 格式错误，应为 YYYY-MM-DD HH:MM:SS")
+			return
+		}
+		expireAt = &t
+	}
+
 	result, err := h.keySvc.CreateKey(service.CreateKeyRequest{
 		Alias: req.Alias, BillingMode: model.KeyBillingMode(req.BillingMode),
 		InitialAmount: req.InitialAmount, CreatedBy: createdBy,
+		ExpireAt: expireAt, MaxUsage: req.MaxUsage,
 	})
 	if err != nil {
 		InternalError(c)
@@ -134,6 +148,7 @@ func (h *KeyHandler) CreateKey(c *gin.Context) {
 		"billing_mode": result.Key.BillingMode, "initial_amount": result.Key.InitialAmount,
 		"remaining_amount": result.Key.RemainingAmount, "status": result.Key.Status,
 		"created_by": result.Key.CreatedBy, "created_at": result.Key.CreatedAt,
+		"expire_at": result.Key.ExpireAt, "max_usage": result.Key.MaxUsage,
 	})
 }
 

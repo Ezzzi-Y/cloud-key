@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -52,6 +53,8 @@ type CreateKeyRequest struct {
 	BillingMode   model.KeyBillingMode `json:"billing_mode"`
 	InitialAmount int64                `json:"initial_amount"`
 	CreatedBy     string               `json:"created_by"`
+	ExpireAt      *time.Time           `json:"expire_at"`
+	MaxUsage      *int64               `json:"max_usage"`
 }
 
 type CreateKeyResult struct {
@@ -84,6 +87,8 @@ func (s *KeyService) CreateKey(req CreateKeyRequest) (*CreateKeyResult, error) {
 		Version:         0,
 		Status:          model.KeyStatusUnused,
 		CreatedBy:       req.CreatedBy,
+		ExpireAt:        req.ExpireAt,
+		MaxUsage:        req.MaxUsage,
 	}
 
 	if err := s.db.Create(&key).Error; err != nil {
