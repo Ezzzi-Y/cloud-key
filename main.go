@@ -62,13 +62,20 @@ func main() {
 		log.Warn("初始化默认配置失败", zap.Error(err))
 	}
 
+	// 管理员初始凭据：优先环境变量，其次配置文件
 	adminUser := os.Getenv("ADMIN_USERNAME")
+	if adminUser == "" {
+		adminUser = cfg.Auth.AdminUsername
+	}
 	if adminUser == "" {
 		adminUser = "admin"
 	}
 	adminPass := os.Getenv("ADMIN_PASSWORD")
 	if adminPass == "" {
-		log.Fatal("ADMIN_PASSWORD 环境变量未设置")
+		adminPass = cfg.Auth.AdminPassword
+	}
+	if adminPass == "" {
+		log.Fatal("请设置 ADMIN_PASSWORD 环境变量或在 config.yaml 的 auth.admin_password 中配置")
 	}
 	if err := adminSvc.SeedAdmin(adminUser, adminPass); err != nil {
 		log.Warn("创建初始管理员失败", zap.Error(err))

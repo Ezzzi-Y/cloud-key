@@ -25,6 +25,8 @@ log:
 auth:
   secret: "your-jwt-secret-change-me"
   expiration: 24
+  admin_username: "admin"       # 初始管理员用户名（环境变量 ADMIN_USERNAME 优先）
+  admin_password: ""            # 初始管理员密码（环境变量 ADMIN_PASSWORD 优先，必填其一）
 
 app:
   debug: false
