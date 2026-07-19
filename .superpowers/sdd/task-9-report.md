@@ -1,70 +1,86 @@
-### Task 9: 卡密服务 — 扣减（并发安全）
+## Task 9 Report: Wire Up Router + Main
 
 **Status:** DONE
-
-**Commits:**
-- `ff7ecbd` feat(service): add ConsumeKey with transaction + optimistic locking
-
-**Build summary:**
-- `gofmt -w internal/service/key_service.go` — no changes needed
-- `go build ./internal/service/` — success, clean build
-
-**Changes:**
-- Added `CloudKey/internal/errcode` to the import block in `internal/service/key_service.go`
-- Appended `ConsumeResult` struct (RemainingAmount, Status, Exhausted) at line 142
-- Appended `ConsumeKey(rawKey, amount)` method at line 148 implementing:
-  - Pre-transaction validation: key existence, status checks (disabled/used), `CanDeduct` guard
-  - Database transaction with optimistic locking via `WHERE id = ? AND version = ?`
-  - Atomic update of remaining_amount, version increment, conditional status flip to 'used'
-  - `NOW()` timestamp for used_at
-  - Single retry on optimistic lock conflict (RowsAffected == 0)
-  - Panic-recovery defer with rollback
-
-**Concerns:** None
 
 ---
 
-### Task 9 Fix Report: ConsumeKey Code Review Issues
+### What Was Done
 
-**Status:** DONE
+1. **Deleted old files:**
+   - `internal/model/admin.go` — old `Admin` model
+   - `internal/service/admin_service.go` — old `AdminService`
+   - `internal/handler/admin_handler.go` — old `AdminHandler`
+   - `internal/service/admin_service_test.go` — orphaned test for deleted service
 
-**Commits:**
-- `45bb308` fix(service): validate amount, cap retry, conditional used_at in ConsumeKey
+2. **Rewrote `internal/router/router.go`:**
+   - New 3-tier route structure: public (`/api/auth`, `/api/key`), super admin (`/api/super`), tenant admin (`/api/tenant`)
+   - Added `KeyHandler` param for public Status/Consume endpoints (separate from `TenantKeyHandler` which lacks those methods)
+   - Added `strings` import for SPA fallback `NoRoute` handler
+   - Added `service.ServiceAccountService` import for `ServiceAuthMiddleware`
+   - Added `ExportKeysJSON` route missing from the task brief
+   - `TenantBusinessGuard` applied only to write operations (create/update/delete), not reads
 
-**Build summary:**
-- `gofmt -w internal/service/key_service.go` — clean, no reformatting needed
-- `go build ./internal/service/` — success, no errors
+3. **Rewrote `main.go`:**
+   - Switched from `AdminService` to `AuthService`
+   - Seeds super admin via `authSvc.SeedSuperAdmin()` using `SUPER_ADMIN_USERNAME` / `SUPER_ADMIN_PASSWORD` env vars
+   - All new handler constructors wired with correct param counts:
+     - `NewTenantKeyHandler(keySvc, usageLogSvc, db, false)` — 4 params (brief had 3)
+     - `NewSuperHandler(tenantSvc, configSvc, loginLogSvc)` — 3 params (brief had 4, incorrectly adding `statsSvc`)
+     - `NewTenantUsageLogHandler(usageLogSvc, loginLogSvc)` — 2 params
+   - `ServiceAuthMiddleware(saSvc, db)` — 2 params
 
-**Fixes applied:**
+4. **Updated `internal/config/config.go`:**
+   - `AuthConfig.AdminUsername` → `AuthConfig.SuperAdminUsername`
+   - `AuthConfig.AdminPassword` → `AuthConfig.SuperAdminPassword`
 
-| Issue | Severity | Description | Fix |
-|-------|----------|-------------|-----|
-| C1 | Critical | No input validation on `amount`; zero/negative values reached SQL, negative amounts would increase balance | Added `if amount <= 0` guard returning `fmt.Errorf("invalid amount: %d", amount)` before `CanDeduct` check (line 162) |
-| I1 | Important | Unbounded recursive retry on optimistic lock conflict (`RowsAffected == 0`) could stack-overflow under contention | Replaced recursive `s.ConsumeKey(rawKey, amount)` call with `for retry := 0; retry < 3; retry++` iterative loop; returns `fmt.Errorf("concurrency conflict after %d retries", maxRetries)` on exhaustion |
-| I2 | Important | `used_at = NOW()` set unconditionally on every deduction, even when key is not exhausted | Changed to `gorm.Expr("CASE WHEN remaining_amount - ? <= 0 THEN NOW() ELSE used_at END", amount)` so timestamp is only set when remaining balance reaches zero |
+5. **Updated `config.yaml.example`:**
+   - `admin_username` → `super_admin_username`
+   - `admin_password` → `super_admin_password`
 
-**Additional improvement:** Removed bare `defer` panic-recovery in favour of explicit `tx.Error` check on `Begin()` inside each iteration, making transaction lifecycle clearer.
+6. **Fixed `internal/model/migrate.go`:**
+   - Removed `&Admin{}` from `AutoMigrate` list (replaced by `User`)
 
 ---
 
-### Task 9 Fix Report: ConsumeKey Retry Loop Dead Code
+### Discrepancies With Task Brief
 
-**Status:** DONE
+The brief's code had several constructor signature mismatches that were corrected:
 
-**Commit:** `36525ae` fix(service): re-fetch key on retry in ConsumeKey
+| Constructor | Brief | Actual |
+|---|---|---|
+| `NewSuperHandler` | 4 params (tenantSvc, configSvc, statsSvc, loginLogSvc) | 3 params (tenantSvc, configSvc, loginLogSvc) — no statsSvc |
+| `NewTenantKeyHandler` | 3 params (keySvc, usageLogSvc, recordParams) | 4 params (keySvc, usageLogSvc, db, recordParams) |
+| Public Status/Consume | Used `tenantKeyHandler` | Required separate `KeyHandler` (TenantKeyHandler lacks those methods) |
 
-**Build summary:**
-- `gofmt -w internal/service/key_service.go` — clean, no reformatting needed
-- `go build ./internal/service/` — success, no errors
+The brief also omitted the `"strings"` and `"CloudKey/internal/service"` imports, and didn't include the `ExportKeysJSON` tenant route.
 
-**Bug fixed:**
+---
 
-| Issue | Severity | Description | Fix |
-|-------|----------|-------------|-----|
-| R1 | Critical | Retry loop never re-fetched the key; stale `key.Version` caused every retry to also fail `RowsAffected == 0`, making the retry mechanism dead code | Moved key fetch (`FindByRawKey`), status checks (`KeyStatusDisabled`, `KeyStatusUsed`), and `CanDeduct` guard inside the `for retry` loop so each iteration operates on a fresh key version |
+### Test Summary
 
-**Structural change:** The `ConsumeKey` method was restructured so that:
-- `amount <= 0` validation remains outside the loop (constant, no re-check needed)
-- Key fetch via `FindByRawKey(rawKey)` + all status/amount validation is performed at the top of each retry iteration
-- On `RowsAffected == 0`, `tx.Rollback()` + `continue` now correctly triggers a fresh key fetch on the next iteration
-- After exhausting all retries, returns `fmt.Errorf("concurrency conflict after %d retries", maxRetries)`
+- `go build ./...` — PASS (zero errors)
+- No `go test` run needed (task is wiring only; deleted orphaned `admin_service_test.go` which referenced removed types)
+
+---
+
+### Files Modified
+
+| File | Action |
+|---|---|
+| `internal/router/router.go` | Rewritten |
+| `main.go` | Rewritten |
+| `internal/config/config.go` | Edited (AuthConfig fields) |
+| `config.yaml.example` | Edited (auth fields) |
+| `internal/model/migrate.go` | Edited (removed Admin) |
+| `internal/model/admin.go` | Deleted |
+| `internal/service/admin_service.go` | Deleted |
+| `internal/handler/admin_handler.go` | Deleted |
+| `internal/service/admin_service_test.go` | Deleted |
+
+### Commit
+
+- `50ae6d9` — `feat: wire up new router and main.go for multi-tenant SaaS`
+
+---
+
+**Concerns:** None. Compilation clean, all signatures verified against actual code.

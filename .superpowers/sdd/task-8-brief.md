@@ -1,175 +1,134 @@
-### Task 8: 卡密服务 — 生成、创建、查询
+### Task 8: 改造 ServiceHandler + StatsHandler + UsageLogHandler（面向 tenant）
 
 **Files:**
-- Create: `internal/service/key_service.go`
+- Rewrite: `internal/handler/service_handler.go`
+- Rewrite: `internal/handler/stats_handler.go`
+- Rewrite: `internal/handler/usage_log_handler.go`
+- Rewrite: `internal/handler/config_handler.go`
 
-**Interfaces:**
-- Produces: `service.KeyService`, `service.NewKeyService(db)`, `service.CreateKeyRequest`, `service.CreateKeyResult`
-- Produces: `GenerateRawKey()`, `CreateKey()`, `FindByRawKey()`, `GetKeyStatus()` 方法
-- Consumes: `model.Key`, `model.KeyBillingMode`, `model.KeyStatus`
+- [ ] **Step 1: 重写 `service_handler.go` — 面向 tenant admin**
 
-- [ ] **Step 1: 创建 service 目录**
-
-```bash
-mkdir -p internal/service
-```
-
-- [ ] **Step 2: 编写 key_service.go（第一部分：生成 + 创建 + 查询）**
+改造所有方法加 tenant scope:
 
 ```go
-package service
-
-import (
-	"CloudKey/internal/model"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
-
-	"gorm.io/gorm"
-)
-
-type KeyService struct {
-	db        *gorm.DB
-	keyPrefix string
-	keyLength int
-	suffixLen int
+type TenantServiceAccountHandler struct {
+	keySvc            *service.KeyService
+	serviceAccountSvc *service.ServiceAccountService
 }
 
-func NewKeyService(db *gorm.DB) *KeyService {
-	return &KeyService{
-		db:        db,
-		keyPrefix: "sk-",
-		keyLength: 16,
-		suffixLen: 4,
-	}
+func NewTenantServiceAccountHandler(keySvc *service.KeyService, saSvc *service.ServiceAccountService) *TenantServiceAccountHandler {
+	return &TenantServiceAccountHandler{keySvc: keySvc, serviceAccountSvc: saSvc}
 }
 
-func (s *KeyService) WithConfig(prefix string, keyLen, suffixLen int) *KeyService {
-	s.keyPrefix = prefix
-	s.keyLength = keyLen
-	s.suffixLen = suffixLen
-	return s
+// ListServiceAccounts
+func (h *TenantServiceAccountHandler) ListServiceAccounts(c *gin.Context) {
+	tenantID := getTenantID(c)
+	accounts, err := h.serviceAccountSvc.ListServiceAccounts(tenantID)
+	// ...
 }
 
-func (s *KeyService) generateRawKey() (string, error) {
-	bytes := make([]byte, s.keyLength)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", fmt.Errorf("generate random: %w", err)
-	}
-	return s.keyPrefix + hex.EncodeToString(bytes), nil
+// CreateServiceAccount
+func (h *TenantServiceAccountHandler) CreateServiceAccount(c *gin.Context) {
+	var req struct { Name string `json:"name" binding:"required"` }
+	// ...
+	tenantID := getTenantID(c)
+	account, rawKey, err := h.serviceAccountSvc.CreateServiceAccount(req.Name, tenantID)
+	// ...
 }
 
-func (s *KeyService) hashKey(rawKey string) string {
-	h := sha256.Sum256([]byte(rawKey))
-	return hex.EncodeToString(h[:])
+// ToggleServiceAccount, DeleteServiceAccount — 类似加 tenantID
+```
+
+Service account 的 key create/list 方法 **ServiceCreateKey, ServiceListKeys** — 保留，使用 `c.Get("service_account")` 获取 sa，从中取 `sa.TenantID`:
+
+```go
+func (h *TenantServiceAccountHandler) ServiceCreateKey(c *gin.Context) {
+	saI, _ := c.Get("service_account")
+	sa := saI.(*model.ServiceAccount)
+	tenantID := sa.TenantID
+	// ...
+	result, err := h.keySvc.CreateKey(req, tenantID, "sk-", 32, 4)
+	// ...
 }
 
-type CreateKeyRequest struct {
-	Alias         string              `json:"alias"`
-	BillingMode   model.KeyBillingMode `json:"billing_mode"`
-	InitialAmount int64               `json:"initial_amount"`
-	CreatedBy     string              `json:"created_by"`
-}
-
-type CreateKeyResult struct {
-	RawKey string    `json:"raw_key"`
-	Key    model.Key `json:"key"`
-}
-
-func (s *KeyService) CreateKey(req CreateKeyRequest) (*CreateKeyResult, error) {
-	rawKey, err := s.generateRawKey()
-	if err != nil {
-		return nil, err
-	}
-
-	suffixLen := s.suffixLen
-	if len(rawKey) < suffixLen {
-		suffixLen = len(rawKey)
-	}
-	suffix := rawKey[len(rawKey)-suffixLen:]
-
-	keyHash := s.hashKey(rawKey)
-
-	key := model.Key{
-		Alias:           req.Alias,
-		KeyHash:         keyHash,
-		KeyPrefix:       s.keyPrefix,
-		KeySuffix:       suffix,
-		BillingMode:     req.BillingMode,
-		InitialAmount:   req.InitialAmount,
-		RemainingAmount: req.InitialAmount,
-		Version:         0,
-		Status:          model.KeyStatusUnused,
-		CreatedBy:       req.CreatedBy,
-	}
-
-	if err := s.db.Create(&key).Error; err != nil {
-		return nil, fmt.Errorf("create key: %w", err)
-	}
-
-	return &CreateKeyResult{RawKey: rawKey, Key: key}, nil
-}
-
-func (s *KeyService) FindByRawKey(rawKey string) (*model.Key, error) {
-	keyHash := s.hashKey(rawKey)
-	var key model.Key
-	if err := s.db.Where("key_hash = ?", keyHash).First(&key).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &key, nil
-}
-
-type KeyStatusResult struct {
-	Alias           string              `json:"alias"`
-	BillingMode     model.KeyBillingMode `json:"billing_mode"`
-	RemainingAmount int64               `json:"remaining_amount"`
-	Status          model.KeyStatus     `json:"status"`
-	CreatedAt       string              `json:"created_at"`
-	UsedAt          *string             `json:"used_at"`
-}
-
-func (s *KeyService) GetKeyStatus(rawKey string) (*KeyStatusResult, error) {
-	key, err := s.FindByRawKey(rawKey)
-	if err != nil {
-		return nil, err
-	}
-	if key == nil {
-		return nil, nil
-	}
-
-	var usedAt *string
-	if key.UsedAt != nil {
-		t := key.UsedAt.Format("2006-01-02 15:04:05")
-		usedAt = &t
-	}
-
-	return &KeyStatusResult{
-		Alias:           key.Alias,
-		BillingMode:     key.BillingMode,
-		RemainingAmount: key.RemainingAmount,
-		Status:          key.Status,
-		CreatedAt:       key.CreatedAt.Format("2006-01-02 15:04:05"),
-		UsedAt:          usedAt,
-	}, nil
+func (h *TenantServiceAccountHandler) ServiceListKeys(c *gin.Context) {
+	saI, _ := c.Get("service_account")
+	sa := saI.(*model.ServiceAccount)
+	tenantID := sa.TenantID
+	// 使用 tenantID 过滤 keys
+	keys, total, err := h.keySvc.ListKeysByTenant(tenantID, page, pageSize)
+	// ...
 }
 ```
 
-- [ ] **Step 3: 格式化并编译**
-
-```bash
-gofmt -w internal/service/key_service.go
-go build ./internal/service/
+需要在 KeyService 新增 `ListKeysByTenant`:
+```go
+func (s *KeyService) ListKeysByTenant(tenantID uint64, page, pageSize int) ([]model.Key, int64, error) {
+	var keys []model.Key
+	var total int64
+	db := s.db.Model(&model.Key{}).Where("tenant_id = ?", tenantID)
+	db.Count(&total)
+	offset := (page - 1) * pageSize
+	db.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&keys)
+	return keys, total, nil
+}
 ```
 
-- [ ] **Step 4: 提交**
+- [ ] **Step 2: 重写 `stats_handler.go` — 面向 tenant admin**
+
+```go
+type TenantStatsHandler struct {
+	statsSvc *service.StatsService
+}
+
+func NewTenantStatsHandler(svc *service.StatsService) *TenantStatsHandler {
+	return &TenantStatsHandler{statsSvc: svc}
+}
+
+func (h *TenantStatsHandler) Dashboard(c *gin.Context) {
+	tenantID := getTenantID(c)
+	dash, err := h.statsSvc.GetDashboard(tenantID)
+	// ...
+}
+
+// Overview, Trends, TopKeys, TopIPs — 全部加 tenantID
+```
+
+- [ ] **Step 3: 重写 `usage_log_handler.go` — 面向 tenant admin**
+
+```go
+type TenantUsageLogHandler struct {
+	usageLogSvc *service.UsageLogService
+}
+
+func (h *TenantUsageLogHandler) ListLogs(c *gin.Context) {
+	tenantID := getTenantID(c)
+	page, pageSize := pageParams(c)
+	logs, total, err := h.usageLogSvc.ListLogs(service.UsageLogQuery{...}, tenantID)
+	// ...
+}
+
+func (h *TenantUsageLogHandler) ExportLogs(c *gin.Context) {
+	tenantID := getTenantID(c)
+	logs, err := h.usageLogSvc.ExportLogs(service.UsageLogQuery{...}, tenantID)
+	// ...
+}
+```
+
+- [ ] **Step 4: 保留 config_handler.go（仅 super_admin 使用，已在 SuperHandler 中重新实现）**
+
+旧 config_handler.go 可保留或等 Task 9 删除。
+
+- [ ] **Step 5: 验证编译**
+
+Run: `cd D:/MyGoProject/CloudKey && go build ./...`
+Expected: 如果有旧文件引用错误，忽略（Task 9 统一处理）
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add internal/service/key_service.go
-git commit -m "feat(service): add KeyService with key generation, creation, and status query"
+git add internal/handler/
+git commit -m "feat: refactor all handlers for tenant-scoped access"
 ```
 
 ---

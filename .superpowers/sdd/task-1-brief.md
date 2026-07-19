@@ -1,80 +1,101 @@
-### Task 1: 安装依赖 + 补充配置
+### Task 1: 新增 Tenant 模型 + 改造 LoginLog 模型
 
 **Files:**
-- Modify: `go.mod`（添加依赖）
-- Modify: `internal/config/config.go`（添加 AppSettings 字段）
+- Create: `internal/model/tenant.go`
+- Modify: `internal/model/login_log.go`
+- Modify: `internal/model/migrate.go`
 
 **Interfaces:**
-- Produces: go.mod 包含 Gin, JWT, TOTP, bcrypt, SQLite(测试) 依赖
-- Produces: `config.AppSettings` struct, `config.AppConfig.App` field
+- Produces: `model.Tenant` struct with fields `ID`, `Name`, `Status`, `ExpireAt`, `KeyPrefix`, `KeyLength`, `KeySuffixLength`, `CreatedAt`, `UpdatedAt`; `TableName() "tenants"`
+- Produces: `model.LoginLog.UserID uint64` (重命名 AdminID), `model.LoginLog.TenantID *uint64` (nullable for super_admin)
 
-- [ ] **Step 1: 添加 Gin 依赖**
-
-```bash
-go get github.com/gin-gonic/gin@latest
-```
-
-- [ ] **Step 2: 添加 JWT 依赖**
-
-```bash
-go get github.com/golang-jwt/jwt/v5@latest
-```
-
-- [ ] **Step 3: 添加 TOTP 依赖**
-
-```bash
-go get github.com/pquerna/otp@latest
-```
-
-- [ ] **Step 4: 添加 bcrypt 依赖**
-
-```bash
-go get golang.org/x/crypto@latest
-```
-
-- [ ] **Step 5: 添加 SQLite 测试依赖**
-
-```bash
-go get gorm.io/driver/sqlite@latest
-```
-
-- [ ] **Step 6: 运行 go mod tidy**
-
-```bash
-go mod tidy
-```
-
-- [ ] **Step 7: 补充 config.go — 添加 AppSettings**
-
-在 `internal/config/config.go` 的 `AppConfig` struct 中添加 `App` 字段：
+- [ ] **Step 1: 创建 `internal/model/tenant.go`**
 
 ```go
-type AppConfig struct {
-	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
-	Log      LogConfig      `yaml:"log"`
-	Auth     AuthConfig     `yaml:"auth"`
-	Security SecurityConfig `yaml:"security"`
-	App      AppSettings    `yaml:"app"`
+package model
+
+import "time"
+
+type TenantStatus string
+
+const (
+	TenantStatusActive   TenantStatus = "active"
+	TenantStatusExpired  TenantStatus = "expired"
+	TenantStatusDisabled TenantStatus = "disabled"
+)
+
+type Tenant struct {
+	ID              uint64       `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name            string       `gorm:"type:varchar(100);uniqueIndex;not null" json:"name"`
+	Status          TenantStatus `gorm:"type:varchar(20);not null;default:active" json:"status"`
+	ExpireAt        *time.Time   `gorm:"default:null" json:"expire_at"`
+	KeyPrefix       string       `gorm:"type:varchar(20);not null;default:sk-" json:"key_prefix"`
+	KeyLength       int          `gorm:"type:int;not null;default:32" json:"key_length"`
+	KeySuffixLength int          `gorm:"type:int;not null;default:4" json:"key_suffix_length"`
+	CreatedAt       time.Time    `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt       time.Time    `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
-// AppSettings 应用级别设置
-type AppSettings struct {
-	Debug bool `yaml:"debug"`
+func (Tenant) TableName() string { return "tenants" }
+```
+
+- [ ] **Step 2: 改造 `internal/model/login_log.go` — AdminID → UserID + 加 TenantID**
+
+```go
+package model
+
+import "time"
+
+type LoginStatus string
+
+const (
+	LoginStatusSuccess LoginStatus = "success"
+	LoginStatusFailed  LoginStatus = "failed"
+)
+
+type LoginLog struct {
+	ID        uint64      `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID    uint64      `gorm:"type:bigint;index;not null" json:"user_id"`
+	TenantID  *uint64     `gorm:"type:bigint;index;default:null" json:"tenant_id"`
+	IP        string      `gorm:"type:varchar(50);not null" json:"ip"`
+	UserAgent string      `gorm:"type:varchar(500)" json:"user_agent"`
+	Status    LoginStatus `gorm:"type:varchar(20);not null" json:"status"`
+	CreatedAt time.Time   `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (LoginLog) TableName() string { return "login_logs" }
+```
+
+- [ ] **Step 3: 更新 `internal/model/migrate.go` — 注册 Tenant**
+
+```go
+package model
+
+import "gorm.io/gorm"
+
+func AutoMigrate(db *gorm.DB) error {
+	return db.AutoMigrate(
+		&Tenant{},
+		&User{},
+		&Key{},
+		&UsageLog{},
+		&ServiceAccount{},
+		&LoginLog{},
+		&SysConfig{},
+	)
 }
 ```
 
-- [ ] **Step 8: 验证编译**
+- [ ] **Step 4: 验证编译通过**
+
+Run: `cd D:/MyGoProject/CloudKey && go build ./...`
+Expected: 编译成功（可能有未引用警告，后续 task 会引用）
+
+- [ ] **Step 5: Commit**
 
 ```bash
-go build ./...
-```
-
-- [ ] **Step 9: 提交**
-
-```bash
-git add go.mod go.sum internal/config/config.go
-git commit -m "feat(deps): add Gin, JWT, TOTP, bcrypt, SQLite(test) deps; add AppSettings config"
+git add internal/model/tenant.go internal/model/login_log.go internal/model/migrate.go
+git commit -m "feat: add Tenant model, update LoginLog with UserID+TenantID"
 ```
 
 ---

@@ -1,12 +1,28 @@
-# Task 6 Report: 数据库自动迁移
+### Task 6 Report
 
-**Status:** DONE
+**Status: DONE**
 
-## Commits
+---
 
-- `aaa25d7` feat(model): add AutoMigrate for all models
+**Commit:** `d8fc77d` feat: add tenant admin pages
 
-## Build Summary
+**Files created (6):**
+- `web/src/pages/tenant/Dashboard.tsx`
+- `web/src/pages/tenant/KeyManagement.tsx`
+- `web/src/pages/tenant/KeyVerify.tsx`
+- `web/src/pages/tenant/UsageLogs.tsx`
+- `web/src/pages/tenant/ServiceAccounts.tsx`
+- `web/src/pages/tenant/Profile.tsx`
 
-- `gofmt -w internal/model/migrate.go` — clean
-- `go build ./internal/model/` — clean, no errors
+---
+
+**Verification results:**
+- `npx tsc --noEmit` -- PASSED (zero errors)
+- `npm run build` -- PASSED (2593 modules, 8.31s)
+
+**Key decisions:**
+- All 6 pages are default exports (required by React.lazy in App.tsx)
+- `updateKey` imported statically at top of KeyManagement.tsx rather than dynamic import()
+- All data transformations use `r.code === 0 ? r.data : fallback` pattern
+- TOTP QR via external qrserver.com API (same as super admin Profile)
+- All UI in Chinese per global constraint

@@ -30,3 +30,47 @@ Base commit: 1b62787 (branch: feat/cloudkey-implementation)
 - Task 19: complete (commits d8521f5..10c3881, gin mode fix applied)
 - Task 20: complete (commit f41c70c)
 - Task 21: pending — 最终验证
+
+## Current Plan: 2026-07-19-frontend-alignment.md
+
+Base commit: cb3f47f (branch: feat/frontend-alignment)
+
+- Task 1: complete (commit 92e8652, review clean)
+- Task 2: complete (commit 532f8bd, review clean)
+- Task 3: complete (commit 512d90a, review clean)
+- Task 4: complete (commit 802413f, review clean)
+- Task 5: complete (commit 1e0cbec, review clean)
+- Task 6: complete (commit cf50558, review clean; minor: silent time.Parse discard in GetTrends)
+- Task 7: complete (commit b2fedea, review clean)
+- Task 8: complete (commit 65deb25, review clean)
+- Task 9: complete (commit 1f17ae7, review clean)
+- Task 10: complete (commit 75b4397, review clean)
+
+## Final Review & Fixes
+
+- Final review: With fixes (1 Critical = by design, 2 Important, 1 Minor fixed)
+- Fix round: commit d951e65 — time.Parse error propagation, expire_at dedup, dead code removal
+- Remaining from review (deferred by design): expire_at/max_usage enforcement in ConsumeKey, route naming, unpaginated export, frontend fetch vs axios
+
+## Current Plan: 2026-07-19-saas-multi-tenant.md
+
+Base commit: 85a5581 (branch: main)
+
+- Task 1: complete (commit c88c1e3, review clean)
+- Task 2: complete (commit 9e428ee, review clean)
+- Task 3: complete (commit eece8b0, review approved; noted: 4 Minor — uint64 vs GetInt64 type mismatch, service_auth HTTP 200 for tenant errors, CodeTenantExpired used for all non-active, double DB query when chained)
+- Task 4: complete (commit 5e9e360, review approved; noted: dead code generateTempToken, VerifyOTP triple return, SeedSuperAdmin TOCTOU race)
+- Task 5: complete (commits 263166e..764f838, fix round: ConfirmTOTPPublic error check; noted: I-2 login log design concern matches brief, M-1 dead helpers)
+- Task 6: complete (commit 0ea9d5a, review clean; full tenant isolation audit passed — all 30 DB queries verified)
+- Task 7: complete (commits bff4431..ea043e5, 2 fix rounds: crypto/rand + getTenantKeyConfig error propagation; noted: N+1 query in ListTenants deferred, username race condition has DB constraint guard)
+- Task 8: complete (commits 3f7389a..779c41d, fix round: use ListKeysByTenant per spec; noted: LoginLogs addition accepted)
+- Task 9: complete (commit 50ae6d9, review clean; brief constructor mismatches correctly adapted)
+- Task 10: complete (no commit needed, all verification passed: build PASS, 15/15 tests PASS, go vet PASS, routes verified, tenant_id confirmed in all models)
+
+## Final Review
+
+- Final whole-branch review: **Ready to merge** (13 commits, 122KB diff, 0 Critical/Important findings)
+- Security: tenant isolation verified across all 30+ DB queries
+- Architecture: spec-compliant (middleware chain, route structure, error codes, data model)
+- Integration: all wiring correct, old code fully deleted
+- One tracked follow-up: `ServiceCreateKey` hardcoded key config TODO (non-blocking)

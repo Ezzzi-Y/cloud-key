@@ -378,7 +378,7 @@ router.NoRoute(func(c *gin.Context) {
 
 ### 创建租户
 1. 系统管理员填写租户名称
-2. 系统自动生成管理员账号（格式：`{tenant_name}_admin`，若冲突则加数字后缀，如 `myapp_admin2`）和随机初始密码（16 位，含大小写字母、数字、特殊字符）
+2. 系统自动生成管理员账号（格式：`{tenant_name}_xxxx`，如 `myapp_asdasd`）和，账号字符随机6位。随机初始密码（16 位，含大小写字母、数字、特殊字符）
 3. 用平台默认配置初始化租户的 key_prefix / key_length / key_suffix_length
 4. 返回账号密码给系统管理员，由其线下分发
 

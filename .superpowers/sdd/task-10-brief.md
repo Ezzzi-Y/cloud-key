@@ -1,125 +1,139 @@
-### Task 10: 卡密服务 — 管理操作
+### Task 10: Add JSON Export Endpoint
 
 **Files:**
-- Modify: `internal/service/key_service.go`
+- Modify: `internal/service/key_service.go` (add ExportKeysJSON method)
+- Modify: `internal/handler/key_handler.go` (add ExportKeysJSON handler)
+- Modify: `internal/router/router.go` (register new route)
 
 **Interfaces:**
-- Produces: `ListKeys()`, `ListKeysByCreatedBy()`, `GetKeyDetail()`, `UpdateKey()`, `DisableKey()`, `EnableKey()`, `DeleteKey()`, `ExportKeys()`
+- Produces: `GET /api/admin/export/json` returns `[{id, key_prefix+key_suffix, alias, billing_mode, initial_amount, remaining_amount, status, created_at, expire_at, max_usage}, ...]`
+- Note: The export intentionally does NOT return `raw_key` (it was never stored). It returns `key_prefix + key_suffix` as a visual identifier.
 
-- [ ] **Step 1: 在 key_service.go 末尾追加管理操作**
+- [ ] **Step 1: Add ExportKeysJSON method to service**
+
+In `internal/service/key_service.go`, add:
 
 ```go
-type KeyListQuery struct {
-	Page     int    `form:"page"`
-	PageSize int    `form:"page_size"`
-	Status   string `form:"status"`
-	Search   string `form:"search"`
+type ExportKeyItem struct {
+	ID              uint64              `json:"id"`
+	KeyPrefix       string              `json:"key_prefix"`
+	KeySuffix       string              `json:"key_suffix"`
+	Alias           string              `json:"alias"`
+	BillingMode     model.KeyBillingMode `json:"billing_mode"`
+	InitialAmount   int64               `json:"initial_amount"`
+	RemainingAmount int64               `json:"remaining_amount"`
+	Status          model.KeyStatus     `json:"status"`
+	CreatedAt       time.Time           `json:"created_at"`
+	ExpireAt        *time.Time          `json:"expire_at"`
+	MaxUsage        *int64              `json:"max_usage"`
 }
 
-func (s *KeyService) GetKeyDetail(id uint64) (*model.Key, error) {
-	var key model.Key
-	if err := s.db.First(&key, id).Error; err != nil {
-		return nil, err
-	}
-	return &key, nil
-}
-
-func (s *KeyService) ListKeys(query KeyListQuery) ([]model.Key, int64, error) {
-	var keys []model.Key
-	var total int64
-
-	db := s.db.Model(&model.Key{})
-	if query.Status != "" {
-		db = db.Where("status = ?", query.Status)
-	}
-	if query.Search != "" {
-		db = db.Where("alias LIKE ? OR key_suffix LIKE ?", "%"+query.Search+"%", "%"+query.Search+"%")
-	}
-
-	if err := db.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	offset := (query.Page - 1) * query.PageSize
-	if err := db.Order("created_at DESC").Offset(offset).Limit(query.PageSize).Find(&keys).Error; err != nil {
-		return nil, 0, err
-	}
-	return keys, total, nil
-}
-
-func (s *KeyService) ListKeysByCreatedBy(createdBy string, page, pageSize int) ([]model.Key, int64, error) {
-	var keys []model.Key
-	var total int64
-
-	db := s.db.Model(&model.Key{}).Where("created_by = ?", createdBy)
-	if err := db.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	offset := (page - 1) * pageSize
-	if err := db.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&keys).Error; err != nil {
-		return nil, 0, err
-	}
-	return keys, total, nil
-}
-
-type UpdateKeyRequest struct {
-	Alias           *string `json:"alias"`
-	RemainingAmount *int64  `json:"remaining_amount"`
-}
-
-func (s *KeyService) UpdateKey(id uint64, req UpdateKeyRequest) error {
-	updates := map[string]interface{}{}
-	if req.Alias != nil {
-		updates["alias"] = *req.Alias
-	}
-	if req.RemainingAmount != nil {
-		updates["remaining_amount"] = *req.RemainingAmount
-		updates["status"] = gorm.Expr(
-			"CASE WHEN ? > 0 AND status = 'used' THEN 'unused' ELSE status END",
-			*req.RemainingAmount,
-		)
-	}
-	if len(updates) == 0 {
-		return nil
-	}
-	return s.db.Model(&model.Key{}).Where("id = ?", id).Updates(updates).Error
-}
-
-func (s *KeyService) DisableKey(id uint64) error {
-	return s.db.Model(&model.Key{}).Where("id = ?", id).Update("status", model.KeyStatusDisabled).Error
-}
-
-func (s *KeyService) EnableKey(id uint64) error {
-	return s.db.Model(&model.Key{}).Where("id = ?", id).Update("status", model.KeyStatusUnused).Error
-}
-
-func (s *KeyService) DeleteKey(id uint64) error {
-	return s.db.Delete(&model.Key{}, id).Error
-}
-
-func (s *KeyService) ExportKeys() ([]model.Key, error) {
+func (s *KeyService) ExportKeysJSON() ([]ExportKeyItem, error) {
 	var keys []model.Key
 	if err := s.db.Order("created_at DESC").Find(&keys).Error; err != nil {
 		return nil, err
 	}
-	return keys, nil
+
+	items := make([]ExportKeyItem, len(keys))
+	for i, k := range keys {
+		items[i] = ExportKeyItem{
+			ID:              k.ID,
+			KeyPrefix:       k.KeyPrefix,
+			KeySuffix:       k.KeySuffix,
+			Alias:           k.Alias,
+			BillingMode:     k.BillingMode,
+			InitialAmount:   k.InitialAmount,
+			RemainingAmount: k.RemainingAmount,
+			Status:          k.Status,
+			CreatedAt:       k.CreatedAt,
+			ExpireAt:        k.ExpireAt,
+			MaxUsage:        k.MaxUsage,
+		}
+	}
+	return items, nil
 }
 ```
 
-- [ ] **Step 2: 格式化并编译**
+- [ ] **Step 2: Add ExportKeysJSON handler**
 
-```bash
-gofmt -w internal/service/key_service.go
-go build ./internal/service/
+In `internal/handler/key_handler.go`, add:
+
+```go
+func (h *KeyHandler) ExportKeysJSON(c *gin.Context) {
+	items, err := h.keySvc.ExportKeysJSON()
+	if err != nil {
+		InternalError(c)
+		return
+	}
+	if items == nil {
+		items = make([]service.ExportKeyItem, 0)
+	}
+	Success(c, items)
+}
 ```
 
-- [ ] **Step 3: 提交**
+- [ ] **Step 3: Register the new route**
+
+In `internal/router/router.go`, add the new endpoint inside the `adminAuth` group, near the existing export route:
+
+```go
+adminAuth.GET("/keys/export", keyHandler.ExportKeys)
+adminAuth.GET("/export/json", keyHandler.ExportKeysJSON)  // new
+```
+
+- [ ] **Step 4: Verify compilation**
+
+Run: `go build ./...`
+Expected: no errors
+
+- [ ] **Step 5: Manual test**
 
 ```bash
-git add internal/service/key_service.go
-git commit -m "feat(service): add key management operations (list, update, disable, enable, delete, export)"
+# JSON export
+curl -H "Authorization: Bearer <token>" http://localhost:port/api/admin/export/json
+
+# Expected: array of objects with id, key_prefix, key_suffix, alias, etc.
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add internal/service/key_service.go internal/handler/key_handler.go internal/router/router.go
+git commit -m "feat(export): add GET /api/admin/export/json endpoint"
 ```
 
 ---
 
+## Self-Review
+
+**1. Spec coverage check:**
+
+| Spec Requirement | Task(s) |
+|---|---|
+| Standardize error format `{code, message, data}` | Already done (existing code). Task 1, 2 handle HTTP status alignment. |
+| JWT auth returns HTTP 401 | Task 1 |
+| Frontend handles 401 + error format | Task 2 |
+| Overview: `total_keys` → `key_count` | Task 3 |
+| Trends: `today` period returns data | Task 4 |
+| TopKeys/TopIPs: return `[]` not `null` | Task 5 |
+| Date range: Overview accepts `start_date`/`end_date` | Task 6, 7 |
+| Date range: Trends accepts `start_date`/`end_date` | Task 6, 7 |
+| Date range: TopKeys accepts `start_date`/`end_date` | Task 6, 7 |
+| Date range: TopIPs accepts `start_date`/`end_date` | Task 6, 7 |
+| Date range validation: start > end returns 400 | Task 7 (extractDateRange validates and calls c.Abort()) |
+| CreateKey: add `expire_at` optional param | Task 9 |
+| CreateKey: add `max_usage` optional param | Task 9 |
+| CreateKey: auto-set status to unused | Already done (existing code sets `Status: model.KeyStatusUnused`) |
+| Export: add `GET /api/admin/export/json` | Task 10 |
+| Export: return prefix+suffix, alias, billing_mode, amounts, status, created_at | Task 10 |
+| Error codes: 1001~1999 key, 2001~2999 auth, 3001~3999 service, 9999 system | Already done |
+
+All spec requirements are covered. No gaps remain.
+
+**2. Placeholder scan:** No TBD/TODO/placeholders found.
+
+**3. Type consistency check:**
+- `KeyOverview.KeyCount` (json `key_count`) — used consistently in service + frontend
+- `DateRange.StartDate/EndDate` — used consistently in service + handler
+- `ExportKeyItem` — fields match spec exactly
+- `CreateKeyRequest.ExpireAt *time.Time` / `MaxUsage *int64` — consistent across handler + service
