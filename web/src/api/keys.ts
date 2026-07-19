@@ -38,7 +38,7 @@ export function deleteKey(id: number) {
 }
 
 export function exportKeysCSV() {
-  return api.get('/tenant/keys/export', { responseType: 'blob' })
+  return api.get('/tenant/keys/export', { responseType: 'text' })
 }
 
 export function exportKeysJSON() {

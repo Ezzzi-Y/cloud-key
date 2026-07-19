@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getTenant, updateTenant, resetTenantPassword, type UpdateTenantRequest } from '@/api/tenants'
+import type { TenantListItem } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,18 +11,6 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { ArrowLeft } from 'lucide-react'
-
-interface Tenant {
-  id: number
-  name: string
-  status: string
-  expire_at: string
-  key_count: number
-  user_count: number
-  key_prefix: string
-  key_length: number
-  key_suffix_length: number
-}
 
 export default function TenantDetail() {
   const { id } = useParams<{ id: string }>()
@@ -38,15 +27,14 @@ export default function TenantDetail() {
 
   const { data: tenant, isLoading } = useQuery({
     queryKey: ['tenant', id],
-    queryFn: () => getTenant(Number(id)).then((r) => (r.code === 0 ? r.data : null)),
+    queryFn: () => getTenant(Number(id)).then((r) => (r.code === 0 ? (r.data as TenantListItem) : null)),
     enabled: !!id,
   })
 
   useEffect(() => {
     if (tenant) {
-      const t = tenant as Tenant
-      setName(t.name); setStatus(t.status); setExpireAt(t.expire_at || '')
-      setKeyPrefix(t.key_prefix); setKeyLength(t.key_length); setKeySuffixLength(t.key_suffix_length)
+      setName(tenant.name); setStatus(tenant.status); setExpireAt(tenant.expire_at || '')
+      setKeyPrefix(tenant.key_prefix); setKeyLength(tenant.key_length); setKeySuffixLength(tenant.key_suffix_length)
     }
   }, [tenant])
 
@@ -64,7 +52,7 @@ export default function TenantDetail() {
   const resetMutation = useMutation({
     mutationFn: () => resetTenantPassword(Number(id)),
     onSuccess: (res) => {
-      if (res.code === 0) { setNewPassword((res.data as any).new_password); toast({ title: '成功', description: '密码已重置' }) }
+      if (res.code === 0) { setNewPassword((res.data as { new_password: string }).new_password); toast({ title: '成功', description: '密码已重置' }) }
       else toast({ title: '错误', description: res.message, variant: 'destructive' })
     },
   })
@@ -78,17 +66,15 @@ export default function TenantDetail() {
   if (isLoading) return <div className="flex items-center justify-center py-12">加载中...</div>
   if (!tenant) return <div className="py-12 text-center text-muted-foreground">租户不存在</div>
 
-  const t = tenant as Tenant
-
   return (
     <div className="space-y-6">
       <Button variant="ghost" onClick={() => navigate('/super/tenants')}>
         <ArrowLeft className="mr-2 h-4 w-4" />返回列表
       </Button>
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">租户详情：{t.name}</h2>
-        <Badge variant={t.status === 'active' ? 'success' : t.status === 'expired' ? 'warning' : 'destructive'}>
-          {t.status === 'active' ? '活跃' : t.status === 'expired' ? '已过期' : '已禁用'}
+        <h2 className="text-2xl font-bold">租户详情：{tenant.name}</h2>
+        <Badge variant={tenant.status === 'active' ? 'success' : tenant.status === 'expired' ? 'warning' : 'destructive'}>
+          {tenant.status === 'active' ? '活跃' : tenant.status === 'expired' ? '已过期' : '已禁用'}
         </Badge>
       </div>
       <Card>
@@ -126,8 +112,8 @@ export default function TenantDetail() {
         <CardHeader><CardTitle>统计信息</CardTitle></CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2">
-            <div><span className="text-muted-foreground">Key 总数：</span><span className="font-bold">{t.key_count}</span></div>
-            <div><span className="text-muted-foreground">用户数：</span><span className="font-bold">{t.user_count}</span></div>
+            <div><span className="text-muted-foreground">Key 总数：</span><span className="font-bold">{tenant.key_count}</span></div>
+            <div><span className="text-muted-foreground">用户数：</span><span className="font-bold">{tenant.user_count}</span></div>
           </div>
         </CardContent>
       </Card>

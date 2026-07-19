@@ -68,19 +68,38 @@ export default function KeyManagement() {
   const closeCreate = () => { setRawKey(''); setCreateOpen(false); setNewAlias(''); setNewAmount(100); setNewExpireAt(''); setNewMaxUsage('') }
 
   const handleExportCSV = async () => {
-    try { const res = await exportKeysCSV(); const blob = new Blob([res as unknown as BlobPart], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'keys.csv'; a.click(); URL.revokeObjectURL(url) } catch { toast({ title: '错误', description: '导出失败', variant: 'destructive' }) }
+    try {
+      const res = await exportKeysCSV()
+      if (typeof res === 'string') {
+        const blob = new Blob([res], { type: 'text/csv;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a'); a.href = url; a.download = 'keys.csv'; a.click()
+        URL.revokeObjectURL(url)
+      } else {
+        toast({ title: '错误', description: (res as any)?.message || '导出失败', variant: 'destructive' })
+      }
+    } catch { toast({ title: '错误', description: '导出失败', variant: 'destructive' }) }
   }
 
   const handleExportJSON = async () => {
     const res = await exportKeysJSON(); if (res.code === 0) { const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'keys.json'; a.click(); URL.revokeObjectURL(url) }
   }
 
+  const [saving, setSaving] = useState(false)
+
   const handleEdit = async () => {
     if (selectedKey) {
-      const res = await updateKey(selectedKey.id, { alias: selectedKey.alias, remaining_amount: selectedKey.remaining })
-      if (res.code === 0) { toast({ title: '成功', description: 'Key 已更新' }); queryClient.invalidateQueries({ queryKey: ['tenant-keys'] }) }
-      else toast({ title: '错误', description: res.message, variant: 'destructive' })
-      setEditOpen(false)
+      setSaving(true)
+      try {
+        const res = await updateKey(selectedKey.id, { alias: selectedKey.alias, remaining_amount: selectedKey.remaining })
+        if (res.code === 0) { toast({ title: '成功', description: 'Key 已更新' }); queryClient.invalidateQueries({ queryKey: ['tenant-keys'] }) }
+        else toast({ title: '错误', description: res.message, variant: 'destructive' })
+        setEditOpen(false)
+      } catch {
+        toast({ title: '错误', description: '保存失败', variant: 'destructive' })
+      } finally {
+        setSaving(false)
+      }
     }
   }
 
@@ -131,7 +150,7 @@ export default function KeyManagement() {
         <Select value={status} onValueChange={(v) => { setStatus(v as KeyStatus | ''); setPage(1) }}>
           <SelectTrigger className="w-32"><SelectValue placeholder="全部状态" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">全部状态</SelectItem>
+            <SelectItem value="">全部状态</SelectItem>
             <SelectItem value="unused">未使用</SelectItem>
             <SelectItem value="used">已用尽</SelectItem>
             <SelectItem value="disabled">已禁用</SelectItem>
@@ -199,7 +218,7 @@ export default function KeyManagement() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>取消</Button>
-            <Button onClick={handleEdit}>保存</Button>
+            <Button onClick={handleEdit} disabled={saving}>{saving ? '保存中...' : '保存'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

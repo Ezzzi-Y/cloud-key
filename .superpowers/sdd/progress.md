@@ -65,7 +65,19 @@ Base commit: 85a5581 (branch: main)
 - Task 7: complete (commits bff4431..ea043e5, 2 fix rounds: crypto/rand + getTenantKeyConfig error propagation; noted: N+1 query in ListTenants deferred, username race condition has DB constraint guard)
 - Task 8: complete (commits 3f7389a..779c41d, fix round: use ListKeysByTenant per spec; noted: LoginLogs addition accepted)
 - Task 9: complete (commit 50ae6d9, review clean; brief constructor mismatches correctly adapted)
-- Task 10: complete (no commit needed, all verification passed: build PASS, 15/15 tests PASS, go vet PASS, routes verified, tenant_id confirmed in all models)
+## Current Plan: 2026-07-19-react-spa.md
+
+Base commit: 55a796e (branch: main)
+
+- Task 1: complete (commits 7ba78e2..231433f, components moved from web/@/ to web/src/; review clean)
+- Task 2: complete (commit 4dd5cda, review clean)
+- Task 3: complete (commit 5ab26bf, review clean)
+- Task 4: complete (commit 964dd5d, review clean)
+- Task 5: complete (commit f7a4e7c, review clean)
+- Task 6: complete (commit d8fc77d, review clean)
+- Task 7: complete (commit 639aeba, Go embed + router; note: embed copies dist to internal/web/dist/)
+- Task 8: complete (commit bc34bbc, build passed, go vet clean, tsc clean)
+- All 8 tasks DONE — 9 commits total, 46 source files, ~1419 lines of page code
 
 ## Final Review
 
