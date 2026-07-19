@@ -209,11 +209,42 @@ let keyPage = 1, logPage = 1;
 async function api(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = 'Bearer ' + token;
-  const res = await fetch(API + path, { ...opts, headers: { ...headers, ...opts.headers } });
-  const data = await res.json();
-  if (data.code === 2003) { doLogout(); return null; }
-  if (data.code !== 0 && data.code !== undefined) { toast(data.message, 'error'); return null; }
-  return data.data;
+
+  try {
+    const res = await fetch(API + path, { ...opts, headers: { ...headers, ...opts.headers } });
+
+    // Handle 401 unauthorized - clear token and reload to redirect to login
+    if (res.status === 401) {
+      token = null;
+      localStorage.removeItem('ck_token');
+      window.location.reload();
+      return null;
+    }
+
+    const data = await res.json();
+
+    // Handle code 2003 (legacy error code for auth failures)
+    if (data.code === 2003) {
+      token = null;
+      localStorage.removeItem('ck_token');
+      window.location.reload();
+      return null;
+    }
+
+    // Handle other API errors
+    if (data.code !== 0 && data.code !== undefined) {
+      const msg = data.message || '请求失败';
+      toast(msg, 'error');
+      return null;
+    }
+
+    return data.data;
+  } catch (error) {
+    // Network errors or JSON parsing failures
+    const msg = error.message || '网络错误';
+    toast(msg, 'error');
+    return null;
+  }
 }
 
 function toast(msg, type = 'success') {
