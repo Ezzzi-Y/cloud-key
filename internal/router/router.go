@@ -4,6 +4,8 @@ import (
 	"CloudKey/internal/handler"
 	"CloudKey/internal/middleware"
 	"CloudKey/internal/service"
+	"CloudKey/internal/web"
+	"io/fs"
 	"net/http"
 	"strings"
 
@@ -26,14 +28,26 @@ func SetupRouter(
 	r := gin.Default()
 	r.Use(middleware.CORSMiddleware())
 
-	// 静态文件
-	r.StaticFile("/", "web/admin.html")
+	// 静态文件服务（React SPA）
+	distFS, distErr := fs.Sub(web.FS, "dist")
+	if distErr != nil {
+		panic("failed to open embedded dist: " + distErr.Error())
+	}
+	fileServer := http.FileServer(http.FS(distFS))
+
 	r.NoRoute(func(c *gin.Context) {
-		if c.Request.URL.Path != "/" {
-			if !strings.HasPrefix(c.Request.URL.Path, "/api") {
-				http.ServeFile(c.Writer, c.Request, "web/admin.html")
-				return
-			}
+		path := c.Request.URL.Path
+		if strings.HasPrefix(path, "/api") {
+			c.JSON(404, gin.H{"code": 404, "message": "接口不存在"})
+			return
+		}
+		// 尝试提供静态资源，不存在则 fallback 到 index.html（SPA 路由）
+		trimmed := strings.TrimPrefix(path, "/")
+		if f, err := distFS.Open(trimmed); err == nil {
+			f.Close()
+			fileServer.ServeHTTP(c.Writer, c.Request)
+		} else {
+			c.FileFromFS("index.html", http.FS(distFS))
 		}
 	})
 

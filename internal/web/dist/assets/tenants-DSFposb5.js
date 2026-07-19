@@ -1,0 +1,1 @@
+import{g as n}from"./index-eRGNgPQY.js";function r(){return n.get("/super/tenants")}function a(t){return n.post("/super/tenants",{name:t})}function u(t){return n.get(`/super/tenants/${t}`)}function p(t,e){return n.patch(`/super/tenants/${t}`,e)}function o(t){return n.patch(`/super/tenants/${t}/reset-password`)}export{a as c,u as g,r as l,o as r,p as u};

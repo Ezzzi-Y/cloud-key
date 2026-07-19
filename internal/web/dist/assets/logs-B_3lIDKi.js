@@ -1,0 +1,1 @@
+import{g as a}from"./index-eRGNgPQY.js";function o(s){return a.get("/tenant/usage-logs",{params:s})}function n(s){return a.get("/tenant/usage-logs/export",{params:s})}function r(s,t=1,e=20){return a.get(`/${s}/login-logs`,{params:{page:t,page_size:e}})}export{o as a,n as e,r as l};
