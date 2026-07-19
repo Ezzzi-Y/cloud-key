@@ -78,7 +78,7 @@ tr:hover { background: #f9f9f9; }
 
 <!-- Login Page -->
 <div id="loginPage" class="login-wrap">
-  <div class="login-box">
+  <div class="login-box" style="width:420px">
     <h1>🔑 CloudKey</h1>
     <div id="loginError" class="error-msg hidden"></div>
     <div id="loginForm">
@@ -87,8 +87,18 @@ tr:hover { background: #f9f9f9; }
       <button onclick="doLogin()">登录</button>
     </div>
     <div id="totpForm" class="hidden">
+      <p style="font-size:13px;color:#555;margin-bottom:12px;">请输入 TOTP 验证码</p>
       <input id="totpCode" type="text" placeholder="TOTP 验证码（6位）" maxlength="6">
       <button onclick="doVerify2FA()">验证</button>
+    </div>
+    <div id="totpSetup" class="hidden">
+      <p style="font-size:13px;color:#555;margin-bottom:8px;">首次登录，请设置两步验证：</p>
+      <p style="font-size:12px;color:#888;margin-bottom:8px;">1. 用 Google Authenticator 等 App 扫描下方二维码或手动输入密钥</p>
+      <div id="totpQR" style="text-align:center;margin:12px 0;"></div>
+      <div class="raw-key-box" id="totpSecret" style="font-size:12px;text-align:center;"></div>
+      <p style="font-size:12px;color:#888;margin:8px 0;">2. 输入 App 显示的 6 位验证码：</p>
+      <input id="totpSetupCode" type="text" placeholder="验证码" maxlength="6">
+      <button onclick="doConfirmTOTP()">确认并登录</button>
     </div>
   </div>
 </div>
@@ -235,8 +245,10 @@ async function doLogin() {
     document.getElementById('totpCode').focus();
   } else if (data.data.need_setup) {
     adminId = data.data.admin_id;
-    errEl.textContent = '请先设置 TOTP（暂不支持在页面设置，请使用 API）';
-    errEl.classList.remove('hidden');
+    // 首次登录，需要设置 TOTP
+    document.getElementById('loginForm').classList.add('hidden');
+    document.getElementById('totpSetup').classList.remove('hidden');
+    doSetupTOTP();
   }
 }
 
@@ -253,6 +265,47 @@ async function doVerify2FA() {
   token = data.data.token;
   localStorage.setItem('ck_token', token);
   enterApp();
+}
+
+// --- TOTP Setup ---
+let totpSecret = '';
+
+async function doSetupTOTP() {
+  const errEl = document.getElementById('loginError');
+  errEl.classList.add('hidden');
+  const res = await fetch(API + '/api/admin/totp/setup', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ admin_id: adminId })
+  });
+  const data = await res.json();
+  if (data.code !== 0) { errEl.textContent = data.message; errEl.classList.remove('hidden'); return; }
+  totpSecret = data.data.secret;
+  const url = data.data.url;
+  document.getElementById('totpSecret').textContent = '密钥：' + totpSecret;
+  // 生成二维码图片（使用 Google Charts API）
+  document.getElementById('totpQR').innerHTML = '<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' + encodeURIComponent(url) + '" alt="QR Code" style="border-radius:8px">';
+  document.getElementById('totpSetupCode').focus();
+}
+
+async function doConfirmTOTP() {
+  const code = document.getElementById('totpSetupCode').value;
+  const errEl = document.getElementById('loginError');
+  errEl.classList.add('hidden');
+  if (code.length !== 6) { errEl.textContent = '请输入 6 位验证码'; errEl.classList.remove('hidden'); return; }
+  const res = await fetch(API + '/api/admin/totp/confirm', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ admin_id: adminId, code })
+  });
+  const data = await res.json();
+  if (data.code !== 0) { errEl.textContent = data.message; errEl.classList.remove('hidden'); return; }
+  // TOTP 设置成功，重新登录获取 token
+  const errEl2 = document.getElementById('loginError');
+  errEl2.textContent = '✅ TOTP 设置成功！请输入验证码登录';
+  errEl2.style.color = '#2e7d32';
+  errEl2.classList.remove('hidden');
+  document.getElementById('totpSetup').classList.add('hidden');
+  document.getElementById('totpForm').classList.remove('hidden');
+  document.getElementById('totpCode').focus();
 }
 
 function doLogout() {

@@ -156,6 +156,72 @@ func (h *AdminHandler) ConfirmTOTP(c *gin.Context) {
 	Success(c, nil)
 }
 
+// SetupTOTPPublic 公开接口：首次设置 TOTP（仅当 TOTP 未启用时可用）
+func (h *AdminHandler) SetupTOTPPublic(c *gin.Context) {
+	var req struct {
+		AdminID uint64 `json:"admin_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		BadRequest(c, errcode.CodeTOTPFailed, "参数错误")
+		return
+	}
+
+	// 安全检查：只有未设置 TOTP 的管理员才能调用
+	profile, err := h.adminSvc.GetAdminProfile(req.AdminID)
+	if err != nil || profile == nil {
+		BadRequest(c, errcode.CodeInvalidCredentials, "管理员不存在")
+		return
+	}
+	if profile.TotpSetup {
+		BadRequest(c, errcode.CodeTOTPFailed, "TOTP 已设置，请直接登录")
+		return
+	}
+
+	secret, url, err := h.adminSvc.GenerateTOTPSecret(req.AdminID)
+	if err != nil {
+		InternalError(c)
+		return
+	}
+	Success(c, gin.H{"secret": secret, "url": url})
+}
+
+// ConfirmTOTPPublic 公开接口：确认 TOTP 设置并返回 JWT（仅首次）
+func (h *AdminHandler) ConfirmTOTPPublic(c *gin.Context) {
+	var req struct {
+		AdminID uint64 `json:"admin_id" binding:"required"`
+		Code    string `json:"code" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		BadRequest(c, errcode.CodeTOTPFailed, "参数错误")
+		return
+	}
+
+	// 安全检查：只有未完成 TOTP 设置的管理员才能调用
+	profile, err := h.adminSvc.GetAdminProfile(req.AdminID)
+	if err != nil || profile == nil {
+		BadRequest(c, errcode.CodeInvalidCredentials, "管理员不存在")
+		return
+	}
+	if profile.TotpSetup {
+		BadRequest(c, errcode.CodeTOTPFailed, "TOTP 已设置，请直接登录")
+		return
+	}
+
+	if err := h.adminSvc.ConfirmTOTPSetup(req.AdminID, req.Code); err != nil {
+		BadRequest(c, errcode.CodeTOTPFailed, "验证码错误")
+		return
+	}
+
+	// 设置成功，直接返回 JWT
+	token, err := h.adminSvc.VerifyTOTP(req.AdminID, req.Code)
+	if err != nil || token == "" {
+		// TOTP 刚确认，重新验证一次
+		Success(c, gin.H{"message": "TOTP 设置成功，请重新登录"})
+		return
+	}
+	Success(c, gin.H{"token": token, "token_type": "Bearer"})
+}
+
 func (h *AdminHandler) LoginLogs(c *gin.Context) {
 	page, pageSize := pageParams(c)
 	logs, total, err := h.loginLogSvc.ListLoginLogs(page, pageSize)
