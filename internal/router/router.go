@@ -18,6 +18,9 @@ func SetupRouter(
 ) *gin.Engine {
 	r := gin.Default()
 
+	// 管理页面
+	r.StaticFile("/", "web/admin.html")
+
 	// 公开接口（无需认证）
 	api := r.Group("/api")
 	{

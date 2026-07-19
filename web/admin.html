@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CloudKey 管理后台</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; color: #333; }
+.login-wrap { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+.login-box { background: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); width: 360px; }
+.login-box h1 { text-align: center; margin-bottom: 24px; color: #1a73e8; }
+.login-box input { width: 100%; padding: 10px 12px; margin-bottom: 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+.login-box button { width: 100%; padding: 10px; background: #1a73e8; color: #fff; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; }
+.login-box button:hover { background: #1557b0; }
+.error-msg { color: #d32f2f; font-size: 13px; margin-bottom: 8px; text-align: center; }
+
+/* Layout */
+.app { display: flex; min-height: 100vh; }
+.sidebar { width: 200px; background: #1a1a2e; color: #fff; padding: 16px 0; flex-shrink: 0; }
+.sidebar h2 { padding: 0 16px 16px; font-size: 18px; color: #64b5f6; }
+.sidebar a { display: block; padding: 10px 16px; color: #ccc; text-decoration: none; font-size: 14px; cursor: pointer; }
+.sidebar a:hover, .sidebar a.active { background: #16213e; color: #fff; }
+.main { flex: 1; padding: 24px; overflow-y: auto; }
+.main h2 { margin-bottom: 16px; font-size: 20px; }
+
+/* Cards */
+.cards { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+.card { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); min-width: 180px; }
+.card .label { font-size: 13px; color: #888; margin-bottom: 4px; }
+.card .value { font-size: 28px; font-weight: bold; color: #1a73e8; }
+
+/* Table */
+.table-wrap { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow-x: auto; }
+.toolbar { display: flex; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #eee; flex-wrap: wrap; align-items: center; }
+.toolbar input, .toolbar select { padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
+.toolbar button { padding: 6px 14px; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; }
+.btn-primary { background: #1a73e8; color: #fff; }
+.btn-primary:hover { background: #1557b0; }
+.btn-danger { background: #d32f2f; color: #fff; }
+.btn-danger:hover { background: #b71c1c; }
+.btn-success { background: #388e3c; color: #fff; }
+.btn-success:hover { background: #2e7d32; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+th { background: #fafafa; font-weight: 600; color: #555; }
+tr:hover { background: #f9f9f9; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+.badge-unused { background: #e8f5e9; color: #2e7d32; }
+.badge-used { background: #fff3e0; color: #ef6c00; }
+.badge-disabled { background: #fce4ec; color: #c62828; }
+
+/* Pagination */
+.pagination { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; }
+.pagination button { padding: 4px 12px; margin: 0 2px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; font-size: 13px; }
+.pagination button:disabled { opacity: 0.5; cursor: default; }
+.pagination .info { font-size: 13px; color: #888; }
+
+/* Toast */
+.toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 4px; color: #fff; font-size: 14px; z-index: 9999; animation: fadeIn 0.3s; }
+.toast-success { background: #388e3c; }
+.toast-error { background: #d32f2f; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+.modal { background: #fff; padding: 24px; border-radius: 8px; width: 420px; max-width: 90vw; }
+.modal h3 { margin-bottom: 16px; }
+.modal label { display: block; margin-bottom: 4px; font-size: 13px; color: #555; }
+.modal input, .modal select { width: 100%; padding: 8px 10px; margin-bottom: 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+.modal .btns { display: flex; gap: 8px; justify-content: flex-end; }
+.hidden { display: none !important; }
+.raw-key-box { background: #f5f5f5; padding: 12px; border-radius: 4px; font-family: monospace; font-size: 14px; word-break: break-all; margin: 12px 0; border: 1px solid #ddd; }
+</style>
+</head>
+<body>
+
+<!-- Login Page -->
+<div id="loginPage" class="login-wrap">
+  <div class="login-box">
+    <h1>🔑 CloudKey</h1>
+    <div id="loginError" class="error-msg hidden"></div>
+    <div id="loginForm">
+      <input id="loginUser" type="text" placeholder="用户名" value="admin">
+      <input id="loginPass" type="password" placeholder="密码">
+      <button onclick="doLogin()">登录</button>
+    </div>
+    <div id="totpForm" class="hidden">
+      <input id="totpCode" type="text" placeholder="TOTP 验证码（6位）" maxlength="6">
+      <button onclick="doVerify2FA()">验证</button>
+    </div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="appPage" class="app hidden">
+  <div class="sidebar">
+    <h2>CloudKey</h2>
+    <a onclick="showPage('dashboard')" id="nav-dashboard" class="active">📊 仪表盘</a>
+    <a onclick="showPage('keys')" id="nav-keys">🔑 卡密管理</a>
+    <a onclick="showPage('logs')" id="nav-logs">📋 使用记录</a>
+    <a onclick="showPage('accounts')" id="nav-accounts">🤖 服务账号</a>
+    <a onclick="doLogout()" style="margin-top:auto; color:#ef5350;">🚪 退出登录</a>
+  </div>
+  <div class="main">
+    <!-- Dashboard -->
+    <div id="page-dashboard">
+      <h2>仪表盘</h2>
+      <div class="cards" id="dashCards"></div>
+    </div>
+    <!-- Keys -->
+    <div id="page-keys" class="hidden">
+      <h2>卡密管理</h2>
+      <div class="table-wrap">
+        <div class="toolbar">
+          <input id="keySearch" placeholder="搜索别名/后缀" onkeydown="if(event.key==='Enter')loadKeys()">
+          <select id="keyStatus"><option value="">全部状态</option><option value="unused">未使用</option><option value="used">已用尽</option><option value="disabled">已禁用</option></select>
+          <button class="btn-primary" onclick="loadKeys()">搜索</button>
+          <button class="btn-primary" onclick="showCreateKey()">+ 创建卡密</button>
+        </div>
+        <table><thead><tr><th>ID</th><th>别名</th><th>前缀</th><th>后缀</th><th>计费</th><th>总额度</th><th>剩余额度</th><th>状态</th><th>创建者</th><th>创建时间</th><th>操作</th></tr></thead><tbody id="keyTable"></tbody></table>
+        <div class="pagination" id="keyPagi"></div>
+      </div>
+    </div>
+    <!-- Logs -->
+    <div id="page-logs" class="hidden">
+      <h2>使用记录</h2>
+      <div class="table-wrap">
+        <div class="toolbar">
+          <input id="logAlias" placeholder="卡密别名">
+          <input id="logIP" placeholder="IP">
+          <button class="btn-primary" onclick="loadLogs()">搜索</button>
+        </div>
+        <table><thead><tr><th>ID</th><th>卡密别名</th><th>扣减量</th><th>IP</th><th>请求路径</th><th>状态码</th><th>时间</th></tr></thead><tbody id="logTable"></tbody></table>
+        <div class="pagination" id="logPagi"></div>
+      </div>
+    </div>
+    <!-- Service Accounts -->
+    <div id="page-accounts" class="hidden">
+      <h2>服务账号</h2>
+      <div class="table-wrap">
+        <div class="toolbar">
+          <button class="btn-primary" onclick="showCreateAccount()">+ 创建服务账号</button>
+        </div>
+        <table><thead><tr><th>ID</th><th>名称</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead><tbody id="accountTable"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create Key Modal -->
+<div id="createKeyModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal('createKeyModal')">
+  <div class="modal">
+    <h3>创建卡密</h3>
+    <label>别名</label><input id="ckAlias" placeholder="给卡密起个名字">
+    <label>计费模式</label><select id="ckBilling"><option value="count">次数计费</option><option value="credit">额度计费</option></select>
+    <label>初始额度</label><input id="ckAmount" type="number" value="100" min="1">
+    <div class="btns"><button onclick="closeModal('createKeyModal')">取消</button><button class="btn-primary" onclick="doCreateKey()">创建</button></div>
+  </div>
+</div>
+
+<!-- Key Result Modal -->
+<div id="keyResultModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal('keyResultModal')">
+  <div class="modal">
+    <h3>✅ 卡密创建成功</h3>
+    <p style="color:#d32f2f;font-size:13px;margin-bottom:8px;">⚠️ 请立即复制卡密明文，关闭后无法再次查看！</p>
+    <div class="raw-key-box" id="rawKeyDisplay"></div>
+    <div class="btns"><button class="btn-primary" onclick="copyRawKey()">复制卡密</button><button onclick="closeModal('keyResultModal')">关闭</button></div>
+  </div>
+</div>
+
+<!-- Create Account Modal -->
+<div id="createAccountModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal('createAccountModal')">
+  <div class="modal">
+    <h3>创建服务账号</h3>
+    <label>名称</label><input id="caName" placeholder="服务名称">
+    <div class="btns"><button onclick="closeModal('createAccountModal')">取消</button><button class="btn-primary" onclick="doCreateAccount()">创建</button></div>
+  </div>
+</div>
+
+<!-- Account Result Modal -->
+<div id="accountResultModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal('accountResultModal')">
+  <div class="modal">
+    <h3>✅ 服务账号创建成功</h3>
+    <p style="color:#d32f2f;font-size:13px;margin-bottom:8px;">⚠️ 请立即复制密钥，关闭后无法再次查看！</p>
+    <div class="raw-key-box" id="accountKeyDisplay"></div>
+    <div class="btns"><button class="btn-primary" onclick="copyAccountKey()">复制密钥</button><button onclick="closeModal('accountResultModal')">关闭</button></div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let token = localStorage.getItem('ck_token');
+let adminId = null;
+let keyPage = 1, logPage = 1;
+
+// --- API helpers ---
+async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API + path, { ...opts, headers: { ...headers, ...opts.headers } });
+  const data = await res.json();
+  if (data.code === 2003) { doLogout(); return null; }
+  if (data.code !== 0 && data.code !== undefined) { toast(data.message, 'error'); return null; }
+  return data.data;
+}
+
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + type;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+// --- Auth ---
+async function doLogin() {
+  const u = document.getElementById('loginUser').value;
+  const p = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  errEl.classList.add('hidden');
+  const res = await fetch(API + '/api/admin/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: u, password: p })
+  });
+  const data = await res.json();
+  if (data.code !== 0) { errEl.textContent = data.message; errEl.classList.remove('hidden'); return; }
+  if (data.data.require_totp) {
+    adminId = data.data.admin_id;
+    document.getElementById('loginForm').classList.add('hidden');
+    document.getElementById('totpForm').classList.remove('hidden');
+    document.getElementById('totpCode').focus();
+  } else if (data.data.need_setup) {
+    adminId = data.data.admin_id;
+    errEl.textContent = '请先设置 TOTP（暂不支持在页面设置，请使用 API）';
+    errEl.classList.remove('hidden');
+  }
+}
+
+async function doVerify2FA() {
+  const code = document.getElementById('totpCode').value;
+  const errEl = document.getElementById('loginError');
+  errEl.classList.add('hidden');
+  const res = await fetch(API + '/api/admin/login/verify-2fa', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ admin_id: adminId, code })
+  });
+  const data = await res.json();
+  if (data.code !== 0) { errEl.textContent = data.message; errEl.classList.remove('hidden'); return; }
+  token = data.data.token;
+  localStorage.setItem('ck_token', token);
+  enterApp();
+}
+
+function doLogout() {
+  token = null;
+  localStorage.removeItem('ck_token');
+  document.getElementById('appPage').classList.add('hidden');
+  document.getElementById('loginPage').classList.remove('hidden');
+  document.getElementById('loginForm').classList.remove('hidden');
+  document.getElementById('totpForm').classList.add('hidden');
+  document.getElementById('loginPass').value = '';
+  document.getElementById('totpCode').value = '';
+}
+
+function enterApp() {
+  document.getElementById('loginPage').classList.add('hidden');
+  document.getElementById('appPage').classList.remove('hidden');
+  showPage('dashboard');
+}
+
+// --- Navigation ---
+function showPage(name) {
+  ['dashboard','keys','logs','accounts'].forEach(p => {
+    document.getElementById('page-'+p).classList.toggle('hidden', p !== name);
+    document.getElementById('nav-'+p).classList.toggle('active', p === name);
+  });
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'keys') loadKeys();
+  if (name === 'logs') loadLogs();
+  if (name === 'accounts') loadAccounts();
+}
+
+// --- Dashboard ---
+async function loadDashboard() {
+  const data = await api('/api/admin/stats/dashboard');
+  if (!data) return;
+  const ov = data.overview || {};
+  document.getElementById('dashCards').innerHTML = `
+    <div class="card"><div class="label">卡密总数</div><div class="value">${ov.total_keys||0}</div></div>
+    <div class="card"><div class="label">未使用</div><div class="value">${(ov.status_counts||{}).unused||0}</div></div>
+    <div class="card"><div class="label">已用尽</div><div class="value">${(ov.status_counts||{}).used||0}</div></div>
+    <div class="card"><div class="label">已禁用</div><div class="value">${(ov.status_counts||{}).disabled||0}</div></div>
+    <div class="card"><div class="label">今日调用</div><div class="value">${data.today_calls||0}</div></div>
+    <div class="card"><div class="label">本周调用</div><div class="value">${data.week_calls||0}</div></div>
+    <div class="card"><div class="label">总额度</div><div class="value">${ov.total_initial||0}</div></div>
+    <div class="card"><div class="label">剩余额度</div><div class="value">${ov.total_remaining||0}</div></div>
+  `;
+}
+
+// --- Keys ---
+async function loadKeys() {
+  const search = document.getElementById('keySearch').value;
+  const status = document.getElementById('keyStatus').value;
+  let url = `/api/admin/keys?page=${keyPage}&page_size=15`;
+  if (search) url += `&search=${encodeURIComponent(search)}`;
+  if (status) url += `&status=${status}`;
+  const data = await api(url);
+  if (!data) return;
+  const keys = data.list || [];
+  document.getElementById('keyTable').innerHTML = keys.map(k => `
+    <tr>
+      <td>${k.id}</td><td>${esc(k.alias)}</td><td>${esc(k.key_prefix)}</td><td>${esc(k.key_suffix)}</td>
+      <td>${k.billing_mode==='count'?'次数':'额度'}</td><td>${k.initial_amount}</td><td>${k.remaining_amount}</td>
+      <td><span class="badge badge-${k.status}">${statusLabel(k.status)}</span></td>
+      <td>${esc(k.created_by||'')}</td><td>${fmtTime(k.created_at)}</td>
+      <td>
+        ${k.status==='unused'?`<button class="btn-sm btn-danger" onclick="toggleKey(${k.id},'disable')">禁用</button>`:''}
+        ${k.status==='disabled'?`<button class="btn-sm btn-success" onclick="toggleKey(${k.id},'enable')">启用</button>`:''}
+        <button class="btn-sm btn-danger" onclick="deleteKey(${k.id})">删除</button>
+      </td>
+    </tr>
+  `).join('');
+  renderPag('keyPagi', data.total, data.page, data.page_size, p => { keyPage = p; loadKeys(); });
+}
+
+function statusLabel(s) { return {unused:'未使用',used:'已用尽',disabled:'已禁用',expired:'已过期'}[s]||s; }
+function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function fmtTime(t) { if(!t) return '-'; return t.replace('T',' ').substring(0,19); }
+
+function renderPag(id, total, page, pageSize, fn) {
+  const pages = Math.ceil(total / pageSize) || 1;
+  document.getElementById(id).innerHTML = `
+    <span class="info">共 ${total} 条，第 ${page}/${pages} 页</span>
+    <span><button ${page<=1?'disabled':''} onclick="void(0)" data-p="${page-1}">上一页</button>
+    <button ${page>=pages?'disabled':''} onclick="void(0)" data-p="${page+1}">下一页</button></span>
+  `;
+  document.getElementById(id).querySelectorAll('button[data-p]').forEach(b => {
+    b.addEventListener('click', () => fn(parseInt(b.dataset.p)));
+  });
+}
+
+function showCreateKey() { document.getElementById('createKeyModal').classList.remove('hidden'); document.getElementById('ckAlias').focus(); }
+
+async function doCreateKey() {
+  const alias = document.getElementById('ckAlias').value;
+  const billing = document.getElementById('ckBilling').value;
+  const amount = parseInt(document.getElementById('ckAmount').value);
+  if (!alias) { toast('请输入别名', 'error'); return; }
+  const data = await api('/api/admin/keys', {
+    method: 'POST', body: JSON.stringify({ alias, billing_mode: billing, initial_amount: amount })
+  });
+  if (!data) return;
+  closeModal('createKeyModal');
+  document.getElementById('rawKeyDisplay').textContent = data.raw_key;
+  document.getElementById('keyResultModal').classList.remove('hidden');
+  document.getElementById('ckAlias').value = '';
+  loadKeys();
+}
+
+function copyRawKey() {
+  navigator.clipboard.writeText(document.getElementById('rawKeyDisplay').textContent);
+  toast('已复制到剪贴板');
+}
+
+async function toggleKey(id, action) {
+  await api(`/api/admin/keys/${id}/${action}`, { method: 'PATCH' });
+  loadKeys();
+}
+
+async function deleteKey(id) {
+  if (!confirm('确定删除此卡密？')) return;
+  await api(`/api/admin/keys/${id}`, { method: 'DELETE' });
+  loadKeys();
+}
+
+// --- Logs ---
+async function loadLogs() {
+  const alias = document.getElementById('logAlias').value;
+  const ip = document.getElementById('logIP').value;
+  let url = `/api/admin/usage-logs?page=${logPage}&page_size=20`;
+  if (alias) url += `&key_alias=${encodeURIComponent(alias)}`;
+  if (ip) url += `&ip=${encodeURIComponent(ip)}`;
+  const data = await api(url);
+  if (!data) return;
+  const logs = data.list || [];
+  document.getElementById('logTable').innerHTML = logs.map(l => `
+    <tr>
+      <td>${l.id}</td><td>${esc(l.key_alias||'-')}</td><td>${l.amount}</td><td>${esc(l.ip)}</td>
+      <td>${esc(l.request_path)}</td><td>${l.response_status}</td><td>${fmtTime(l.created_at)}</td>
+    </tr>
+  `).join('');
+  renderPag('logPagi', data.total, data.page, data.page_size, p => { logPage = p; loadLogs(); });
+}
+
+// --- Service Accounts ---
+async function loadAccounts() {
+  const data = await api('/api/admin/service-accounts');
+  if (!data) return;
+  document.getElementById('accountTable').innerHTML = (Array.isArray(data)?data:[]).map(a => `
+    <tr>
+      <td>${a.id}</td><td>${esc(a.name)}</td>
+      <td><span class="badge badge-${a.is_active?'unused':'disabled'}">${a.is_active?'启用':'禁用'}</span></td>
+      <td>${fmtTime(a.created_at)}</td>
+      <td>
+        <button class="btn-sm ${a.is_active?'btn-danger':'btn-success'}" onclick="toggleAccount(${a.id},${!a.is_active})">${a.is_active?'禁用':'启用'}</button>
+        <button class="btn-sm btn-danger" onclick="deleteAccount(${a.id})">删除</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function showCreateAccount() { document.getElementById('createAccountModal').classList.remove('hidden'); document.getElementById('caName').focus(); }
+
+async function doCreateAccount() {
+  const name = document.getElementById('caName').value;
+  if (!name) { toast('请输入名称', 'error'); return; }
+  const data = await api('/api/admin/service-accounts', {
+    method: 'POST', body: JSON.stringify({ name })
+  });
+  if (!data) return;
+  closeModal('createAccountModal');
+  document.getElementById('accountKeyDisplay').textContent = data.raw_key;
+  document.getElementById('accountResultModal').classList.remove('hidden');
+  document.getElementById('caName').value = '';
+  loadAccounts();
+}
+
+function copyAccountKey() {
+  navigator.clipboard.writeText(document.getElementById('accountKeyDisplay').textContent);
+  toast('已复制到剪贴板');
+}
+
+async function toggleAccount(id, active) {
+  await api(`/api/admin/service-accounts/${id}/toggle`, {
+    method: 'PATCH', body: JSON.stringify({ is_active: active })
+  });
+  loadAccounts();
+}
+
+async function deleteAccount(id) {
+  if (!confirm('确定删除此服务账号？')) return;
+  await api(`/api/admin/service-accounts/${id}`, { method: 'DELETE' });
+  loadAccounts();
+}
+
+// --- Init ---
+if (token) { enterApp(); } else { document.getElementById('loginPage').classList.remove('hidden'); }
+</script>
+</body>
+</html>
