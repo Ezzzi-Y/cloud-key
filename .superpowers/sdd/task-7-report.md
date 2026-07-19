@@ -1,29 +1,17 @@
-# Task 7 Report: Log 创建入口
+# Task 7: 统一响应格式 — Report
 
-**Status: DONE**
+**Status:** DONE
 
-## Commits
+## Commit
+- `373f214` feat(handler): add unified response format with error helpers
 
-| Hash | Message |
-|------|---------|
-| `2058e21` | feat(log): implement InitLogger with Zap and Lumberjack |
+## Build Summary
+- `gofmt -w internal/handler/response.go` — OK, no changes needed
+- `go build ./internal/handler/` — OK, no errors
 
-## Test Summary
-
-- `go build ./internal/log/` -- PASS
-- `go vet ./internal/log/` -- PASS
-- `gofmt -d internal/log/logger.go` -- no diff (clean)
-
-## What Was Done
-
-Created `internal/log/logger.go` with the following API:
-
-- `InitLogger(cfg config.LogConfig) error` -- initializes Zap logger with configurable level, format (json/console), and output (stdout/file via Lumberjack rotation)
-- `Sync() error` -- flushes log buffer
-- `Debug/Info/Warn/Error(msg string, fields ...zap.Field)` -- convenience log functions with nil-guard
-
-The Lumberjack module path in go.mod was corrected from `gopkg.in/natefinsh/lumberjack.v2` (typo) to `gopkg.in/natefinch/lumberjack.v2`. `go mod tidy` was run to keep go.mod/go.sum consistent.
-
-## Concerns
-
-None. The brief's provided code was followed exactly. The only deviation was fixing the Lumberjack module import path (`natefinsh` -> `natefinch`) which was a pre-existing typo in go.mod.
+## Files Created
+- `internal/handler/response.go` — Unified JSON response helpers:
+  - `Response` struct (code/message/data)
+  - `PageData` struct for paginated results
+  - `Success()`, `SuccessPaginated()`, `Error()`, `BadRequest()`, `Unauthorized()`, `NotFound()`, `InternalError()`
+  - All error helpers consume `errcode` constants (Task 2 dependency satisfied)

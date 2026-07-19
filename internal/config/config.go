@@ -10,6 +10,12 @@ type AppConfig struct {
 	Log      LogConfig      `yaml:"log"`
 	Auth     AuthConfig     `yaml:"auth"`
 	Security SecurityConfig `yaml:"security"`
+	App      AppSettings    `yaml:"app"`
+}
+
+// AppSettings 应用级别设置
+type AppSettings struct {
+	Debug bool `yaml:"debug"`
 }
 
 // ServerConfig 服务器配置

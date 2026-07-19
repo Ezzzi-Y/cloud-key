@@ -1,39 +1,23 @@
-# Task 8: Log 测试
+### Task 8 Report: KeyService
 
-**Status:** DONE_WITH_CONCERNS
+**Status:** DONE
 
-## Commits
+**Commit:** `e7e1195` feat(service): add KeyService with key generation, creation, and status query
 
-- `6d20ff3` - `test(log): add unit tests for InitLogger`
+**Build:** `go build ./internal/service/` -- clean, no errors, no warnings
 
-## Test Summary
+**File created:** `internal/service/key_service.go`
 
-| Test | Result |
-|------|--------|
-| TestInitLogger_Console | PASS |
-| TestInitLogger_JSON | PASS |
-| TestInitLogger_File | PASS |
-| TestInitLogger_InvalidLevel | PASS |
+**What was implemented:**
+- `KeyService` struct with configurable prefix, key length, and suffix length
+- `NewKeyService(db)` constructor (defaults: `sk-` prefix, 16-byte key, 4-char suffix)
+- `WithConfig()` for overriding defaults
+- `generateRawKey()` -- crypto/rand random hex key generation
+- `hashKey()` -- SHA256 hashing for secure DB storage
+- `CreateKey(req)` -- full create flow: generate key, compute hash, persist to DB
+- `FindByRawKey(rawKey)` -- hash-based lookup returning `nil, nil` for not-found
+- `GetKeyStatus(rawKey)` -- human-readable status result with formatted timestamps
 
-**Total: 4 passed, 0 failed**
+**Consumed types:** `model.Key`, `model.KeyBillingMode`, `model.KeyStatus`, `gorm.DB`
 
-## Changes
-
-Created `internal/log/logger_test.go` with 4 test cases covering:
-- Console output with info level
-- JSON output with debug level (all log levels exercised)
-- File output with lumberjack rotation config
-- Invalid level fallback to default (info)
-
-Modified `internal/log/logger.go`:
-- Added `lumberjackIO` package variable to track the lumberjack logger instance
-- Added `Close()` function to close the underlying file handle
-
-## Concerns
-
-The brief's original test code for `TestInitLogger_File` caused a `TempDir` cleanup failure on Windows because the lumberjack logger keeps the file handle open. `t.TempDir()` attempts to `RemoveAll` the temp directory on test exit, which fails when a process still holds the file. I resolved this by:
-
-1. Adding a `Close()` function to the logger module that closes the lumberjack writer
-2. Calling `defer Close()` in the file test before `TempDir` cleanup runs
-
-This is a minor deviation from the brief. On Linux the same issue may manifest as an unlink error. The fix is non-breaking and improves the logger API by allowing callers to cleanly shut down file-backed loggers.
+**Concerns:** None

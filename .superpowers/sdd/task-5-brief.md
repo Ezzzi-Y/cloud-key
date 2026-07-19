@@ -1,118 +1,111 @@
-# Task 5: Config 测试
+### Task 5: 管理员 + 服务账号 + 登录日志 + 系统配置数据模型
 
 **Files:**
-- Create: `internal/config/config_test.go`
+- Create: `internal/model/admin.go`
+- Create: `internal/model/service_account.go`
+- Create: `internal/model/login_log.go`
+- Create: `internal/model/config.go`
 
 **Interfaces:**
-- Tests: `LoadConfig` 函数的各种场景
+- Produces: `model.Admin`, `model.ServiceAccount`, `model.LoginLog`, `model.SysConfig` structs
 
-## Steps
-
-- [ ] **Step 1: 编写测试文件**
+- [ ] **Step 1: 编写 admin.go**
 
 ```go
-package config
+package model
 
-import (
-	"os"
-	"path/filepath"
-	"testing"
+import "time"
+
+type Admin struct {
+	ID           uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	Username     string    `gorm:"type:varchar(100);uniqueIndex;not null" json:"username"`
+	PasswordHash string    `gorm:"type:varchar(255);not null" json:"-"`
+	TotpSecret   string    `gorm:"type:varchar(255)" json:"-"`
+	TotpSetup    bool      `gorm:"default:false" json:"totp_setup"`
+	IsActive     bool      `gorm:"default:true" json:"is_active"`
+	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt    time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+func (Admin) TableName() string { return "admins" }
+```
+
+- [ ] **Step 2: 编写 service_account.go**
+
+```go
+package model
+
+import "time"
+
+type ServiceAccount struct {
+	ID        uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name      string    `gorm:"type:varchar(100);not null" json:"name"`
+	KeyHash   string    `gorm:"type:varchar(255);uniqueIndex;not null" json:"-"`
+	IsActive  bool      `gorm:"default:true" json:"is_active"`
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+func (ServiceAccount) TableName() string { return "service_accounts" }
+```
+
+- [ ] **Step 3: 编写 login_log.go**
+
+```go
+package model
+
+import "time"
+
+type LoginStatus string
+
+const (
+	LoginStatusSuccess LoginStatus = "success"
+	LoginStatusFailed  LoginStatus = "failed"
 )
 
-func TestLoadConfig_JSON(t *testing.T) {
-	// 创建临时 JSON 配置文件
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.json")
-
-	configJSON := `{
-		"server": {
-			"port": 8080,
-			"host": "localhost"
-		},
-		"database": {
-			"type": "sqlite",
-			"sqlite": {
-				"path": "cloudkey.db"
-			}
-		},
-		"log": {
-			"level": "info",
-			"format": "json"
-		},
-		"security": {
-			"encryption": {
-				"enabled": false
-			}
-		}
-	}`
-
-	if err := os.WriteFile(configPath, []byte(configJSON), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	config, err := LoadConfig(configPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if config.Server.Port != 8080 {
-		t.Errorf("expected port 8080, got %d", config.Server.Port)
-	}
-	if config.Database.Type != "sqlite" {
-		t.Errorf("expected db type sqlite, got %s", config.Database.Type)
-	}
-	if config.Security.Encryption.Enabled != false {
-		t.Error("expected encryption.enabled to be false")
-	}
+type LoginLog struct {
+	ID        uint64      `gorm:"primaryKey;autoIncrement" json:"id"`
+	AdminID   uint64      `gorm:"type:bigint;index;not null" json:"admin_id"`
+	IP        string      `gorm:"type:varchar(50);not null" json:"ip"`
+	UserAgent string      `gorm:"type:varchar(500)" json:"user_agent"`
+	Status    LoginStatus `gorm:"type:varchar(20);not null" json:"status"`
+	CreatedAt time.Time   `gorm:"autoCreateTime" json:"created_at"`
 }
 
-func TestLoadConfig_Defaults(t *testing.T) {
-	// 创建最小配置，验证默认值
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.json")
-
-	configJSON := `{
-		"server": {"port": 3000}
-	}`
-
-	if err := os.WriteFile(configPath, []byte(configJSON), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	config, err := LoadConfig(configPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// encryption.enabled 应为默认 false
-	if config.Security.Encryption.Enabled != false {
-		t.Error("expected encryption.enabled default to be false")
-	}
-}
-
-func TestLoadConfig_FileNotFound(t *testing.T) {
-	_, err := LoadConfig("/nonexistent/config.json")
-	if err == nil {
-		t.Error("expected error for nonexistent file")
-	}
-}
+func (LoginLog) TableName() string { return "login_logs" }
 ```
 
-- [ ] **Step 2: 运行测试**
+- [ ] **Step 4: 编写 config.go (系统配置模型)**
+
+```go
+package model
+
+import "time"
+
+type SysConfig struct {
+	ID          uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	Key         string    `gorm:"type:varchar(100);uniqueIndex;not null" json:"key"`
+	Value       string    `gorm:"type:varchar(500);not null" json:"value"`
+	Description string    `gorm:"type:varchar(500)" json:"description"`
+	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+func (SysConfig) TableName() string { return "configs" }
+```
+
+- [ ] **Step 5: 格式化并编译**
 
 ```bash
-go test ./internal/config/ -v
+gofmt -w internal/model/admin.go internal/model/service_account.go internal/model/login_log.go internal/model/config.go
+go build ./internal/model/
 ```
 
-Expected: 全部 PASS
-
-- [ ] **Step 3: 提交**
+- [ ] **Step 6: 提交**
 
 ```bash
-git add internal/config/config_test.go
-git commit -m "test(config): add unit tests for LoadConfig"
+git add internal/model/
+git commit -m "feat(model): add Admin, ServiceAccount, LoginLog, SysConfig GORM models"
 ```
 
-## Global Constraints
+---
 
-- 测试使用 `t.TempDir()` 生成临时目录

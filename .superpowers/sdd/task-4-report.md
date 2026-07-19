@@ -1,4 +1,4 @@
-# Task 4 Report: Config SetDefaults 和验证
+# Task 4 Report: 使用记录数据模型
 
 ## Status
 
@@ -6,19 +6,18 @@
 
 ## Changes Made
 
-- Added `setDefaults(v *viper.Viper)` function to `internal/config/config.go`
-  - Sets `security.encryption.enabled` default to `false`
-  - Sets `app.debug` default to `false`
-- Integrated `setDefaults(v)` call into `LoadConfig`, right after `v.SetConfigFile(path)`
+- Created `internal/model/usage_log.go` with the `UsageLog` GORM model
+- Table name: `usage_logs`
+- Fields: ID, KeyID (indexed), KeyAlias, Amount, IP, UserAgent, RequestPath, RequestParams, ResponseStatus, CreatedAt (indexed)
 
 ## Commits
 
-- `2bdd316` — `feat(config): add defaults for encryption.enabled and app.debug`
+- `372bc20` — `feat(model): add UsageLog GORM model`
 
-## Test Summary
+## Build Summary
 
-- `gofmt -w internal/config/config.go` — passed (no changes needed)
-- `go build ./internal/config/` — passed (compiled without errors)
+- `gofmt -w internal/model/usage_log.go` — passed (no changes needed)
+- `go build ./internal/model/` — passed (compiled without errors)
 
 ## Concerns
 

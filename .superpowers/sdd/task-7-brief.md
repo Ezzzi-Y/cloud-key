@@ -1,141 +1,94 @@
-# Task 7: Log 创建入口
+### Task 7: 统一响应格式
 
 **Files:**
-- Create: `internal/log/logger.go`
+- Create: `internal/handler/response.go`
 
 **Interfaces:**
-- Produces: `InitLogger(cfg config.LogConfig) error` 函数，`Sync() error` 函数，`Debug/Info/Warn/Error` 函数
+- Produces: `handler.Success()`, `handler.Error()`, `handler.SuccessPaginated()`, `handler.BadRequest()` 等响应函数
+- Consumes: `errcode.CodeSuccess` (Task 2)
 
-## Steps
-
-- [ ] **Step 1: 创建目录**
+- [ ] **Step 1: 创建 handler 目录**
 
 ```bash
-mkdir -p internal/log
+mkdir -p internal/handler
 ```
 
-- [ ] **Step 2: 编写 logger.go**
+- [ ] **Step 2: 编写 response.go**
 
 ```go
-package log
+package handler
 
 import (
-	"CloudKey/internal/config"
-	"os"
+	"CloudKey/internal/errcode"
+	"net/http"
 
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"gopkg.in/natefinch/lumberjack.v2"
+	"github.com/gin-gonic/gin"
 )
 
-var logger *zap.Logger
-
-// InitLogger 初始化日志系统
-func InitLogger(cfg config.LogConfig) error {
-	// 解析日志级别
-	level, err := zapcore.ParseLevel(cfg.Level)
-	if err != nil {
-		level = zapcore.InfoLevel
-	}
-
-	// 配置编码器
-	var encoderConfig zapcore.EncoderConfig
-	if cfg.Format == "json" {
-		encoderConfig = zap.NewProductionEncoderConfig()
-	} else {
-		encoderConfig = zap.NewDevelopmentEncoderConfig()
-	}
-	encoderConfig.TimeKey = "timestamp"
-	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-
-	// 配置输出
-	var writeSyncer zapcore.WriteSyncer
-	if cfg.Output == "file" && cfg.File.Path != "" {
-		lumberjackLogger := &lumberjack.Logger{
-			Filename:   cfg.File.Path,
-			MaxSize:    cfg.File.MaxSize,
-			MaxBackups: cfg.File.MaxBackups,
-			MaxAge:     cfg.File.MaxAge,
-			Compress:   cfg.File.Compress,
-		}
-		writeSyncer = zapcore.AddSync(lumberjackLogger)
-	} else {
-		writeSyncer = zapcore.AddSync(os.Stdout)
-	}
-
-	// 创建核心
-	var encoder zapcore.Encoder
-	if cfg.Format == "json" {
-		encoder = zapcore.NewJSONEncoder(encoderConfig)
-	} else {
-		encoder = zapcore.NewConsoleEncoder(encoderConfig)
-	}
-
-	core := zapcore.NewCore(encoder, writeSyncer, level)
-	logger = zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
-
-	return nil
+type Response struct {
+	Code    int         `json:"code"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data"`
 }
 
-// Sync 刷新缓冲区
-func Sync() error {
-	if logger != nil {
-		return logger.Sync()
-	}
-	return nil
+type PageData struct {
+	List     interface{} `json:"list"`
+	Total    int64       `json:"total"`
+	Page     int         `json:"page"`
+	PageSize int         `json:"page_size"`
 }
 
-// Debug 记录 DEBUG 级别日志
-func Debug(msg string, fields ...zap.Field) {
-	if logger != nil {
-		logger.Debug(msg, fields...)
-	}
+func Success(c *gin.Context, data interface{}) {
+	c.JSON(http.StatusOK, Response{
+		Code:    errcode.CodeSuccess,
+		Message: "success",
+		Data:    data,
+	})
 }
 
-// Info 记录 INFO 级别日志
-func Info(msg string, fields ...zap.Field) {
-	if logger != nil {
-		logger.Info(msg, fields...)
-	}
+func SuccessPaginated(c *gin.Context, list interface{}, total int64, page, pageSize int) {
+	Success(c, PageData{
+		List:     list,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	})
 }
 
-// Warn 记录 WARN 级别日志
-func Warn(msg string, fields ...zap.Field) {
-	if logger != nil {
-		logger.Warn(msg, fields...)
-	}
+func Error(c *gin.Context, httpStatus int, code int, message string) {
+	c.JSON(httpStatus, Response{Code: code, Message: message, Data: nil})
 }
 
-// Error 记录 ERROR 级别日志
-func Error(msg string, fields ...zap.Field) {
-	if logger != nil {
-		logger.Error(msg, fields...)
-	}
+func BadRequest(c *gin.Context, code int, message string) {
+	Error(c, http.StatusBadRequest, code, message)
+}
+
+func Unauthorized(c *gin.Context, code int, message string) {
+	Error(c, http.StatusUnauthorized, code, message)
+}
+
+func NotFound(c *gin.Context, code int, message string) {
+	Error(c, http.StatusNotFound, code, message)
+}
+
+func InternalError(c *gin.Context) {
+	Error(c, http.StatusInternalServerError, errcode.CodeInternalError, errcode.GetMessage(errcode.CodeInternalError))
 }
 ```
 
-- [ ] **Step 3: 格式化代码**
+- [ ] **Step 3: 格式化并编译**
 
 ```bash
-gofmt -w internal/log/logger.go
+gofmt -w internal/handler/response.go
+go build ./internal/handler/
 ```
 
-- [ ] **Step 4: 验证编译**
+- [ ] **Step 4: 提交**
 
 ```bash
-go build ./internal/log/
+git add internal/handler/response.go
+git commit -m "feat(handler): add unified response format with error helpers"
 ```
 
-- [ ] **Step 5: 提交**
+---
 
-```bash
-git add internal/log/logger.go
-git commit -m "feat(log): implement InitLogger with Zap and Lumberjack"
-```
-
-## Global Constraints
-
-- 日志级别通过 `cfg.Level` 配置
-- 支持 console 和 file 两种输出
-- 支持 json 和 console 两种格式
-- 文件输出使用 Lumberjack 进行轮转

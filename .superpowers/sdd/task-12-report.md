@@ -1,28 +1,33 @@
-# Task 12 Report: Database Tests
+## Task 12: 服务层单元测试 — 完成报告
 
-## Status
-DONE_WITH_CONCERNS
+### 状态: DONE_WITH_CONCERNS
 
-## Commits
-- ae8824e: test(database): add unit tests for Connect and Close
+### 提交
+- `0f338b4` test(service): add unit tests for KeyService and AdminService
 
-## Test Summary
-- **Passed:** 3 tests (TestConnect_UnsupportedType, TestConnect_MySQLNoServer, TestClose_NilDB)
-- **Skipped:** 2 tests (TestConnect_SQLite, TestConnect_SQLiteDefaultPath) - skipped due to CGO not available
-- **Failed:** 0 tests
+### 测试结果
+全部 PASS（10/10）：
 
-## Test Details
-The test file was created with 5 test functions:
-1. TestConnect_SQLite - Tests SQLite connection with custom path
-2. TestConnect_SQLiteDefaultPath - Tests SQLite connection with default path
-3. TestConnect_UnsupportedType - Tests error handling for unsupported database type
-4. TestConnect_MySQLNoServer - Tests error handling when MySQL server is unavailable
-5. TestClose_NilDB - Tests that Close handles nil database gracefully
+**admin_service_test.go (4 tests)**
+- TestSeedAdmin — PASS
+- TestLogin_Success — PASS
+- TestLogin_WrongPassword — PASS
+- TestChangePassword — PASS
 
-## Concerns
-1. **CGO Dependency**: The SQLite tests require CGO and a 64-bit GCC compiler. In this environment, CGO is not available (cc1.exe: sorry, unimplemented: 64-bit mode not compiled in), so SQLite tests are skipped when CGO_ENABLED=0.
-2. **Default Path Cleanup**: TestConnect_SQLiteDefaultPath creates a cloudkey.db file in the current directory which is not cleaned up by the test. This could leave artifacts in the project directory.
-3. **Test Coverage**: Due to CGO limitations, SQLite functionality is not actually tested in this environment. The tests would need a proper development environment with GCC to run the SQLite tests.
+**key_service_test.go (6 tests)**
+- TestCreateKey — PASS
+- TestFindByRawKey — PASS
+- TestFindByRawKey_NotFound — PASS（含预期 GORM 日志输出）
+- TestGetKeyStatus — PASS
+- TestListKeys — PASS
+- TestDisableEnableKey — PASS
 
-## Files Created
-- D:\MyGoProject\CloudKey\internal\database\database_test.go
+### Concerns
+
+1. **CGO 编译问题**：系统仅有 32 位 MinGW GCC（`MinGW.org GCC-6.3.0-1`），无法编译 `mattn/go-sqlite3`（需 64 位）。改用纯 Go 替代方案 `github.com/glebarez/sqlite`（包装 `modernc.org/sqlite`），API 完全兼容，无需修改服务代码。
+
+2. **`glebarez/sqlite` 已加入 go.mod**：`go.mod` 和 `go.sum` 增加了 `github.com/glebarez/sqlite`、`github.com/glebarez/go-sqlite`、`modernc.org/sqlite` 等间接依赖。若不想保留可考虑后续清理（仅测试依赖）。
+
+3. **未测试 ConsumeKey**：`ConsumeKey` 使用 `gorm.Expr("CASE WHEN ... THEN ... END")` 和 `gorm.Expr("NOW()")`，其中 `NOW()` 在 SQLite 中不可用（需 `datetime('now')`）。按 brief 指示未覆盖该方法，但后续需注意：若想在 SQLite 下测试 ConsumeKey，服务代码本身可能需要适配。
+
+4. **GORM 日志噪声**：`TestFindByRawKey_NotFound` 会触发 GORM 的 `record not found` 日志输出（红色），属正常行为，不影响测试结果。可考虑在测试中设置 `logger.Silent` 模式消除。
