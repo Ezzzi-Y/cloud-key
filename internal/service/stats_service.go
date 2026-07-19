@@ -16,7 +16,7 @@ func NewStatsService(db *gorm.DB) *StatsService {
 }
 
 type KeyOverview struct {
-	TotalKeys    int64            `json:"total_keys"`
+	KeyCount     int64            `json:"key_count"`
 	StatusCounts map[string]int64 `json:"status_counts"`
 	TotalInitial int64            `json:"total_initial"`
 	TotalRemain  int64            `json:"total_remaining"`
@@ -25,7 +25,7 @@ type KeyOverview struct {
 func (s *StatsService) GetKeyOverview() (*KeyOverview, error) {
 	ov := &KeyOverview{StatusCounts: make(map[string]int64)}
 
-	if err := s.db.Model(&model.Key{}).Count(&ov.TotalKeys).Error; err != nil {
+	if err := s.db.Model(&model.Key{}).Count(&ov.KeyCount).Error; err != nil {
 		return nil, err
 	}
 

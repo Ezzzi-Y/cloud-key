@@ -374,7 +374,7 @@ async function loadDashboard() {
   if (!data) return;
   const ov = data.overview || {};
   document.getElementById('dashCards').innerHTML = `
-    <div class="card"><div class="label">卡密总数</div><div class="value">${ov.total_keys||0}</div></div>
+    <div class="card"><div class="label">卡密总数</div><div class="value">${ov.key_count||0}</div></div>
     <div class="card"><div class="label">未使用</div><div class="value">${(ov.status_counts||{}).unused||0}</div></div>
     <div class="card"><div class="label">已用尽</div><div class="value">${(ov.status_counts||{}).used||0}</div></div>
     <div class="card"><div class="label">已禁用</div><div class="value">${(ov.status_counts||{}).disabled||0}</div></div>
