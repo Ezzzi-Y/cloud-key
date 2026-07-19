@@ -15,6 +15,26 @@ func NewStatsService(db *gorm.DB) *StatsService {
 	return &StatsService{db: db}
 }
 
+// DateRange holds optional start/end date filters.
+// Empty strings mean no filter on that boundary.
+type DateRange struct {
+	StartDate string
+	EndDate   string
+}
+
+func applyDateFilter(db *gorm.DB, dateRange *DateRange) *gorm.DB {
+	if dateRange == nil {
+		return db
+	}
+	if dateRange.StartDate != "" {
+		db = db.Where("created_at >= ?", dateRange.StartDate)
+	}
+	if dateRange.EndDate != "" {
+		db = db.Where("created_at <= ?", dateRange.EndDate)
+	}
+	return db
+}
+
 type KeyOverview struct {
 	KeyCount     int64            `json:"key_count"`
 	StatusCounts map[string]int64 `json:"status_counts"`
@@ -22,10 +42,11 @@ type KeyOverview struct {
 	TotalRemain  int64            `json:"total_remaining"`
 }
 
-func (s *StatsService) GetKeyOverview() (*KeyOverview, error) {
+func (s *StatsService) GetKeyOverview(dateRange *DateRange) (*KeyOverview, error) {
 	ov := &KeyOverview{StatusCounts: make(map[string]int64)}
 
-	if err := s.db.Model(&model.Key{}).Count(&ov.KeyCount).Error; err != nil {
+	keyDB := applyDateFilter(s.db.Model(&model.Key{}), dateRange)
+	if err := keyDB.Count(&ov.KeyCount).Error; err != nil {
 		return nil, err
 	}
 
@@ -33,17 +54,20 @@ func (s *StatsService) GetKeyOverview() (*KeyOverview, error) {
 		Status string
 		Count  int64
 	}
-	if err := s.db.Model(&model.Key{}).Select("status, COUNT(*) as count").Group("status").Scan(&rows).Error; err != nil {
+	if err := applyDateFilter(s.db.Model(&model.Key{}), dateRange).
+		Select("status, COUNT(*) as count").Group("status").Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	for _, r := range rows {
 		ov.StatusCounts[r.Status] = r.Count
 	}
 
-	if err := s.db.Model(&model.Key{}).Select("COALESCE(SUM(initial_amount), 0)").Scan(&ov.TotalInitial).Error; err != nil {
+	if err := applyDateFilter(s.db.Model(&model.Key{}), dateRange).
+		Select("COALESCE(SUM(initial_amount), 0)").Scan(&ov.TotalInitial).Error; err != nil {
 		return nil, err
 	}
-	if err := s.db.Model(&model.Key{}).Select("COALESCE(SUM(remaining_amount), 0)").Scan(&ov.TotalRemain).Error; err != nil {
+	if err := applyDateFilter(s.db.Model(&model.Key{}), dateRange).
+		Select("COALESCE(SUM(remaining_amount), 0)").Scan(&ov.TotalRemain).Error; err != nil {
 		return nil, err
 	}
 
@@ -55,28 +79,36 @@ type TrendPoint struct {
 	Count int64  `json:"count"`
 }
 
-func (s *StatsService) GetTrends(period string) ([]TrendPoint, error) {
+func (s *StatsService) GetTrends(period string, dateRange *DateRange) ([]TrendPoint, error) {
 	var dateFormat string
 	var startTime time.Time
 	var points []TrendPoint
 	now := time.Now()
 
-	switch period {
-	case "week":
+	// If explicit date range is provided, use it instead of period
+	if dateRange != nil && dateRange.StartDate != "" {
 		dateFormat = "%Y-%m-%d"
-		startTime = now.AddDate(0, 0, -7)
-	case "month":
-		dateFormat = "%Y-%m-%d"
-		startTime = now.AddDate(0, -1, 0)
-	default: // "today"
-		dateFormat = "%Y-%m-%d %H"
-		startTime = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		startTime, _ = time.Parse("2006-01-02", dateRange.StartDate)
+	} else {
+		switch period {
+		case "week":
+			dateFormat = "%Y-%m-%d"
+			startTime = now.AddDate(0, 0, -7)
+		case "month":
+			dateFormat = "%Y-%m-%d"
+			startTime = now.AddDate(0, -1, 0)
+		default: // "today"
+			dateFormat = "%Y-%m-%d %H"
+			startTime = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		}
 	}
 
-	if err := s.db.Model(&model.UsageLog{}).
+	db := s.db.Model(&model.UsageLog{}).
 		Select("DATE_FORMAT(created_at, ?) as date, COUNT(*) as count", dateFormat).
-		Where("created_at >= ?", startTime).
-		Group("date").Order("date ASC").Scan(&points).Error; err != nil {
+		Where("created_at >= ?", startTime)
+	db = applyDateFilter(db, dateRange)
+
+	if err := db.Group("date").Order("date ASC").Scan(&points).Error; err != nil {
 		return nil, err
 	}
 
@@ -92,9 +124,10 @@ type TopItem struct {
 	Count int64  `json:"count"`
 }
 
-func (s *StatsService) GetTopKeys() ([]TopItem, error) {
+func (s *StatsService) GetTopKeys(dateRange *DateRange) ([]TopItem, error) {
 	items := make([]TopItem, 0)
-	if err := s.db.Model(&model.UsageLog{}).
+	db := applyDateFilter(s.db.Model(&model.UsageLog{}), dateRange)
+	if err := db.
 		Select("key_alias as name, COUNT(*) as count").
 		Group("key_alias").Order("count DESC").Limit(10).Scan(&items).Error; err != nil {
 		return nil, err
@@ -102,9 +135,10 @@ func (s *StatsService) GetTopKeys() ([]TopItem, error) {
 	return items, nil
 }
 
-func (s *StatsService) GetTopIPs() ([]TopItem, error) {
+func (s *StatsService) GetTopIPs(dateRange *DateRange) ([]TopItem, error) {
 	items := make([]TopItem, 0)
-	if err := s.db.Model(&model.UsageLog{}).
+	db := applyDateFilter(s.db.Model(&model.UsageLog{}), dateRange)
+	if err := db.
 		Select("ip as name, COUNT(*) as count").
 		Group("ip").Order("count DESC").Limit(10).Scan(&items).Error; err != nil {
 		return nil, err
@@ -121,7 +155,7 @@ type DashboardStats struct {
 }
 
 func (s *StatsService) GetDashboard() (*DashboardStats, error) {
-	overview, err := s.GetKeyOverview()
+	overview, err := s.GetKeyOverview(nil)
 	if err != nil {
 		return nil, err
 	}
