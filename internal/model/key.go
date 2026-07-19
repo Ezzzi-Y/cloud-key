@@ -33,6 +33,8 @@ type Key struct {
 	CreatedAt       time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt       time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 	UsedAt          *time.Time     `gorm:"default:null" json:"used_at"`
+	ExpireAt        *time.Time     `gorm:"default:null" json:"expire_at"`
+	MaxUsage        *int64         `gorm:"default:null" json:"max_usage"`
 }
 
 func (Key) TableName() string { return "keys" }

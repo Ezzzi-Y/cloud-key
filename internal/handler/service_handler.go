@@ -31,9 +31,11 @@ func (h *ServiceHandler) ServiceCreateKey(c *gin.Context) {
 	}
 
 	var req struct {
-		Alias         string `json:"alias" binding:"required"`
-		BillingMode   string `json:"billing_mode" binding:"required"`
-		InitialAmount int64  `json:"initial_amount" binding:"required"`
+		Alias         string  `json:"alias" binding:"required"`
+		BillingMode   string  `json:"billing_mode" binding:"required"`
+		InitialAmount int64   `json:"initial_amount" binding:"required"`
+		ExpireAt      *string `json:"expire_at"`
+		MaxUsage      *int64  `json:"max_usage"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		BadRequest(c, errcode.CodeServiceKeyInvalid, "参数错误")
@@ -42,9 +44,16 @@ func (h *ServiceHandler) ServiceCreateKey(c *gin.Context) {
 
 	createdBy := "sa:" + sa.Name
 
+	expireAt, err := parseExpireAt(req.ExpireAt)
+	if err != nil {
+		BadRequest(c, errcode.CodeServiceKeyInvalid, err.Error())
+		return
+	}
+
 	result, err := h.keySvc.CreateKey(service.CreateKeyRequest{
 		Alias: req.Alias, BillingMode: model.KeyBillingMode(req.BillingMode),
 		InitialAmount: req.InitialAmount, CreatedBy: createdBy,
+		ExpireAt: expireAt, MaxUsage: req.MaxUsage,
 	})
 	if err != nil {
 		InternalError(c)
@@ -56,6 +65,7 @@ func (h *ServiceHandler) ServiceCreateKey(c *gin.Context) {
 		"key_suffix": result.Key.KeySuffix, "billing_mode": result.Key.BillingMode,
 		"initial_amount": result.Key.InitialAmount, "remaining_amount": result.Key.RemainingAmount,
 		"status": result.Key.Status,
+		"expire_at": result.Key.ExpireAt, "max_usage": result.Key.MaxUsage,
 	})
 }
 

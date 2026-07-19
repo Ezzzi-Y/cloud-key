@@ -4,8 +4,10 @@ import (
 	"CloudKey/internal/errcode"
 	"CloudKey/internal/model"
 	"CloudKey/internal/service"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -19,6 +21,19 @@ type KeyHandler struct {
 
 func NewKeyHandler(keySvc *service.KeyService, usageLogSvc *service.UsageLogService, recordParams bool) *KeyHandler {
 	return &KeyHandler{keySvc: keySvc, usageLogSvc: usageLogSvc, recordParams: recordParams}
+}
+
+// parseExpireAt converts an optional expiry string pointer into *time.Time.
+// Returns nil if raw is nil or empty.
+func parseExpireAt(raw *string) (*time.Time, error) {
+	if raw == nil || *raw == "" {
+		return nil, nil
+	}
+	t, err := time.Parse("2006-01-02 15:04:05", *raw)
+	if err != nil {
+		return nil, fmt.Errorf("expire_at 格式错误，应为 YYYY-MM-DD HH:MM:SS")
+	}
+	return &t, nil
 }
 
 // Status 查询卡密状态（不扣减）
@@ -100,9 +115,11 @@ func (h *KeyHandler) Consume(c *gin.Context) {
 // ========== 管理员接口 ==========
 
 type CreateKeyJSON struct {
-	Alias         string `json:"alias" binding:"required"`
-	BillingMode   string `json:"billing_mode" binding:"required"`
-	InitialAmount int64  `json:"initial_amount" binding:"required"`
+	Alias         string  `json:"alias" binding:"required"`
+	BillingMode   string  `json:"billing_mode" binding:"required"`
+	InitialAmount int64   `json:"initial_amount" binding:"required"`
+	ExpireAt      *string `json:"expire_at"`
+	MaxUsage      *int64  `json:"max_usage"`
 }
 
 // CreateKey 管理员创建卡密
@@ -119,9 +136,16 @@ func (h *KeyHandler) CreateKey(c *gin.Context) {
 		createdBy = "admin"
 	}
 
+	expireAt, err := parseExpireAt(req.ExpireAt)
+	if err != nil {
+		BadRequest(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	result, err := h.keySvc.CreateKey(service.CreateKeyRequest{
 		Alias: req.Alias, BillingMode: model.KeyBillingMode(req.BillingMode),
 		InitialAmount: req.InitialAmount, CreatedBy: createdBy,
+		ExpireAt: expireAt, MaxUsage: req.MaxUsage,
 	})
 	if err != nil {
 		InternalError(c)
@@ -134,6 +158,7 @@ func (h *KeyHandler) CreateKey(c *gin.Context) {
 		"billing_mode": result.Key.BillingMode, "initial_amount": result.Key.InitialAmount,
 		"remaining_amount": result.Key.RemainingAmount, "status": result.Key.Status,
 		"created_by": result.Key.CreatedBy, "created_at": result.Key.CreatedAt,
+		"expire_at": result.Key.ExpireAt, "max_usage": result.Key.MaxUsage,
 	})
 }
 
@@ -242,6 +267,19 @@ func (h *KeyHandler) ExportKeys(c *gin.Context) {
 		return
 	}
 	Success(c, keys)
+}
+
+// ExportKeysJSON 管理员导出卡密（JSON 格式）
+func (h *KeyHandler) ExportKeysJSON(c *gin.Context) {
+	items, err := h.keySvc.ExportKeysJSON()
+	if err != nil {
+		InternalError(c)
+		return
+	}
+	if items == nil {
+		items = make([]service.ExportKeyItem, 0)
+	}
+	Success(c, items)
 }
 
 func pageParams(c *gin.Context) (int, int) {
