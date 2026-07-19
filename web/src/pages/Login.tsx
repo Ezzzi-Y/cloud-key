@@ -58,8 +58,9 @@ export default function LoginPage() {
       } else if (data.need_setup) {
         await handleInitSetup(data.user_id)
       }
-    } catch {
-      toast.error('登录失败，请检查网络连接')
+    } catch (err: unknown) {
+      const msg = (err as { message?: string })?.message
+      toast.error(msg || '登录失败，请检查网络连接')
     } finally {
       setLoading(false)
     }
