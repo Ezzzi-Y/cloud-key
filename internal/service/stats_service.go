@@ -2,6 +2,7 @@ package service
 
 import (
 	"CloudKey/internal/model"
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -88,7 +89,11 @@ func (s *StatsService) GetTrends(period string, dateRange *DateRange) ([]TrendPo
 	// If explicit date range is provided, use it instead of period
 	if dateRange != nil && dateRange.StartDate != "" {
 		dateFormat = "%Y-%m-%d"
-		startTime, _ = time.Parse("2006-01-02", dateRange.StartDate)
+		parsed, err := time.Parse("2006-01-02", dateRange.StartDate)
+		if err != nil {
+			return nil, fmt.Errorf("invalid start_date format: %w", err)
+		}
+		startTime = parsed
 	} else {
 		switch period {
 		case "week":

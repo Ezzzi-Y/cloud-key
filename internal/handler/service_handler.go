@@ -5,7 +5,6 @@ import (
 	"CloudKey/internal/model"
 	"CloudKey/internal/service"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -45,14 +44,10 @@ func (h *ServiceHandler) ServiceCreateKey(c *gin.Context) {
 
 	createdBy := "sa:" + sa.Name
 
-	var expireAt *time.Time
-	if req.ExpireAt != nil && *req.ExpireAt != "" {
-		t, err := time.Parse("2006-01-02 15:04:05", *req.ExpireAt)
-		if err != nil {
-			BadRequest(c, errcode.CodeServiceKeyInvalid, "expire_at 格式错误")
-			return
-		}
-		expireAt = &t
+	expireAt, err := parseExpireAt(req.ExpireAt)
+	if err != nil {
+		BadRequest(c, errcode.CodeServiceKeyInvalid, err.Error())
+		return
 	}
 
 	result, err := h.keySvc.CreateKey(service.CreateKeyRequest{

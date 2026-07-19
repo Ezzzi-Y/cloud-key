@@ -4,6 +4,7 @@ import (
 	"CloudKey/internal/errcode"
 	"CloudKey/internal/model"
 	"CloudKey/internal/service"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -20,6 +21,19 @@ type KeyHandler struct {
 
 func NewKeyHandler(keySvc *service.KeyService, usageLogSvc *service.UsageLogService, recordParams bool) *KeyHandler {
 	return &KeyHandler{keySvc: keySvc, usageLogSvc: usageLogSvc, recordParams: recordParams}
+}
+
+// parseExpireAt converts an optional expiry string pointer into *time.Time.
+// Returns nil if raw is nil or empty.
+func parseExpireAt(raw *string) (*time.Time, error) {
+	if raw == nil || *raw == "" {
+		return nil, nil
+	}
+	t, err := time.Parse("2006-01-02 15:04:05", *raw)
+	if err != nil {
+		return nil, fmt.Errorf("expire_at 格式错误，应为 YYYY-MM-DD HH:MM:SS")
+	}
+	return &t, nil
 }
 
 // Status 查询卡密状态（不扣减）
@@ -122,14 +136,10 @@ func (h *KeyHandler) CreateKey(c *gin.Context) {
 		createdBy = "admin"
 	}
 
-	var expireAt *time.Time
-	if req.ExpireAt != nil && *req.ExpireAt != "" {
-		t, err := time.Parse("2006-01-02 15:04:05", *req.ExpireAt)
-		if err != nil {
-			BadRequest(c, http.StatusBadRequest, "expire_at 格式错误，应为 YYYY-MM-DD HH:MM:SS")
-			return
-		}
-		expireAt = &t
+	expireAt, err := parseExpireAt(req.ExpireAt)
+	if err != nil {
+		BadRequest(c, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	result, err := h.keySvc.CreateKey(service.CreateKeyRequest{

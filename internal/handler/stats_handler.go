@@ -63,9 +63,6 @@ func (h *StatsHandler) Trends(c *gin.Context) {
 		InternalError(c)
 		return
 	}
-	if points == nil {
-		points = make([]service.TrendPoint, 0)
-	}
 	Success(c, points)
 }
 
