@@ -93,7 +93,7 @@ type TopItem struct {
 }
 
 func (s *StatsService) GetTopKeys() ([]TopItem, error) {
-	var items []TopItem
+	items := make([]TopItem, 0)
 	if err := s.db.Model(&model.UsageLog{}).
 		Select("key_alias as name, COUNT(*) as count").
 		Group("key_alias").Order("count DESC").Limit(10).Scan(&items).Error; err != nil {
@@ -103,7 +103,7 @@ func (s *StatsService) GetTopKeys() ([]TopItem, error) {
 }
 
 func (s *StatsService) GetTopIPs() ([]TopItem, error) {
-	var items []TopItem
+	items := make([]TopItem, 0)
 	if err := s.db.Model(&model.UsageLog{}).
 		Select("ip as name, COUNT(*) as count").
 		Group("ip").Order("count DESC").Limit(10).Scan(&items).Error; err != nil {

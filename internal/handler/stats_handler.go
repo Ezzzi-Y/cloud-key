@@ -51,9 +51,6 @@ func (h *StatsHandler) TopKeys(c *gin.Context) {
 		InternalError(c)
 		return
 	}
-	if items == nil {
-		items = make([]service.TopItem, 0)
-	}
 	Success(c, items)
 }
 
@@ -62,9 +59,6 @@ func (h *StatsHandler) TopIPs(c *gin.Context) {
 	if err != nil {
 		InternalError(c)
 		return
-	}
-	if items == nil {
-		items = make([]service.TopItem, 0)
 	}
 	Success(c, items)
 }
