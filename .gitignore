@@ -1,0 +1,27 @@
+# 配置文件（包含密码等敏感信息）
+config.yaml
+
+# 编译产物
+*.exe
+cloudkey
+
+# 日志文件
+logs/
+
+# IDE
+.idea/
+
+# 临时文件
+.superpowers/sdd/task-*-brief.md
+.superpowers/sdd/task-*-report.md
+.superpowers/sdd/review-*.diff
+.superpowers/sdd/progress.md
+
+# 工具依赖（测试用）
+tools.go
+
+# Node / Web
+node_modules/
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
