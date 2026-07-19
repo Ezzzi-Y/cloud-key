@@ -187,13 +187,15 @@ func (s *KeyService) ConsumeKey(rawKey string, amount int64) (*ConsumeResult, in
 			return nil, 0, tx.Error
 		}
 
+		// Conditional UPDATE: only deducts if remaining_amount >= amount.
+		// The WHERE clause guarantees atomicity — if balance changes between
+		// the SELECT and UPDATE, the version mismatch causes RowsAffected=0.
 		result := tx.Model(&model.Key{}).
-			Where("id = ? AND version = ?", key.ID, key.Version).
+			Where("id = ? AND version = ? AND remaining_amount >= ? AND status = ?",
+				key.ID, key.Version, amount, model.KeyStatusUnused).
 			Updates(map[string]interface{}{
 				"remaining_amount": gorm.Expr("remaining_amount - ?", amount),
 				"version":          gorm.Expr("version + 1"),
-				"status":           gorm.Expr("CASE WHEN remaining_amount - ? <= 0 THEN 'used' ELSE status END", amount),
-				"used_at":          gorm.Expr("CASE WHEN remaining_amount - ? <= 0 THEN NOW() ELSE used_at END", amount),
 			})
 
 		if result.Error != nil {
@@ -202,23 +204,36 @@ func (s *KeyService) ConsumeKey(rawKey string, amount int64) (*ConsumeResult, in
 		}
 		if result.RowsAffected == 0 {
 			tx.Rollback()
-			continue // optimistic lock conflict, retry with fresh key
+			continue // concurrency conflict, retry with fresh key
 		}
 
-		var updatedKey model.Key
-		if err := tx.Where("id = ?", key.ID).First(&updatedKey).Error; err != nil {
-			tx.Rollback()
-			return nil, 0, err
+		newRemaining := key.RemainingAmount - amount
+
+		// Mark as used if balance is exhausted
+		if newRemaining <= 0 {
+			if err := tx.Model(&model.Key{}).Where("id = ?", key.ID).
+				Updates(map[string]interface{}{
+					"status": model.KeyStatusUsed,
+					"used_at": time.Now(),
+				}).Error; err != nil {
+				tx.Rollback()
+				return nil, 0, err
+			}
 		}
 
 		if err := tx.Commit().Error; err != nil {
 			return nil, 0, err
 		}
 
+		status := key.Status
+		if newRemaining <= 0 {
+			status = model.KeyStatusUsed
+		}
+
 		return &ConsumeResult{
-			RemainingAmount: updatedKey.RemainingAmount,
-			Status:          updatedKey.Status,
-			Exhausted:       updatedKey.Status == model.KeyStatusUsed,
+			RemainingAmount: newRemaining,
+			Status:          status,
+			Exhausted:       newRemaining <= 0,
 		}, 0, nil
 	}
 	return nil, 0, fmt.Errorf("concurrency conflict after %d retries", maxRetries)

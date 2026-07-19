@@ -4,6 +4,7 @@ import { AuthProvider } from '@/hooks/useAuth'
 import RequireAuth from '@/components/RequireAuth'
 import SuperAdminLayout from '@/layouts/SuperAdminLayout'
 import TenantAdminLayout from '@/layouts/TenantAdminLayout'
+import { Toaster } from '@/components/ui/sonner'
 
 const Login = lazy(() => import('@/pages/Login'))
 const SuperDashboard = lazy(() => import('@/pages/super/Dashboard'))
@@ -17,8 +18,13 @@ const KeyVerify = lazy(() => import('@/pages/tenant/KeyVerify'))
 const UsageLogs = lazy(() => import('@/pages/tenant/UsageLogs'))
 const ServiceAccounts = lazy(() => import('@/pages/tenant/ServiceAccounts'))
 const TenantProfile = lazy(() => import('@/pages/tenant/Profile'))
+const NotFound = lazy(() => import('@/pages/NotFound'))
 
-const Loading = () => <div className="flex items-center justify-center h-screen">加载中...</div>
+const Loading = () => (
+  <div className="flex h-screen items-center justify-center">
+    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+  </div>
+)
 
 export default function App() {
   return (
@@ -46,9 +52,10 @@ export default function App() {
             </Route>
           </Route>
           <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
+      <Toaster position="top-right" richColors />
     </AuthProvider>
   )
 }

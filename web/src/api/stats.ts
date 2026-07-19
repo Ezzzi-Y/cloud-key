@@ -1,5 +1,5 @@
 import api from './client'
-import type { ApiResponse, DashboardData, KeyOverview, TrendData, TopItem } from '@/types'
+import type { ApiResponse, DashboardData, KeyOverview, TrendPoint, TopItem } from '@/types'
 
 export function getDashboard() {
   return api.get<unknown, ApiResponse<DashboardData>>('/tenant/stats/dashboard')
@@ -12,13 +12,9 @@ export function getOverview(startDate?: string, endDate?: string) {
 }
 
 export function getTrends(period: 'today' | 'week' | 'month' = 'today') {
-  return api.get<unknown, ApiResponse<TrendData>>('/tenant/stats/trends', { params: { period } })
+  return api.get<unknown, ApiResponse<TrendPoint[]>>('/tenant/stats/trends', { params: { period } })
 }
 
 export function getTopKeys() {
   return api.get<unknown, ApiResponse<TopItem[]>>('/tenant/stats/top-keys')
-}
-
-export function getTopIPs() {
-  return api.get<unknown, ApiResponse<TopItem[]>>('/tenant/stats/top-ips')
 }

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { Search, Minus } from 'lucide-react'
 
 export default function KeyVerify() {
@@ -16,16 +16,15 @@ export default function KeyVerify() {
   const [consumeAmount, setConsumeAmount] = useState(1)
   const [consuming, setConsuming] = useState(false)
   const [consumeResult, setConsumeResult] = useState<ConsumeKeyResult | null>(null)
-  const { toast } = useToast()
 
   const handleCheck = async () => {
-    if (!rawKey.trim()) { toast({ title: '提示', description: '请输入卡密', variant: 'destructive' }); return }
+    if (!rawKey.trim()) { toast.error('请输入卡密'); return }
     setChecking(true); setResult(null); setConsumeResult(null)
     try {
       const res = await getKeyStatus(rawKey.trim())
       if (res.code === 0) { setResult(res.data as KeyStatusResult) }
-      else { toast({ title: '校验失败', description: res.message, variant: 'destructive' }) }
-    } catch { toast({ title: '错误', description: '请求失败', variant: 'destructive' }) }
+      else { toast.error(res.message) }
+    } catch { toast.error('请求失败') }
     finally { setChecking(false) }
   }
 
@@ -37,9 +36,9 @@ export default function KeyVerify() {
       if (res.code === 0) {
         const d = res.data as ConsumeKeyResult; setConsumeResult(d)
         if (result) setResult({ ...result, remaining_amount: d.remaining_amount, status: d.status })
-        toast({ title: '扣减成功', description: `剩余额度：${d.remaining_amount}` })
-      } else { toast({ title: '扣减失败', description: res.message, variant: 'destructive' }) }
-    } catch { toast({ title: '错误', description: '请求失败', variant: 'destructive' }) }
+        toast.success(`扣减成功，剩余额度：${d.remaining_amount}`)
+      } else { toast.error(res.message) }
+    } catch { toast.error('请求失败') }
     finally { setConsuming(false) }
   }
 

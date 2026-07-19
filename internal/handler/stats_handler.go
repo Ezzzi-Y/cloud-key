@@ -81,17 +81,3 @@ func (h *TenantStatsHandler) TopKeys(c *gin.Context) {
 	}
 	Success(c, items)
 }
-
-func (h *TenantStatsHandler) TopIPs(c *gin.Context) {
-	tenantID := getTenantID(c)
-	dr := extractDateRange(c)
-	if c.IsAborted() {
-		return
-	}
-	items, err := h.statsSvc.GetTopIPs(dr, tenantID)
-	if err != nil {
-		InternalError(c)
-		return
-	}
-	Success(c, items)
-}

@@ -9,13 +9,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
+import { Skeleton } from '@/components/ui/skeleton'
 import { ArrowLeft } from 'lucide-react'
 
 export default function TenantDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { toast } = useToast()
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const [status, setStatus] = useState('active')
@@ -42,18 +42,18 @@ export default function TenantDetail() {
     mutationFn: (data: UpdateTenantRequest) => updateTenant(Number(id), data),
     onSuccess: (res) => {
       if (res.code === 0) {
-        toast({ title: '成功', description: '更新成功' })
+        toast.success('更新成功')
         queryClient.invalidateQueries({ queryKey: ['tenant', id] })
         queryClient.invalidateQueries({ queryKey: ['super-tenants'] })
-      } else { toast({ title: '错误', description: res.message, variant: 'destructive' }) }
+      } else { toast.error(res.message) }
     },
   })
 
   const resetMutation = useMutation({
     mutationFn: () => resetTenantPassword(Number(id)),
     onSuccess: (res) => {
-      if (res.code === 0) { setNewPassword((res.data as { new_password: string }).new_password); toast({ title: '成功', description: '密码已重置' }) }
-      else toast({ title: '错误', description: res.message, variant: 'destructive' })
+      if (res.code === 0) { setNewPassword((res.data as { new_password: string }).new_password); toast.success('密码已重置') }
+      else toast.error(res.message)
     },
   })
 
@@ -63,7 +63,15 @@ export default function TenantDetail() {
     })
   }
 
-  if (isLoading) return <div className="flex items-center justify-center py-12">加载中...</div>
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-24" />
+        <Skeleton className="h-8 w-64" />
+        <div className="grid gap-4 md:grid-cols-2"><Skeleton className="h-10" /><Skeleton className="h-10" /><Skeleton className="h-10" /></div>
+      </div>
+    )
+  }
   if (!tenant) return <div className="py-12 text-center text-muted-foreground">租户不存在</div>
 
   return (

@@ -7,6 +7,7 @@ import "github.com/spf13/viper"
 type AppConfig struct {
 	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
+	Redis    RedisConfig    `yaml:"redis"`
 	Log      LogConfig      `yaml:"log"`
 	Auth     AuthConfig     `yaml:"auth"`
 	Security SecurityConfig `yaml:"security"`
@@ -33,6 +34,14 @@ type DatabaseConfig struct {
 	Password string `yaml:"password"`
 	DBName   string `yaml:"dbname"`
 	SSLMode  string `yaml:"sslmode"`
+}
+
+// RedisConfig Redis 配置
+type RedisConfig struct {
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
 }
 
 // LogConfig 日志配置

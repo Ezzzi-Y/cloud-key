@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 
 interface Config {
   id: number
@@ -15,7 +15,6 @@ interface Config {
 }
 
 export default function PlatformConfig() {
-  const { toast } = useToast()
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState<Record<string, string>>({})
   const { data: configs, isLoading } = useQuery({
@@ -29,8 +28,8 @@ export default function PlatformConfig() {
   const mutation = useMutation({
     mutationFn: (items: UpdateConfigItem[]) => updateConfigs(items),
     onSuccess: (res) => {
-      if (res.code === 0) { toast({ title: '成功', description: '配置已保存' }); queryClient.invalidateQueries({ queryKey: ['configs'] }) }
-      else toast({ title: '错误', description: res.message, variant: 'destructive' })
+      if (res.code === 0) { toast.success('配置已保存'); queryClient.invalidateQueries({ queryKey: ['configs'] }) }
+      else toast.error(res.message)
     },
   })
 

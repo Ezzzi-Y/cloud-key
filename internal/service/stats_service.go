@@ -80,7 +80,7 @@ func (s *StatsService) GetKeyOverview(dateRange *DateRange, tenantID uint64) (*K
 
 type TrendPoint struct {
 	Date  string `json:"date"`
-	Count int64  `json:"count"`
+	Calls int64  `json:"calls"`
 }
 
 func (s *StatsService) GetTrends(period string, dateRange *DateRange, tenantID uint64) ([]TrendPoint, error) {
@@ -112,7 +112,7 @@ func (s *StatsService) GetTrends(period string, dateRange *DateRange, tenantID u
 	}
 
 	db := s.db.Model(&model.UsageLog{}).
-		Select("DATE_FORMAT(created_at, ?) as date, COUNT(*) as count", dateFormat).
+		Select("DATE_FORMAT(created_at, ?) as date, COUNT(*) as calls", dateFormat).
 		Where("created_at >= ?", startTime).
 		Where("tenant_id = ?", tenantID)
 	db = applyDateFilter(db, dateRange)
@@ -129,38 +129,28 @@ func (s *StatsService) GetTrends(period string, dateRange *DateRange, tenantID u
 }
 
 type TopItem struct {
-	Name  string `json:"name"`
-	Count int64  `json:"count"`
+	KeyAlias string `json:"key_alias"`
+	Count    int64  `json:"count"`
 }
 
 func (s *StatsService) GetTopKeys(dateRange *DateRange, tenantID uint64) ([]TopItem, error) {
 	items := make([]TopItem, 0)
 	db := applyDateFilter(s.db.Model(&model.UsageLog{}), dateRange).Where("tenant_id = ?", tenantID)
 	if err := db.
-		Select("key_alias as name, COUNT(*) as count").
+		Select("key_alias, COUNT(*) as count").
 		Group("key_alias").Order("count DESC").Limit(10).Scan(&items).Error; err != nil {
 		return nil, err
 	}
 	return items, nil
 }
 
-func (s *StatsService) GetTopIPs(dateRange *DateRange, tenantID uint64) ([]TopItem, error) {
-	items := make([]TopItem, 0)
-	db := applyDateFilter(s.db.Model(&model.UsageLog{}), dateRange).Where("tenant_id = ?", tenantID)
-	if err := db.
-		Select("ip as name, COUNT(*) as count").
-		Group("ip").Order("count DESC").Limit(10).Scan(&items).Error; err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 type DashboardStats struct {
-	Overview   *KeyOverview     `json:"overview"`
-	TodayCalls int64            `json:"today_calls"`
-	WeekCalls  int64            `json:"week_calls"`
-	MonthCalls int64            `json:"month_calls"`
-	RecentLogs []model.UsageLog `json:"recent_logs"`
+	KeyCount        int64            `json:"key_count"`
+	StatusBreakdown map[string]int64 `json:"key_status_breakdown"`
+	TodayCalls      int64            `json:"today_calls"`
+	WeekCalls       int64            `json:"week_calls"`
+	MonthCalls      int64            `json:"month_calls"`
+	RecentLogs      []model.UsageLog `json:"recent_logs"`
 }
 
 func (s *StatsService) GetDashboard(tenantID uint64) (*DashboardStats, error) {
@@ -191,10 +181,11 @@ func (s *StatsService) GetDashboard(tenantID uint64) (*DashboardStats, error) {
 	}
 
 	return &DashboardStats{
-		Overview:   overview,
-		TodayCalls: todayCalls,
-		WeekCalls:  weekCalls,
-		MonthCalls: monthCalls,
-		RecentLogs: recentLogs,
+		KeyCount:        overview.KeyCount,
+		StatusBreakdown: overview.StatusCounts,
+		TodayCalls:      todayCalls,
+		WeekCalls:       weekCalls,
+		MonthCalls:      monthCalls,
+		RecentLogs:      recentLogs,
 	}, nil
 }

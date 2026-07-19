@@ -9,12 +9,11 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function TenantProfile() {
   const { username } = useAuth()
-  const { toast } = useToast()
   const role = 'tenant'
 
   const { data: profile } = useQuery({
@@ -25,17 +24,17 @@ export default function TenantProfile() {
   const [oldPass, setOldPass] = useState(''); const [newPass, setNewPass] = useState('')
   const passMutation = useMutation({
     mutationFn: () => changePassword(role, oldPass, newPass),
-    onSuccess: (res) => { if (res.code === 0) { toast({ title: '成功', description: '密码修改成功' }); setOldPass(''); setNewPass('') } else toast({ title: '错误', description: res.message, variant: 'destructive' }) },
+    onSuccess: (res) => { if (res.code === 0) { toast.success('密码修改成功'); setOldPass(''); setNewPass('') } else toast.error(res.message) },
   })
 
   const [totpCode, setTotpCode] = useState(''); const [qrUrl, setQrUrl] = useState(''); const [totpSecret, setTotpSecret] = useState('')
   const setupMutation = useMutation({
     mutationFn: () => setupTOTP(role),
-    onSuccess: (res) => { if (res.code === 0) { const d = res.data as { secret: string; url: string }; setTotpSecret(d.secret); setQrUrl(d.url) } },
+    onSuccess: (res) => { if (res.code === 0) { const d = res.data as { secret: string; url: string }; setTotpSecret(d.secret); setQrUrl(d.url) } else toast.error(res.message) },
   })
   const confirmMutation = useMutation({
     mutationFn: () => confirmTOTP(role, totpCode),
-    onSuccess: (res) => { if (res.code === 0) { toast({ title: '成功', description: 'TOTP 重新绑定成功' }); setQrUrl(''); setTotpSecret(''); setTotpCode('') } else toast({ title: '错误', description: res.message, variant: 'destructive' }) },
+    onSuccess: (res) => { if (res.code === 0) { toast.success('验证器重新绑定成功'); setQrUrl(''); setTotpSecret(''); setTotpCode('') } else toast.error(res.message) },
   })
 
   const [loginPage, setLoginPage] = useState(1)
@@ -50,7 +49,7 @@ export default function TenantProfile() {
       <Tabs defaultValue="profile">
         <TabsList>
           <TabsTrigger value="profile">资料 & 密码</TabsTrigger>
-          <TabsTrigger value="totp">TOTP 管理</TabsTrigger>
+          <TabsTrigger value="totp">验证器管理</TabsTrigger>
           <TabsTrigger value="history">登录日志</TabsTrigger>
         </TabsList>
         <TabsContent value="profile">
@@ -60,7 +59,6 @@ export default function TenantProfile() {
               <div className="grid gap-2">
                 <div><span className="text-muted-foreground">用户名：</span>{username}</div>
                 <div><span className="text-muted-foreground">角色：</span>租户管理员</div>
-                <div><span className="text-muted-foreground">TOTP 状态：</span>{profile?.totp_setup ? '已设置' : '未设置'}</div>
               </div>
               <div className="border-t pt-4">
                 <h3 className="mb-4 font-semibold">修改密码</h3>
@@ -75,9 +73,10 @@ export default function TenantProfile() {
         </TabsContent>
         <TabsContent value="totp">
           <Card>
-            <CardHeader><CardTitle>TOTP 管理</CardTitle></CardHeader>
+            <CardHeader><CardTitle>验证器管理</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <Button onClick={() => setupMutation.mutate()} disabled={setupMutation.isPending}>重新生成 TOTP 密钥</Button>
+              <p className="text-sm text-muted-foreground">重新生成验证器密钥后，需要使用一次性密码验证器应用重新扫码绑定。</p>
+              <Button onClick={() => setupMutation.mutate()} disabled={setupMutation.isPending}>重新生成验证器密钥</Button>
               {qrUrl && (
                 <div className="space-y-4">
                   <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="TOTP QR" className="rounded border" />

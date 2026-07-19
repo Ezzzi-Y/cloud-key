@@ -1,38 +1,57 @@
+# CloudKey 配置文件示例
+# 复制为 config.yaml 并根据实际环境修改
+
+# 应用设置
+app:
+  debug: false
+
+# 服务器配置
 server:
   host: "0.0.0.0"
   port: 8080
 
+# 数据库配置（MySQL 8.0+）
 database:
-  type: "mysql"
-  host: "mysql"
+  type: mysql
+  host: 127.0.0.1
   port: 3306
-  user: "cloudkey"
-  password: "cloudkey123"
-  dbname: "cloudkey"
-  sslmode: "disable"
+  user: cloudkey
+  password: "your_db_password"
+  dbname: cloudkey
+  sslmode: disabled
 
+# Redis 配置（用于 TOTP 待确认密钥暂存等）
+redis:
+  host: 127.0.0.1
+  port: 6379
+  password: ""
+  db: 0
+
+# 认证配置
+auth:
+  # JWT 签名密钥，生产环境请使用随机强密钥
+  secret: "change-me-to-a-random-secret"
+  # JWT 过期时间（小时）
+  expiration: 24
+  # 超级管理员初始账号（首次启动时自动创建）
+  super_admin_username: admin
+  super_admin_password: "your_admin_password"
+
+# 日志配置
 log:
-  level: "info"
-  format: "json"
-  output: "stdout"
+  level: info
+  format: json
+  output: stdout
   file:
-    path: "logs/cloudkey.log"
+    path: logs/cloudkey.log
     max_size: 100
-    max_backups: 10
+    max_backups: 5
     max_age: 30
     compress: true
 
-auth:
-  secret: "change-me-to-a-random-string"
-  expiration: 24
-  super_admin_username: "admin"       # 超级管理员用户名（环境变量 SUPER_ADMIN_USERNAME 优先）
-  super_admin_password: ""            # 超级管理员密码（环境变量 SUPER_ADMIN_PASSWORD 优先，必填其一）
-
-app:
-  debug: false
-
+# 安全配置
 security:
   encryption:
     enabled: false
-    algorithm: ""
+    algorithm: aes-256-gcm
     key: ""
