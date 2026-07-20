@@ -1,6 +1,7 @@
 package router
 
 import (
+	_ "CloudKey/docs"
 	"CloudKey/internal/handler"
 	"CloudKey/internal/middleware"
 	"CloudKey/internal/service"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
 )
 
@@ -29,6 +32,9 @@ func SetupRouter(
 ) *gin.Engine {
 	r := gin.Default()
 	r.Use(middleware.CORSMiddleware())
+
+	// Swagger UI
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// 静态文件服务（React SPA）
 	distFS, distErr := fs.Sub(web.FS, "dist")

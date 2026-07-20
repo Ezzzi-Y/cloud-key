@@ -29,6 +29,13 @@ func NewTenantStatsHandler(svc *service.StatsService) *TenantStatsHandler {
 	return &TenantStatsHandler{statsSvc: svc}
 }
 
+// Dashboard 租户仪表盘数据
+// @Summary     仪表盘数据
+// @Tags        租户-统计
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Success     200 {object} Response "仪表盘数据"
+// @Router      /tenant/stats/dashboard [get]
 func (h *TenantStatsHandler) Dashboard(c *gin.Context) {
 	tenantID := getTenantID(c)
 	dash, err := h.statsSvc.GetDashboard(tenantID)
@@ -39,6 +46,16 @@ func (h *TenantStatsHandler) Dashboard(c *gin.Context) {
 	Success(c, dash)
 }
 
+// Overview 卡密概览统计
+// @Summary     卡密概览统计
+// @Tags        租户-统计
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       start_date query string false "开始日期 YYYY-MM-DD"
+// @Param       end_date   query string false "结束日期 YYYY-MM-DD"
+// @Success     200 {object} Response "概览数据"
+// @Failure     400 {object} Response "日期范围错误"
+// @Router      /tenant/stats/overview [get]
 func (h *TenantStatsHandler) Overview(c *gin.Context) {
 	tenantID := getTenantID(c)
 	dr := extractDateRange(c)
@@ -53,6 +70,17 @@ func (h *TenantStatsHandler) Overview(c *gin.Context) {
 	Success(c, overview)
 }
 
+// Trends 调用趋势
+// @Summary     调用趋势
+// @Tags        租户-统计
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       period     query string false "周期: today/week/month" default(today)
+// @Param       start_date query string false "开始日期 YYYY-MM-DD"
+// @Param       end_date   query string false "结束日期 YYYY-MM-DD"
+// @Success     200 {object} Response "趋势数据点"
+// @Failure     400 {object} Response "日期范围错误"
+// @Router      /tenant/stats/trends [get]
 func (h *TenantStatsHandler) Trends(c *gin.Context) {
 	tenantID := getTenantID(c)
 	period := c.DefaultQuery("period", "today")
@@ -68,6 +96,16 @@ func (h *TenantStatsHandler) Trends(c *gin.Context) {
 	Success(c, points)
 }
 
+// TopKeys 热门卡密
+// @Summary     热门卡密
+// @Tags        租户-统计
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       start_date query string false "开始日期 YYYY-MM-DD"
+// @Param       end_date   query string false "结束日期 YYYY-MM-DD"
+// @Success     200 {object} Response "热门卡密列表"
+// @Failure     400 {object} Response "日期范围错误"
+// @Router      /tenant/stats/top-keys [get]
 func (h *TenantStatsHandler) TopKeys(c *gin.Context) {
 	tenantID := getTenantID(c)
 	dr := extractDateRange(c)

@@ -21,10 +21,22 @@ func NewAuthHandler(authSvc *service.AuthService, loginLogSvc *service.LoginLogS
 // ========== Login flow ==========
 
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Username string `json:"username" binding:"required" example:"admin"`
+	Password string `json:"password" binding:"required" example:"123456"`
 }
 
+// Login 用户名密码登录
+// @Summary     用户名密码登录
+// @Description 用户名密码验证，成功后返回 pre_auth_token 用于后续 TOTP 验证
+// @Tags        认证
+// @Accept      json
+// @Produce     json
+// @Param       body body LoginRequest true "登录参数"
+// @Success     200 {object} Response "成功: data 含 require_totp/user_id/pre_auth_token"
+// @Failure     401 {object} Response "用户名或密码错误"
+// @Failure     403 {object} Response "账号已被锁定"
+// @Failure     429 {object} Response "请求过于频繁"
+// @Router      /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -73,11 +85,22 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // ========== 2FA ==========
 
 type Verify2FARequest struct {
-	UserID       uint64 `json:"user_id" binding:"required"`
-	Code         string `json:"code" binding:"required"`
+	UserID       uint64 `json:"user_id" binding:"required" example:"1"`
+	Code         string `json:"code" binding:"required" example:"123456"`
 	PreAuthToken string `json:"pre_auth_token" binding:"required"`
 }
 
+// Verify2FA TOTP 二次验证
+// @Summary     TOTP 二次验证
+// @Description 登录成功后使用 pre_auth_token + TOTP 验证码完成认证，返回 JWT
+// @Tags        认证
+// @Accept      json
+// @Produce     json
+// @Param       body body Verify2FARequest true "验证参数"
+// @Success     200 {object} Response{data=object{token=string,token_type=string,role=string,tenant_id=int,username=string}} "验证成功，返回 JWT"
+// @Failure     401 {object} Response "验证码错误或 pre_auth_token 无效"
+// @Failure     429 {object} Response "请求过于频繁"
+// @Router      /auth/verify-2fa [post]
 func (h *AuthHandler) Verify2FA(c *gin.Context) {
 	var req Verify2FARequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -110,6 +133,16 @@ func (h *AuthHandler) Verify2FA(c *gin.Context) {
 
 // ========== TOTP setup (authenticated user) ==========
 
+// SetupTOTP 生成 TOTP 密钥（已认证）
+// @Summary     生成 TOTP 密钥
+// @Description 已登录用户生成新的 TOTP 密钥，用于更换验证器
+// @Tags        认证
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Success     200 {object} Response{data=object{secret=string,url=string}} "生成成功"
+// @Failure     401 {object} Response "未认证"
+// @Router      /super/totp/setup [post]
+// @Router      /tenant/totp/setup [post]
 func (h *AuthHandler) SetupTOTP(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == 0 {
@@ -125,6 +158,19 @@ func (h *AuthHandler) SetupTOTP(c *gin.Context) {
 	Success(c, gin.H{"secret": secret, "url": url})
 }
 
+// ConfirmTOTP 确认 TOTP 绑定（已认证）
+// @Summary     确认 TOTP 绑定
+// @Description 已登录用户输入验证码确认 TOTP 绑定
+// @Tags        认证
+// @Accept      json
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       body body object true "验证码" Schema({"code":"string"})
+// @Success     200 {object} Response "绑定成功"
+// @Failure     400 {object} Response "验证码错误"
+// @Failure     401 {object} Response "未认证"
+// @Router      /super/totp/confirm [post]
+// @Router      /tenant/totp/confirm [post]
 func (h *AuthHandler) ConfirmTOTP(c *gin.Context) {
 	var req struct {
 		Code string `json:"code" binding:"required"`
@@ -149,6 +195,17 @@ func (h *AuthHandler) ConfirmTOTP(c *gin.Context) {
 
 // ========== TOTP setup (public endpoint: first-time setup, no JWT) ==========
 
+// SetupTOTPPublic 初始化 TOTP 绑定（首次登录）
+// @Summary     初始化 TOTP 绑定
+// @Description 首次登录用户生成 TOTP 密钥，需先通过密码验证获取 user_id
+// @Tags        认证
+// @Accept      json
+// @Produce     json
+// @Param       body body object true "用户ID" Schema({"user_id":1})
+// @Success     200 {object} Response{data=object{secret=string,url=string}} "生成成功"
+// @Failure     401 {object} Response "用户不存在或 TOTP 已设置"
+// @Failure     429 {object} Response "请求过于频繁"
+// @Router      /auth/totp/setup-init [post]
 func (h *AuthHandler) SetupTOTPPublic(c *gin.Context) {
 	var req struct {
 		UserID uint64 `json:"user_id" binding:"required"`
@@ -176,6 +233,18 @@ func (h *AuthHandler) SetupTOTPPublic(c *gin.Context) {
 	Success(c, gin.H{"secret": secret, "url": url})
 }
 
+// ConfirmTOTPPublic 确认 TOTP 绑定并登录（首次登录）
+// @Summary     确认 TOTP 绑定并登录
+// @Description 首次登录用户确认 TOTP 绑定后自动登录，返回 JWT
+// @Tags        认证
+// @Accept      json
+// @Produce     json
+// @Param       body body object true "验证参数" Schema({"user_id":1,"code":"string","pre_auth_token":"string"})
+// @Success     200 {object} Response{data=object{token=string,token_type=string,role=string,tenant_id=int,username=string}} "绑定成功并返回 JWT"
+// @Failure     400 {object} Response "验证码错误"
+// @Failure     401 {object} Response "pre_auth_token 无效"
+// @Failure     429 {object} Response "请求过于频繁"
+// @Router      /auth/totp/confirm-init [post]
 func (h *AuthHandler) ConfirmTOTPPublic(c *gin.Context) {
 	var req struct {
 		UserID       uint64 `json:"user_id" binding:"required"`
@@ -230,6 +299,15 @@ func (h *AuthHandler) ConfirmTOTPPublic(c *gin.Context) {
 
 // ========== Profile ==========
 
+// Profile 获取当前用户信息
+// @Summary     获取当前用户信息
+// @Tags        认证
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Success     200 {object} Response "用户信息"
+// @Failure     401 {object} Response "未认证"
+// @Router      /super/profile [get]
+// @Router      /tenant/profile [get]
 func (h *AuthHandler) Profile(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == 0 {
@@ -244,6 +322,18 @@ func (h *AuthHandler) Profile(c *gin.Context) {
 	Success(c, user)
 }
 
+// ChangePassword 修改密码
+// @Summary     修改密码
+// @Tags        认证
+// @Accept      json
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       body body object true "密码参数" Schema({"old_password":"string","new_password":"string"})
+// @Success     200 {object} Response "修改成功"
+// @Failure     400 {object} Response "旧密码错误"
+// @Failure     401 {object} Response "未认证"
+// @Router      /super/password [put]
+// @Router      /tenant/password [put]
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	var req struct {
 		OldPassword string `json:"old_password" binding:"required"`

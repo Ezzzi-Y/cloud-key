@@ -18,7 +18,13 @@ func NewSuperHandler(tenantSvc *service.TenantService, configSvc *service.Config
 	return &SuperHandler{tenantSvc: tenantSvc, configSvc: configSvc, loginLogSvc: loginLogSvc}
 }
 
-// GET /api/super/tenants
+// ListTenants 租户列表
+// @Summary     租户列表
+// @Tags        系统管理
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Success     200 {object} Response "租户列表"
+// @Router      /super/tenants [get]
 func (h *SuperHandler) ListTenants(c *gin.Context) {
 	tenants, err := h.tenantSvc.ListTenants()
 	if err != nil {
@@ -28,7 +34,16 @@ func (h *SuperHandler) ListTenants(c *gin.Context) {
 	Success(c, tenants)
 }
 
-// POST /api/super/tenants
+// CreateTenant 创建租户
+// @Summary     创建租户
+// @Tags        系统管理
+// @Accept      json
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       body body object true "租户参数" Schema({"name":"string","expire_at":"string","key_prefix":"string","key_length":16,"key_suffix_length":4})
+// @Success     200 {object} Response{data=object{tenant=object,admin_username=string,admin_password=string}} "创建成功"
+// @Failure     400 {object} Response "参数错误"
+// @Router      /super/tenants [post]
 func (h *SuperHandler) CreateTenant(c *gin.Context) {
 	var req service.CreateTenantRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -47,7 +62,15 @@ func (h *SuperHandler) CreateTenant(c *gin.Context) {
 	})
 }
 
-// GET /api/super/tenants/:id
+// GetTenant 租户详情
+// @Summary     租户详情
+// @Tags        系统管理
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       id   path int true "租户ID"
+// @Success     200 {object} Response "租户详情"
+// @Failure     404 {object} Response "租户不存在"
+// @Router      /super/tenants/{id} [get]
 func (h *SuperHandler) GetTenant(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -62,7 +85,17 @@ func (h *SuperHandler) GetTenant(c *gin.Context) {
 	Success(c, tenant)
 }
 
-// PATCH /api/super/tenants/:id
+// UpdateTenant 更新租户
+// @Summary     更新租户
+// @Tags        系统管理
+// @Accept      json
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       id   path int true "租户ID"
+// @Param       body body object true "更新字段" Schema({"name":"string","expire_at":"string","status":"string"})
+// @Success     200 {object} Response "更新成功"
+// @Failure     400 {object} Response "参数错误"
+// @Router      /super/tenants/{id} [patch]
 func (h *SuperHandler) UpdateTenant(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -81,7 +114,15 @@ func (h *SuperHandler) UpdateTenant(c *gin.Context) {
 	Success(c, nil)
 }
 
-// PATCH /api/super/tenants/:id/reset-password
+// ResetPassword 重置租户管理员密码
+// @Summary     重置租户管理员密码
+// @Tags        系统管理
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       id   path int true "租户ID"
+// @Success     200 {object} Response{data=object{new_password=string}} "重置成功"
+// @Failure     400 {object} Response "无效的ID"
+// @Router      /super/tenants/{id}/reset-password [patch]
 func (h *SuperHandler) ResetPassword(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -96,7 +137,13 @@ func (h *SuperHandler) ResetPassword(c *gin.Context) {
 	Success(c, gin.H{"new_password": newPass})
 }
 
-// GET /api/super/configs
+// GetConfigs 获取系统配置
+// @Summary     获取系统配置
+// @Tags        系统管理
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Success     200 {object} Response "配置列表"
+// @Router      /super/configs [get]
 func (h *SuperHandler) GetConfigs(c *gin.Context) {
 	configs, err := h.configSvc.GetAllConfigs()
 	if err != nil {
@@ -106,7 +153,16 @@ func (h *SuperHandler) GetConfigs(c *gin.Context) {
 	Success(c, configs)
 }
 
-// PUT /api/super/configs
+// UpdateConfigs 更新系统配置
+// @Summary     更新系统配置
+// @Tags        系统管理
+// @Accept      json
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       body body object true "配置数组" Schema([{"key":"string","value":"string","description":"string"}])
+// @Success     200 {object} Response "更新成功"
+// @Failure     400 {object} Response "参数错误"
+// @Router      /super/configs [put]
 func (h *SuperHandler) UpdateConfigs(c *gin.Context) {
 	var req []struct {
 		Key         string `json:"key" binding:"required"`
@@ -126,7 +182,15 @@ func (h *SuperHandler) UpdateConfigs(c *gin.Context) {
 	Success(c, nil)
 }
 
-// GET /api/super/login-logs
+// LoginLogs 登录日志（全租户）
+// @Summary     登录日志
+// @Tags        系统管理
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       page      query int false "页码"     default(1)
+// @Param       page_size query int false "每页数量" default(20)
+// @Success     200 {object} Response{data=PageData} "分页登录日志"
+// @Router      /super/login-logs [get]
 func (h *SuperHandler) LoginLogs(c *gin.Context) {
 	page, pageSize := pageParams(c)
 	logs, total, err := h.loginLogSvc.ListLoginLogs(page, pageSize, nil) // nil = all tenants

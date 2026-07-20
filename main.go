@@ -15,6 +15,19 @@ import (
 	"go.uber.org/zap"
 )
 
+// @title       CloudKey API
+// @version     1.0
+// @description 卡密管理系统 API 文档
+// @host        localhost:8080
+// @BasePath    /api
+// @securityDefinitions.apikey ApiKeyAuth
+// @in   header
+// @name Authorization
+// @description Bearer JWT token, 格式: Bearer <token>
+// @securityDefinitions.apikey ServiceKeyAuth
+// @in   header
+// @name X-Service-Key
+// @description 服务账号密钥
 func main() {
 	configPath := os.Getenv("CONFIG_PATH")
 	if configPath == "" {

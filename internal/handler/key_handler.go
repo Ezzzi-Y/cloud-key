@@ -39,7 +39,16 @@ func parseExpireAt(raw *string) (*time.Time, error) {
 	return &t, nil
 }
 
-// Status queries key status (no deduction).
+// Status 查询卡密状态
+// @Summary     查询卡密状态
+// @Description 根据卡密值查询卡密状态，不扣减额度
+// @Tags        卡密公共API
+// @Produce     json
+// @Param       sk query string true "卡密值"
+// @Success     200 {object} Response "卡密状态信息"
+// @Failure     400 {object} Response "缺少卡密参数"
+// @Failure     404 {object} Response "卡密不存在"
+// @Router      /key/status [get]
 func (h *KeyHandler) Status(c *gin.Context) {
 	rawKey := c.Query("sk")
 	if rawKey == "" {
@@ -61,11 +70,20 @@ func (h *KeyHandler) Status(c *gin.Context) {
 }
 
 type ConsumeRequest struct {
-	Key    string `json:"key" binding:"required"`
-	Amount int64  `json:"amount"`
+	Key    string `json:"key" binding:"required" example:"CK-xxxx-xxxx"`
+	Amount int64  `json:"amount" example:"1"`
 }
 
-// Consume deducts key amount (public API, no tenant scope).
+// Consume 扣减卡密额度
+// @Summary     扣减卡密额度
+// @Description 扣减指定卡密的剩余额度
+// @Tags        卡密公共API
+// @Accept      json
+// @Produce     json
+// @Param       body body ConsumeRequest true "扣减参数"
+// @Success     200 {object} Response "扣减结果"
+// @Failure     400 {object} Response "参数错误或卡密无效"
+// @Router      /key/consume [post]
 func (h *KeyHandler) Consume(c *gin.Context) {
 	var req ConsumeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -130,11 +148,11 @@ func NewTenantKeyHandler(keySvc *service.KeyService, usageLogSvc *service.UsageL
 }
 
 type CreateKeyJSON struct {
-	Alias         string  `json:"alias" binding:"required"`
-	BillingMode   string  `json:"billing_mode" binding:"required"`
-	InitialAmount int64   `json:"initial_amount" binding:"required"`
-	ExpireAt      *string `json:"expire_at"`
-	MaxUsage      *int64  `json:"max_usage"`
+	Alias         string  `json:"alias" binding:"required" example:"测试卡密"`
+	BillingMode   string  `json:"billing_mode" binding:"required" example:"count"`
+	InitialAmount int64   `json:"initial_amount" binding:"required" example:"100"`
+	ExpireAt      *string `json:"expire_at" example:"2025-12-31 23:59:59"`
+	MaxUsage      *int64  `json:"max_usage" example:"10"`
 }
 
 func (h *TenantKeyHandler) getTenantKeyConfig(tenantID uint64) (string, int, int, error) {
@@ -145,7 +163,17 @@ func (h *TenantKeyHandler) getTenantKeyConfig(tenantID uint64) (string, int, int
 	return tenant.KeyPrefix, tenant.KeyLength, tenant.KeySuffixLength, nil
 }
 
-// CreateKey creates a key scoped to the authenticated tenant.
+// CreateKey 创建卡密
+// @Summary     创建卡密
+// @Description 租户管理员创建新卡密，需业务状态正常
+// @Tags        租户-卡密管理
+// @Accept      json
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       body body CreateKeyJSON true "卡密参数"
+// @Success     200 {object} Response "创建成功，含 raw_key"
+// @Failure     400 {object} Response "参数错误"
+// @Router      /tenant/keys [post]
 func (h *TenantKeyHandler) CreateKey(c *gin.Context) {
 	var req CreateKeyJSON
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -189,7 +217,17 @@ func (h *TenantKeyHandler) CreateKey(c *gin.Context) {
 	})
 }
 
-// ListKeys lists keys scoped to the authenticated tenant.
+// ListKeys 卡密列表
+// @Summary     卡密列表
+// @Tags        租户-卡密管理
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       page     query int    false "页码"     default(1)
+// @Param       page_size query int   false "每页数量" default(20)
+// @Param       status   query string false "状态过滤: unused/used/disabled/expired"
+// @Param       search   query string false "关键字搜索"
+// @Success     200 {object} Response{data=PageData} "分页卡密列表"
+// @Router      /tenant/keys [get]
 func (h *TenantKeyHandler) ListKeys(c *gin.Context) {
 	tenantID := getTenantID(c)
 	page, pageSize := pageParams(c)
@@ -205,7 +243,15 @@ func (h *TenantKeyHandler) ListKeys(c *gin.Context) {
 	SuccessPaginated(c, keys, total, page, pageSize)
 }
 
-// GetKey retrieves a key detail scoped to the authenticated tenant.
+// GetKey 卡密详情
+// @Summary     卡密详情
+// @Tags        租户-卡密管理
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       id   path int true "卡密ID"
+// @Success     200 {object} Response "卡密详情"
+// @Failure     404 {object} Response "卡密不存在"
+// @Router      /tenant/keys/{id} [get]
 func (h *TenantKeyHandler) GetKey(c *gin.Context) {
 	tenantID := getTenantID(c)
 
@@ -227,7 +273,17 @@ func (h *TenantKeyHandler) GetKey(c *gin.Context) {
 	Success(c, key)
 }
 
-// UpdateKey updates a key scoped to the authenticated tenant.
+// UpdateKey 更新卡密
+// @Summary     更新卡密
+// @Tags        租户-卡密管理
+// @Accept      json
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       id   path int true "卡密ID"
+// @Param       body body object true "更新字段" Schema({"alias":"string","remaining_amount":0})
+// @Success     200 {object} Response "更新成功"
+// @Failure     400 {object} Response "参数错误"
+// @Router      /tenant/keys/{id} [patch]
 func (h *TenantKeyHandler) UpdateKey(c *gin.Context) {
 	tenantID := getTenantID(c)
 
@@ -250,7 +306,15 @@ func (h *TenantKeyHandler) UpdateKey(c *gin.Context) {
 	Success(c, nil)
 }
 
-// DisableKey disables a key scoped to the authenticated tenant.
+// DisableKey 禁用卡密
+// @Summary     禁用卡密
+// @Tags        租户-卡密管理
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       id   path int true "卡密ID"
+// @Success     200 {object} Response "禁用成功"
+// @Failure     400 {object} Response "无效的卡密 ID"
+// @Router      /tenant/keys/{id}/disable [patch]
 func (h *TenantKeyHandler) DisableKey(c *gin.Context) {
 	tenantID := getTenantID(c)
 
@@ -266,7 +330,15 @@ func (h *TenantKeyHandler) DisableKey(c *gin.Context) {
 	Success(c, nil)
 }
 
-// EnableKey enables a key scoped to the authenticated tenant.
+// EnableKey 启用卡密
+// @Summary     启用卡密
+// @Tags        租户-卡密管理
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       id   path int true "卡密ID"
+// @Success     200 {object} Response "启用成功"
+// @Failure     400 {object} Response "无效的卡密 ID"
+// @Router      /tenant/keys/{id}/enable [patch]
 func (h *TenantKeyHandler) EnableKey(c *gin.Context) {
 	tenantID := getTenantID(c)
 
@@ -282,7 +354,15 @@ func (h *TenantKeyHandler) EnableKey(c *gin.Context) {
 	Success(c, nil)
 }
 
-// DeleteKey deletes a key scoped to the authenticated tenant.
+// DeleteKey 删除卡密
+// @Summary     删除卡密
+// @Tags        租户-卡密管理
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       id   path int true "卡密ID"
+// @Success     200 {object} Response "删除成功"
+// @Failure     400 {object} Response "无效的卡密 ID"
+// @Router      /tenant/keys/{id} [delete]
 func (h *TenantKeyHandler) DeleteKey(c *gin.Context) {
 	tenantID := getTenantID(c)
 
@@ -298,7 +378,13 @@ func (h *TenantKeyHandler) DeleteKey(c *gin.Context) {
 	Success(c, nil)
 }
 
-// ExportKeys exports keys scoped to the authenticated tenant.
+// ExportKeys 导出卡密（文本格式）
+// @Summary     导出卡密（文本格式）
+// @Tags        租户-卡密管理
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Success     200 {object} Response "导出数据"
+// @Router      /tenant/keys/export [get]
 func (h *TenantKeyHandler) ExportKeys(c *gin.Context) {
 	tenantID := getTenantID(c)
 
@@ -310,7 +396,13 @@ func (h *TenantKeyHandler) ExportKeys(c *gin.Context) {
 	Success(c, keys)
 }
 
-// ExportKeysJSON exports keys as JSON scoped to the authenticated tenant.
+// ExportKeysJSON 导出卡密（JSON 格式）
+// @Summary     导出卡密（JSON 格式）
+// @Tags        租户-卡密管理
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Success     200 {object} Response "导出数据 JSON 数组"
+// @Router      /tenant/keys/export/json [get]
 func (h *TenantKeyHandler) ExportKeysJSON(c *gin.Context) {
 	tenantID := getTenantID(c)
 
