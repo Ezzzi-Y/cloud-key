@@ -13,17 +13,18 @@ import (
 	"gorm.io/gorm"
 )
 
-// ========== Public API (no auth, no tenant scope) ==========
+// ========== Tenant Admin API (tenant-scoped) ==========
 
-// KeyHandler handles public Status and Consume endpoints.
-type KeyHandler struct {
+// TenantKeyHandler handles tenant-scoped key management endpoints.
+type TenantKeyHandler struct {
 	keySvc       *service.KeyService
 	usageLogSvc  *service.UsageLogService
+	db           *gorm.DB
 	recordParams bool
 }
 
-func NewKeyHandler(keySvc *service.KeyService, usageLogSvc *service.UsageLogService, recordParams bool) *KeyHandler {
-	return &KeyHandler{keySvc: keySvc, usageLogSvc: usageLogSvc, recordParams: recordParams}
+func NewTenantKeyHandler(keySvc *service.KeyService, usageLogSvc *service.UsageLogService, db *gorm.DB, recordParams bool) *TenantKeyHandler {
+	return &TenantKeyHandler{keySvc: keySvc, usageLogSvc: usageLogSvc, db: db, recordParams: recordParams}
 }
 
 // parseExpireAt converts an optional expiry string pointer into *time.Time.
@@ -42,21 +43,23 @@ func parseExpireAt(raw *string) (*time.Time, error) {
 // Status 查询卡密状态
 // @Summary     查询卡密状态
 // @Description 根据卡密值查询卡密状态，不扣减额度
-// @Tags        卡密公共API
+// @Tags        租户-卡密管理
 // @Produce     json
+// @Security    ApiKeyAuth
 // @Param       sk query string true "卡密值"
 // @Success     200 {object} Response "卡密状态信息"
 // @Failure     400 {object} Response "缺少卡密参数"
 // @Failure     404 {object} Response "卡密不存在"
-// @Router      /key/status [get]
-func (h *KeyHandler) Status(c *gin.Context) {
+// @Router      /tenant/keys/status [get]
+func (h *TenantKeyHandler) Status(c *gin.Context) {
+	tenantID := getTenantID(c)
 	rawKey := c.Query("sk")
 	if rawKey == "" {
 		BadRequest(c, http.StatusBadRequest, "缺少卡密参数")
 		return
 	}
 
-	result, err := h.keySvc.GetKeyStatus(rawKey)
+	result, err := h.keySvc.GetKeyStatusByTenant(rawKey, tenantID)
 	if err != nil {
 		InternalError(c)
 		return
@@ -77,14 +80,17 @@ type ConsumeRequest struct {
 // Consume 扣减卡密额度
 // @Summary     扣减卡密额度
 // @Description 扣减指定卡密的剩余额度
-// @Tags        卡密公共API
+// @Tags        租户-卡密管理
 // @Accept      json
 // @Produce     json
+// @Security    ApiKeyAuth
 // @Param       body body ConsumeRequest true "扣减参数"
 // @Success     200 {object} Response "扣减结果"
 // @Failure     400 {object} Response "参数错误或卡密无效"
-// @Router      /key/consume [post]
-func (h *KeyHandler) Consume(c *gin.Context) {
+// @Router      /tenant/keys/consume [post]
+func (h *TenantKeyHandler) Consume(c *gin.Context) {
+	tenantID := getTenantID(c)
+
 	var req ConsumeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		BadRequest(c, http.StatusBadRequest, "参数错误")
@@ -99,19 +105,19 @@ func (h *KeyHandler) Consume(c *gin.Context) {
 		requestParams = c.Request.URL.RawQuery
 	}
 
-	result, code, err := h.keySvc.ConsumeKey(req.Key, req.Amount)
+	result, code, err := h.keySvc.ConsumeKeyByTenant(req.Key, req.Amount, tenantID)
 	if err != nil {
 		InternalError(c)
 		return
 	}
 	if code != 0 {
-		key, _ := h.keySvc.FindByRawKey(req.Key)
-		keyID, keyAlias, keyTenantID := uint64(0), "", uint64(0)
+		key, _ := h.keySvc.FindByRawKeyTenant(req.Key, tenantID)
+		keyID, keyAlias := uint64(0), ""
 		if key != nil {
-			keyID, keyAlias, keyTenantID = key.ID, key.Alias, key.TenantID
+			keyID, keyAlias = key.ID, key.Alias
 		}
 		h.usageLogSvc.Record(service.RecordUsageParams{
-			TenantID: keyTenantID, KeyID: keyID, KeyAlias: keyAlias, Amount: req.Amount,
+			TenantID: tenantID, KeyID: keyID, KeyAlias: keyAlias, Amount: req.Amount,
 			IP: c.ClientIP(), UserAgent: c.GetHeader("User-Agent"),
 			RequestPath: c.Request.URL.Path, RequestParams: requestParams, ResponseStatus: code,
 		})
@@ -119,32 +125,18 @@ func (h *KeyHandler) Consume(c *gin.Context) {
 		return
 	}
 
-	key, _ := h.keySvc.FindByRawKey(req.Key)
-	keyID, keyAlias, keyTenantID := uint64(0), "", uint64(0)
+	key, _ := h.keySvc.FindByRawKeyTenant(req.Key, tenantID)
+	keyID, keyAlias := uint64(0), ""
 	if key != nil {
-		keyID, keyAlias, keyTenantID = key.ID, key.Alias, key.TenantID
+		keyID, keyAlias = key.ID, key.Alias
 	}
 	h.usageLogSvc.Record(service.RecordUsageParams{
-		TenantID: keyTenantID, KeyID: keyID, KeyAlias: keyAlias, Amount: req.Amount,
+		TenantID: tenantID, KeyID: keyID, KeyAlias: keyAlias, Amount: req.Amount,
 		IP: c.ClientIP(), UserAgent: c.GetHeader("User-Agent"),
 		RequestPath: c.Request.URL.Path, RequestParams: requestParams, ResponseStatus: http.StatusOK,
 	})
 
 	Success(c, result)
-}
-
-// ========== Tenant Admin API (tenant-scoped) ==========
-
-// TenantKeyHandler handles tenant-scoped key management endpoints.
-type TenantKeyHandler struct {
-	keySvc       *service.KeyService
-	usageLogSvc  *service.UsageLogService
-	db           *gorm.DB
-	recordParams bool
-}
-
-func NewTenantKeyHandler(keySvc *service.KeyService, usageLogSvc *service.UsageLogService, db *gorm.DB, recordParams bool) *TenantKeyHandler {
-	return &TenantKeyHandler{keySvc: keySvc, usageLogSvc: usageLogSvc, db: db, recordParams: recordParams}
 }
 
 type CreateKeyJSON struct {

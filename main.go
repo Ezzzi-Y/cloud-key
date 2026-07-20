@@ -97,7 +97,6 @@ func main() {
 	}
 
 	// Handlers
-	keyHandler := handler.NewKeyHandler(keySvc, usageLogSvc, false)
 	authHandler := handler.NewAuthHandler(authSvc, loginLogSvc)
 	superHandler := handler.NewSuperHandler(tenantSvc, configSvc, loginLogSvc)
 	tenantKeyHandler := handler.NewTenantKeyHandler(keySvc, usageLogSvc, db, false)
@@ -114,9 +113,9 @@ func main() {
 
 	// Router
 	r := router.SetupRouter(
-		keyHandler, authHandler, superHandler,
+		authHandler, superHandler,
 		tenantKeyHandler, tenantSAHandler, tenantStatsHandler, tenantUsageLogHandler,
-		cfg.Auth.Secret, db, serviceAccountSvc, rdb,
+		cfg.Auth.Secret, db, serviceAccountSvc, rdb, cfg.App.Debug,
 	)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)

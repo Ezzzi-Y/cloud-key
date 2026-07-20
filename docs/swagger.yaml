@@ -78,6 +78,15 @@ definitions:
     - pre_auth_token
     - user_id
     type: object
+  handler.serviceConsumeReq:
+    properties:
+      amount:
+        type: integer
+      key:
+        type: string
+    required:
+    - key
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -255,59 +264,6 @@ paths:
       summary: TOTP 二次验证
       tags:
       - 认证
-  /key/consume:
-    post:
-      consumes:
-      - application/json
-      description: 扣减指定卡密的剩余额度
-      parameters:
-      - description: 扣减参数
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/handler.ConsumeRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 扣减结果
-          schema:
-            $ref: '#/definitions/handler.Response'
-        "400":
-          description: 参数错误或卡密无效
-          schema:
-            $ref: '#/definitions/handler.Response'
-      summary: 扣减卡密额度
-      tags:
-      - 卡密公共API
-  /key/status:
-    get:
-      description: 根据卡密值查询卡密状态，不扣减额度
-      parameters:
-      - description: 卡密值
-        in: query
-        name: sk
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 卡密状态信息
-          schema:
-            $ref: '#/definitions/handler.Response'
-        "400":
-          description: 缺少卡密参数
-          schema:
-            $ref: '#/definitions/handler.Response'
-        "404":
-          description: 卡密不存在
-          schema:
-            $ref: '#/definitions/handler.Response'
-      summary: 查询卡密状态
-      tags:
-      - 卡密公共API
   /service/keys:
     get:
       parameters:
@@ -321,6 +277,14 @@ paths:
         in: query
         name: page_size
         type: integer
+      - description: '状态过滤: unused/used/disabled/expired'
+        in: query
+        name: status
+        type: string
+      - description: 关键字搜索
+        in: query
+        name: search
+        type: string
       produces:
       - application/json
       responses:
@@ -367,6 +331,257 @@ paths:
       security:
       - ServiceKeyAuth: []
       summary: 服务账号创建卡密
+      tags:
+      - 服务账号API
+  /service/keys/{id}:
+    delete:
+      parameters:
+      - description: 卡密ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: 无效的卡密 ID
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "401":
+          description: 服务账号密钥无效
+          schema:
+            $ref: '#/definitions/handler.Response'
+      security:
+      - ServiceKeyAuth: []
+      summary: 服务账号删除卡密
+      tags:
+      - 服务账号API
+    get:
+      parameters:
+      - description: 卡密ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 卡密详情
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: 无效的卡密 ID
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "401":
+          description: 服务账号密钥无效
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "404":
+          description: 卡密不存在
+          schema:
+            $ref: '#/definitions/handler.Response'
+      security:
+      - ServiceKeyAuth: []
+      summary: 服务账号查询卡密详情
+      tags:
+      - 服务账号API
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: 卡密ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新字段
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "401":
+          description: 服务账号密钥无效
+          schema:
+            $ref: '#/definitions/handler.Response'
+      security:
+      - ServiceKeyAuth: []
+      summary: 服务账号更新卡密
+      tags:
+      - 服务账号API
+  /service/keys/{id}/disable:
+    patch:
+      parameters:
+      - description: 卡密ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 禁用成功
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: 无效的卡密 ID
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "401":
+          description: 服务账号密钥无效
+          schema:
+            $ref: '#/definitions/handler.Response'
+      security:
+      - ServiceKeyAuth: []
+      summary: 服务账号禁用卡密
+      tags:
+      - 服务账号API
+  /service/keys/{id}/enable:
+    patch:
+      parameters:
+      - description: 卡密ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 启用成功
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: 无效的卡密 ID
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "401":
+          description: 服务账号密钥无效
+          schema:
+            $ref: '#/definitions/handler.Response'
+      security:
+      - ServiceKeyAuth: []
+      summary: 服务账号启用卡密
+      tags:
+      - 服务账号API
+  /service/keys/consume:
+    post:
+      consumes:
+      - application/json
+      description: 通过 X-Service-Key 认证，扣减指定卡密的剩余额度
+      parameters:
+      - description: 扣减参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.serviceConsumeReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 扣减结果
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: 参数错误或卡密无效
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "401":
+          description: 服务账号密钥无效
+          schema:
+            $ref: '#/definitions/handler.Response'
+      security:
+      - ServiceKeyAuth: []
+      summary: 服务账号扣减卡密额度
+      tags:
+      - 服务账号API
+  /service/keys/export:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 导出数据
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "401":
+          description: 服务账号密钥无效
+          schema:
+            $ref: '#/definitions/handler.Response'
+      security:
+      - ServiceKeyAuth: []
+      summary: 服务账号导出卡密（文本格式）
+      tags:
+      - 服务账号API
+  /service/keys/export/json:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 导出数据 JSON 数组
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "401":
+          description: 服务账号密钥无效
+          schema:
+            $ref: '#/definitions/handler.Response'
+      security:
+      - ServiceKeyAuth: []
+      summary: 服务账号导出卡密（JSON 格式）
+      tags:
+      - 服务账号API
+  /service/keys/status:
+    get:
+      description: 通过 X-Service-Key 认证，根据卡密值查询状态
+      parameters:
+      - description: 卡密值
+        in: query
+        name: sk
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 卡密状态信息
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: 缺少卡密参数
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "401":
+          description: 服务账号密钥无效
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "404":
+          description: 卡密不存在
+          schema:
+            $ref: '#/definitions/handler.Response'
+      security:
+      - ServiceKeyAuth: []
+      summary: 服务账号查询卡密状态
       tags:
       - 服务账号API
   /super/configs:
@@ -879,6 +1094,34 @@ paths:
       summary: 启用卡密
       tags:
       - 租户-卡密管理
+  /tenant/keys/consume:
+    post:
+      consumes:
+      - application/json
+      description: 扣减指定卡密的剩余额度
+      parameters:
+      - description: 扣减参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ConsumeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 扣减结果
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: 参数错误或卡密无效
+          schema:
+            $ref: '#/definitions/handler.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 扣减卡密额度
+      tags:
+      - 租户-卡密管理
   /tenant/keys/export:
     get:
       produces:
@@ -905,6 +1148,35 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: 导出卡密（JSON 格式）
+      tags:
+      - 租户-卡密管理
+  /tenant/keys/status:
+    get:
+      description: 根据卡密值查询卡密状态，不扣减额度
+      parameters:
+      - description: 卡密值
+        in: query
+        name: sk
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 卡密状态信息
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: 缺少卡密参数
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "404":
+          description: 卡密不存在
+          schema:
+            $ref: '#/definitions/handler.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 查询卡密状态
       tags:
       - 租户-卡密管理
   /tenant/login-logs:

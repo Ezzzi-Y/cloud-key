@@ -5,6 +5,7 @@ import (
 	"CloudKey/internal/model"
 	"CloudKey/internal/service"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -102,8 +103,10 @@ func (h *TenantServiceAccountHandler) ServiceCreateKey(c *gin.Context) {
 // @Tags        服务账号API
 // @Produce     json
 // @Security    ServiceKeyAuth
-// @Param       page      query int false "页码"     default(1)
-// @Param       page_size query int false "每页数量" default(20)
+// @Param       page      query int    false "页码"     default(1)
+// @Param       page_size query int    false "每页数量" default(20)
+// @Param       status    query string false "状态过滤: unused/used/disabled/expired"
+// @Param       search    query string false "关键字搜索"
 // @Success     200 {object} Response{data=PageData} "分页卡密列表"
 // @Failure     401 {object} Response "服务账号密钥无效"
 // @Router      /service/keys [get]
@@ -120,12 +123,309 @@ func (h *TenantServiceAccountHandler) ServiceListKeys(c *gin.Context) {
 	}
 	page, pageSize := pageParams(c)
 
-	keys, total, err := h.keySvc.ListKeysByTenant(sa.TenantID, page, pageSize)
+	keys, total, err := h.keySvc.ListKeys(service.KeyListQuery{
+		Page: page, PageSize: pageSize,
+		Status: c.Query("status"), Search: c.Query("search"),
+	}, sa.TenantID)
 	if err != nil {
 		InternalError(c)
 		return
 	}
 	SuccessPaginated(c, keys, total, page, pageSize)
+}
+
+// getServiceTenantID extracts tenantID from the service account in context.
+// Returns (tenantID, true) on success; responds with error and returns (0, false) on failure.
+func getServiceTenantID(c *gin.Context) (uint64, bool) {
+	saI, exists := c.Get("service_account")
+	if !exists {
+		Unauthorized(c, errcode.CodeServiceKeyInvalid, "未认证的服务账号")
+		return 0, false
+	}
+	sa, ok := saI.(*model.ServiceAccount)
+	if !ok {
+		Unauthorized(c, errcode.CodeServiceKeyInvalid, "服务账号信息异常")
+		return 0, false
+	}
+	return sa.TenantID, true
+}
+
+// --- 以下为服务账号的卡密操作包装，业务逻辑复用 KeyService，仅路由和认证不同 ---
+
+// ServiceGetKeyStatus 服务账号查询卡密状态
+// @Summary     服务账号查询卡密状态
+// @Description 通过 X-Service-Key 认证，根据卡密值查询状态
+// @Tags        服务账号API
+// @Produce     json
+// @Security    ServiceKeyAuth
+// @Param       sk query string true "卡密值"
+// @Success     200 {object} Response "卡密状态信息"
+// @Failure     400 {object} Response "缺少卡密参数"
+// @Failure     401 {object} Response "服务账号密钥无效"
+// @Failure     404 {object} Response "卡密不存在"
+// @Router      /service/keys/status [get]
+func (h *TenantServiceAccountHandler) ServiceGetKeyStatus(c *gin.Context) {
+	tenantID, ok := getServiceTenantID(c)
+	if !ok {
+		return
+	}
+	rawKey := c.Query("sk")
+	if rawKey == "" {
+		BadRequest(c, http.StatusBadRequest, "缺少卡密参数")
+		return
+	}
+
+	result, err := h.keySvc.GetKeyStatusByTenant(rawKey, tenantID)
+	if err != nil {
+		InternalError(c)
+		return
+	}
+	if result == nil {
+		NotFound(c, errcode.CodeKeyNotFound, errcode.GetMessage(errcode.CodeKeyNotFound))
+		return
+	}
+	Success(c, result)
+}
+
+type serviceConsumeReq struct {
+	Key    string `json:"key" binding:"required"`
+	Amount int64  `json:"amount"`
+}
+
+// ServiceConsumeKey 服务账号扣减卡密额度
+// @Summary     服务账号扣减卡密额度
+// @Description 通过 X-Service-Key 认证，扣减指定卡密的剩余额度
+// @Tags        服务账号API
+// @Accept      json
+// @Produce     json
+// @Security    ServiceKeyAuth
+// @Param       body body serviceConsumeReq true "扣减参数"
+// @Success     200 {object} Response "扣减结果"
+// @Failure     400 {object} Response "参数错误或卡密无效"
+// @Failure     401 {object} Response "服务账号密钥无效"
+// @Router      /service/keys/consume [post]
+func (h *TenantServiceAccountHandler) ServiceConsumeKey(c *gin.Context) {
+	tenantID, ok := getServiceTenantID(c)
+	if !ok {
+		return
+	}
+	var req serviceConsumeReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		BadRequest(c, http.StatusBadRequest, "参数错误")
+		return
+	}
+	if req.Amount <= 0 {
+		req.Amount = 1
+	}
+
+	result, code, err := h.keySvc.ConsumeKeyByTenant(req.Key, req.Amount, tenantID)
+	if err != nil {
+		InternalError(c)
+		return
+	}
+	if code != 0 {
+		BadRequest(c, code, errcode.GetMessage(code))
+		return
+	}
+	Success(c, result)
+}
+
+// ServiceGetKey 服务账号查询卡密详情
+// @Summary     服务账号查询卡密详情
+// @Tags        服务账号API
+// @Produce     json
+// @Security    ServiceKeyAuth
+// @Param       id   path int true "卡密ID"
+// @Success     200 {object} Response "卡密详情"
+// @Failure     400 {object} Response "无效的卡密 ID"
+// @Failure     401 {object} Response "服务账号密钥无效"
+// @Failure     404 {object} Response "卡密不存在"
+// @Router      /service/keys/{id} [get]
+func (h *TenantServiceAccountHandler) ServiceGetKey(c *gin.Context) {
+	tenantID, ok := getServiceTenantID(c)
+	if !ok {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
+		return
+	}
+
+	key, err := h.keySvc.GetKeyDetail(id, tenantID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			NotFound(c, errcode.CodeKeyNotFound, errcode.GetMessage(errcode.CodeKeyNotFound))
+			return
+		}
+		InternalError(c)
+		return
+	}
+	Success(c, key)
+}
+
+// ServiceUpdateKey 服务账号更新卡密
+// @Summary     服务账号更新卡密
+// @Tags        服务账号API
+// @Accept      json
+// @Produce     json
+// @Security    ServiceKeyAuth
+// @Param       id   path int true "卡密ID"
+// @Param       body body object true "更新字段" Schema({"alias":"string","remaining_amount":0})
+// @Success     200 {object} Response "更新成功"
+// @Failure     400 {object} Response "参数错误"
+// @Failure     401 {object} Response "服务账号密钥无效"
+// @Router      /service/keys/{id} [patch]
+func (h *TenantServiceAccountHandler) ServiceUpdateKey(c *gin.Context) {
+	tenantID, ok := getServiceTenantID(c)
+	if !ok {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
+		return
+	}
+
+	var req service.UpdateKeyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		BadRequest(c, http.StatusBadRequest, "参数错误")
+		return
+	}
+
+	if err := h.keySvc.UpdateKey(id, tenantID, req); err != nil {
+		InternalError(c)
+		return
+	}
+	Success(c, nil)
+}
+
+// ServiceDisableKey 服务账号禁用卡密
+// @Summary     服务账号禁用卡密
+// @Tags        服务账号API
+// @Produce     json
+// @Security    ServiceKeyAuth
+// @Param       id   path int true "卡密ID"
+// @Success     200 {object} Response "禁用成功"
+// @Failure     400 {object} Response "无效的卡密 ID"
+// @Failure     401 {object} Response "服务账号密钥无效"
+// @Router      /service/keys/{id}/disable [patch]
+func (h *TenantServiceAccountHandler) ServiceDisableKey(c *gin.Context) {
+	tenantID, ok := getServiceTenantID(c)
+	if !ok {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
+		return
+	}
+	if err := h.keySvc.DisableKey(id, tenantID); err != nil {
+		InternalError(c)
+		return
+	}
+	Success(c, nil)
+}
+
+// ServiceEnableKey 服务账号启用卡密
+// @Summary     服务账号启用卡密
+// @Tags        服务账号API
+// @Produce     json
+// @Security    ServiceKeyAuth
+// @Param       id   path int true "卡密ID"
+// @Success     200 {object} Response "启用成功"
+// @Failure     400 {object} Response "无效的卡密 ID"
+// @Failure     401 {object} Response "服务账号密钥无效"
+// @Router      /service/keys/{id}/enable [patch]
+func (h *TenantServiceAccountHandler) ServiceEnableKey(c *gin.Context) {
+	tenantID, ok := getServiceTenantID(c)
+	if !ok {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
+		return
+	}
+	if err := h.keySvc.EnableKey(id, tenantID); err != nil {
+		InternalError(c)
+		return
+	}
+	Success(c, nil)
+}
+
+// ServiceDeleteKey 服务账号删除卡密
+// @Summary     服务账号删除卡密
+// @Tags        服务账号API
+// @Produce     json
+// @Security    ServiceKeyAuth
+// @Param       id   path int true "卡密ID"
+// @Success     200 {object} Response "删除成功"
+// @Failure     400 {object} Response "无效的卡密 ID"
+// @Failure     401 {object} Response "服务账号密钥无效"
+// @Router      /service/keys/{id} [delete]
+func (h *TenantServiceAccountHandler) ServiceDeleteKey(c *gin.Context) {
+	tenantID, ok := getServiceTenantID(c)
+	if !ok {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
+		return
+	}
+	if err := h.keySvc.DeleteKey(id, tenantID); err != nil {
+		InternalError(c)
+		return
+	}
+	Success(c, nil)
+}
+
+// ServiceExportKeys 服务账号导出卡密（文本格式）
+// @Summary     服务账号导出卡密（文本格式）
+// @Tags        服务账号API
+// @Produce     json
+// @Security    ServiceKeyAuth
+// @Success     200 {object} Response "导出数据"
+// @Failure     401 {object} Response "服务账号密钥无效"
+// @Router      /service/keys/export [get]
+func (h *TenantServiceAccountHandler) ServiceExportKeys(c *gin.Context) {
+	tenantID, ok := getServiceTenantID(c)
+	if !ok {
+		return
+	}
+
+	keys, err := h.keySvc.ExportKeys(tenantID)
+	if err != nil {
+		InternalError(c)
+		return
+	}
+	Success(c, keys)
+}
+
+// ServiceExportKeysJSON 服务账号导出卡密（JSON 格式）
+// @Summary     服务账号导出卡密（JSON 格式）
+// @Tags        服务账号API
+// @Produce     json
+// @Security    ServiceKeyAuth
+// @Success     200 {object} Response "导出数据 JSON 数组"
+// @Failure     401 {object} Response "服务账号密钥无效"
+// @Router      /service/keys/export/json [get]
+func (h *TenantServiceAccountHandler) ServiceExportKeysJSON(c *gin.Context) {
+	tenantID, ok := getServiceTenantID(c)
+	if !ok {
+		return
+	}
+
+	items, err := h.keySvc.ExportKeysJSON(tenantID)
+	if err != nil {
+		InternalError(c)
+		return
+	}
+	if items == nil {
+		items = make([]service.ExportKeyItem, 0)
+	}
+	Success(c, items)
 }
 
 // ListServiceAccounts 服务账号列表

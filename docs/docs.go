@@ -289,87 +289,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/key/consume": {
-            "post": {
-                "description": "扣减指定卡密的剩余额度",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "卡密公共API"
-                ],
-                "summary": "扣减卡密额度",
-                "parameters": [
-                    {
-                        "description": "扣减参数",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.ConsumeRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "扣减结果",
-                        "schema": {
-                            "$ref": "#/definitions/handler.Response"
-                        }
-                    },
-                    "400": {
-                        "description": "参数错误或卡密无效",
-                        "schema": {
-                            "$ref": "#/definitions/handler.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/key/status": {
-            "get": {
-                "description": "根据卡密值查询卡密状态，不扣减额度",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "卡密公共API"
-                ],
-                "summary": "查询卡密状态",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "卡密值",
-                        "name": "sk",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "卡密状态信息",
-                        "schema": {
-                            "$ref": "#/definitions/handler.Response"
-                        }
-                    },
-                    "400": {
-                        "description": "缺少卡密参数",
-                        "schema": {
-                            "$ref": "#/definitions/handler.Response"
-                        }
-                    },
-                    "404": {
-                        "description": "卡密不存在",
-                        "schema": {
-                            "$ref": "#/definitions/handler.Response"
-                        }
-                    }
-                }
-            }
-        },
         "/service/keys": {
             "get": {
                 "security": [
@@ -397,6 +316,18 @@ const docTemplate = `{
                         "default": 20,
                         "description": "每页数量",
                         "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "状态过滤: unused/used/disabled/expired",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "关键字搜索",
+                        "name": "search",
                         "in": "query"
                     }
                 ],
@@ -458,6 +389,408 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "创建成功",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "服务账号密钥无效",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/service/keys/consume": {
+            "post": {
+                "security": [
+                    {
+                        "ServiceKeyAuth": []
+                    }
+                ],
+                "description": "通过 X-Service-Key 认证，扣减指定卡密的剩余额度",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务账号API"
+                ],
+                "summary": "服务账号扣减卡密额度",
+                "parameters": [
+                    {
+                        "description": "扣减参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.serviceConsumeReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "扣减结果",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误或卡密无效",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "服务账号密钥无效",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/service/keys/export": {
+            "get": {
+                "security": [
+                    {
+                        "ServiceKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务账号API"
+                ],
+                "summary": "服务账号导出卡密（文本格式）",
+                "responses": {
+                    "200": {
+                        "description": "导出数据",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "服务账号密钥无效",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/service/keys/export/json": {
+            "get": {
+                "security": [
+                    {
+                        "ServiceKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务账号API"
+                ],
+                "summary": "服务账号导出卡密（JSON 格式）",
+                "responses": {
+                    "200": {
+                        "description": "导出数据 JSON 数组",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "服务账号密钥无效",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/service/keys/status": {
+            "get": {
+                "security": [
+                    {
+                        "ServiceKeyAuth": []
+                    }
+                ],
+                "description": "通过 X-Service-Key 认证，根据卡密值查询状态",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务账号API"
+                ],
+                "summary": "服务账号查询卡密状态",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "卡密值",
+                        "name": "sk",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "卡密状态信息",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "缺少卡密参数",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "服务账号密钥无效",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "卡密不存在",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/service/keys/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "ServiceKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务账号API"
+                ],
+                "summary": "服务账号查询卡密详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "卡密ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "卡密详情",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "无效的卡密 ID",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "服务账号密钥无效",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "卡密不存在",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "ServiceKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务账号API"
+                ],
+                "summary": "服务账号删除卡密",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "卡密ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "无效的卡密 ID",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "服务账号密钥无效",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "ServiceKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务账号API"
+                ],
+                "summary": "服务账号更新卡密",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "卡密ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新字段",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "服务账号密钥无效",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/service/keys/{id}/disable": {
+            "patch": {
+                "security": [
+                    {
+                        "ServiceKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务账号API"
+                ],
+                "summary": "服务账号禁用卡密",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "卡密ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "禁用成功",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "无效的卡密 ID",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "服务账号密钥无效",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/service/keys/{id}/enable": {
+            "patch": {
+                "security": [
+                    {
+                        "ServiceKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务账号API"
+                ],
+                "summary": "服务账号启用卡密",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "卡密ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "启用成功",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "无效的卡密 ID",
                         "schema": {
                             "$ref": "#/definitions/handler.Response"
                         }
@@ -1111,6 +1444,51 @@ const docTemplate = `{
                 }
             }
         },
+        "/tenant/keys/consume": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "扣减指定卡密的剩余额度",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "租户-卡密管理"
+                ],
+                "summary": "扣减卡密额度",
+                "parameters": [
+                    {
+                        "description": "扣减参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.ConsumeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "扣减结果",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误或卡密无效",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/tenant/keys/export": {
             "get": {
                 "security": [
@@ -1152,6 +1530,52 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "导出数据 JSON 数组",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/tenant/keys/status": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "根据卡密值查询卡密状态，不扣减额度",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "租户-卡密管理"
+                ],
+                "summary": "查询卡密状态",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "卡密值",
+                        "name": "sk",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "卡密状态信息",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "缺少卡密参数",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "卡密不存在",
                         "schema": {
                             "$ref": "#/definitions/handler.Response"
                         }
@@ -2180,6 +2604,20 @@ const docTemplate = `{
                 "user_id": {
                     "type": "integer",
                     "example": 1
+                }
+            }
+        },
+        "handler.serviceConsumeReq": {
+            "type": "object",
+            "required": [
+                "key"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
                 }
             }
         }

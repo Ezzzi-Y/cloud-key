@@ -114,6 +114,18 @@ func (s *KeyService) FindByRawKey(rawKey string) (*model.Key, error) {
 	return &key, nil
 }
 
+func (s *KeyService) FindByRawKeyTenant(rawKey string, tenantID uint64) (*model.Key, error) {
+	keyHash := s.hashKey(rawKey)
+	var key model.Key
+	if err := s.db.Where("key_hash = ? AND tenant_id = ?", keyHash, tenantID).First(&key).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &key, nil
+}
+
 type KeyStatusResult struct {
 	Alias           string               `json:"alias"`
 	BillingMode     model.KeyBillingMode `json:"billing_mode"`
@@ -125,6 +137,31 @@ type KeyStatusResult struct {
 
 func (s *KeyService) GetKeyStatus(rawKey string) (*KeyStatusResult, error) {
 	key, err := s.FindByRawKey(rawKey)
+	if err != nil {
+		return nil, err
+	}
+	if key == nil {
+		return nil, nil
+	}
+
+	var usedAt *string
+	if key.UsedAt != nil {
+		t := key.UsedAt.Format("2006-01-02 15:04:05")
+		usedAt = &t
+	}
+
+	return &KeyStatusResult{
+		Alias:           key.Alias,
+		BillingMode:     key.BillingMode,
+		RemainingAmount: key.RemainingAmount,
+		Status:          key.Status,
+		CreatedAt:       key.CreatedAt.Format("2006-01-02 15:04:05"),
+		UsedAt:          usedAt,
+	}, nil
+}
+
+func (s *KeyService) GetKeyStatusByTenant(rawKey string, tenantID uint64) (*KeyStatusResult, error) {
+	key, err := s.FindByRawKeyTenant(rawKey, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -210,6 +247,86 @@ func (s *KeyService) ConsumeKey(rawKey string, amount int64) (*ConsumeResult, in
 		newRemaining := key.RemainingAmount - amount
 
 		// Mark as used if balance is exhausted
+		if newRemaining <= 0 {
+			if err := tx.Model(&model.Key{}).Where("id = ?", key.ID).
+				Updates(map[string]interface{}{
+					"status": model.KeyStatusUsed,
+					"used_at": time.Now(),
+				}).Error; err != nil {
+				tx.Rollback()
+				return nil, 0, err
+			}
+		}
+
+		if err := tx.Commit().Error; err != nil {
+			return nil, 0, err
+		}
+
+		status := key.Status
+		if newRemaining <= 0 {
+			status = model.KeyStatusUsed
+		}
+
+		return &ConsumeResult{
+			RemainingAmount: newRemaining,
+			Status:          status,
+			Exhausted:       newRemaining <= 0,
+		}, 0, nil
+	}
+	return nil, 0, fmt.Errorf("concurrency conflict after %d retries", maxRetries)
+}
+
+func (s *KeyService) ConsumeKeyByTenant(rawKey string, amount int64, tenantID uint64) (*ConsumeResult, int, error) {
+	if amount <= 0 {
+		return nil, 0, fmt.Errorf("invalid amount: %d", amount)
+	}
+
+	const maxRetries = 3
+	for retry := 0; retry < maxRetries; retry++ {
+		key, err := s.FindByRawKeyTenant(rawKey, tenantID)
+		if err != nil {
+			return nil, 0, err
+		}
+		if key == nil {
+			return nil, errcode.CodeKeyNotFound, nil
+		}
+		if key.Status == model.KeyStatusDisabled {
+			return nil, errcode.CodeKeyDisabled, nil
+		}
+		if key.Status == model.KeyStatusUsed {
+			return nil, errcode.CodeKeyExhausted, nil
+		}
+		if !key.CanDeduct(amount) {
+			if key.RemainingAmount <= 0 {
+				return nil, errcode.CodeKeyExhausted, nil
+			}
+			return nil, errcode.CodeKeyInsufficient, nil
+		}
+
+		tx := s.db.Begin()
+		if tx.Error != nil {
+			return nil, 0, tx.Error
+		}
+
+		result := tx.Model(&model.Key{}).
+			Where("id = ? AND version = ? AND remaining_amount >= ? AND status = ?",
+				key.ID, key.Version, amount, model.KeyStatusUnused).
+			Updates(map[string]interface{}{
+				"remaining_amount": gorm.Expr("remaining_amount - ?", amount),
+				"version":          gorm.Expr("version + 1"),
+			})
+
+		if result.Error != nil {
+			tx.Rollback()
+			return nil, 0, result.Error
+		}
+		if result.RowsAffected == 0 {
+			tx.Rollback()
+			continue
+		}
+
+		newRemaining := key.RemainingAmount - amount
+
 		if newRemaining <= 0 {
 			if err := tx.Model(&model.Key{}).Where("id = ?", key.ID).
 				Updates(map[string]interface{}{

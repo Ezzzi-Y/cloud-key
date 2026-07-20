@@ -2,11 +2,11 @@ import api from './client'
 import type { ApiResponse, PaginatedData, Key, CreateKeyRequest, UpdateKeyRequest, KeyListParams, KeyStatusResult, ConsumeKeyRequest, ConsumeKeyResult } from '@/types'
 
 export function getKeyStatus(sk: string) {
-  return api.get<unknown, ApiResponse<KeyStatusResult>>('/key/status', { params: { sk } })
+  return api.get<unknown, ApiResponse<KeyStatusResult>>('/tenant/keys/status', { params: { sk } })
 }
 
 export function consumeKey(data: ConsumeKeyRequest) {
-  return api.post<unknown, ApiResponse<ConsumeKeyResult>>('/key/consume', data)
+  return api.post<unknown, ApiResponse<ConsumeKeyResult>>('/tenant/keys/consume', data)
 }
 
 export function listKeys(params: KeyListParams) {

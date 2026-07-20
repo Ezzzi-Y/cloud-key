@@ -18,7 +18,6 @@ import (
 )
 
 func SetupRouter(
-	keyHandler *handler.KeyHandler,
 	authHandler *handler.AuthHandler,
 	superHandler *handler.SuperHandler,
 	tenantKeyHandler *handler.TenantKeyHandler,
@@ -29,12 +28,15 @@ func SetupRouter(
 	db *gorm.DB,
 	saSvc *service.ServiceAccountService,
 	rdb *redis.Client,
+	debug bool,
 ) *gin.Engine {
 	r := gin.Default()
 	r.Use(middleware.CORSMiddleware())
 
-	// Swagger UI
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	// Swagger UI (仅 debug 模式启用)
+	if debug {
+		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
 
 	// 静态文件服务（React SPA）
 	distFS, distErr := fs.Sub(web.FS, "dist")
@@ -70,12 +72,6 @@ func SetupRouter(
 		api.POST("/auth/totp/confirm-init", authLimiter, authHandler.ConfirmTOTPPublic)
 	}
 
-	// ========== 公共 API ==========
-	{
-		api.GET("/key/status", keyHandler.Status)   // 无 auth
-		api.POST("/key/consume", keyHandler.Consume) // 无 auth
-	}
-
 	// ========== 系统管理员 ==========
 	super := api.Group("/super")
 	super.Use(middleware.AuthMiddleware(jwtSecret))
@@ -106,6 +102,8 @@ func SetupRouter(
 		tenantKeys := tenant.Group("/keys")
 		tenantKeys.POST("", middleware.TenantBusinessGuard(db), tenantKeyHandler.CreateKey)
 		tenantKeys.GET("", tenantKeyHandler.ListKeys)
+		tenantKeys.GET("/status", tenantKeyHandler.Status)
+		tenantKeys.POST("/consume", tenantKeyHandler.Consume)
 		tenantKeys.GET("/export", tenantKeyHandler.ExportKeys)
 		tenantKeys.GET("/export/json", tenantKeyHandler.ExportKeysJSON)
 		tenantKeys.GET("/:id", tenantKeyHandler.GetKey)
@@ -152,8 +150,17 @@ func SetupRouter(
 	serviceAPI := api.Group("/service")
 	serviceAPI.Use(middleware.ServiceAuthMiddleware(saSvc, db))
 	{
-		serviceAPI.POST("/keys", tenantSAHandler.ServiceCreateKey)
+		serviceAPI.POST("/keys", middleware.TenantBusinessGuard(db), tenantSAHandler.ServiceCreateKey)
 		serviceAPI.GET("/keys", tenantSAHandler.ServiceListKeys)
+		serviceAPI.GET("/keys/status", tenantSAHandler.ServiceGetKeyStatus)
+		serviceAPI.POST("/keys/consume", tenantSAHandler.ServiceConsumeKey)
+		serviceAPI.GET("/keys/export", tenantSAHandler.ServiceExportKeys)
+		serviceAPI.GET("/keys/export/json", tenantSAHandler.ServiceExportKeysJSON)
+		serviceAPI.GET("/keys/:id", tenantSAHandler.ServiceGetKey)
+		serviceAPI.PATCH("/keys/:id", middleware.TenantBusinessGuard(db), tenantSAHandler.ServiceUpdateKey)
+		serviceAPI.PATCH("/keys/:id/disable", middleware.TenantBusinessGuard(db), tenantSAHandler.ServiceDisableKey)
+		serviceAPI.PATCH("/keys/:id/enable", middleware.TenantBusinessGuard(db), tenantSAHandler.ServiceEnableKey)
+		serviceAPI.DELETE("/keys/:id", middleware.TenantBusinessGuard(db), tenantSAHandler.ServiceDeleteKey)
 	}
 
 	return r
