@@ -5,7 +5,7 @@
     <artifactId>cloudkey-client</artifactId>
     <packaging>jar</packaging>
     <name>cloudkey-client</name>
-    <version>1.0.1</version><!-- sdk-version -->
+    <version>1.0.2</version><!-- sdk-version -->
     <url>https://github.com/Ezzzi-Y/cloud-key</url>
     <description>OpenAPI Java</description>
     <scm>

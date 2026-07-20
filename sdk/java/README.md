@@ -41,7 +41,7 @@ Add this dependency to your project's POM:
 <dependency>
   <groupId>com.github.ezzzi-y</groupId>
   <artifactId>cloudkey-client</artifactId>
-  <version>1.0.1</version>
+  <version>1.0.2</version>
   <scope>compile</scope>
 </dependency>
 ```
@@ -57,7 +57,7 @@ Add this dependency to your project's build file:
   }
 
   dependencies {
-     implementation "com.github.ezzzi-y:cloudkey-client:1.0.1"
+     implementation "com.github.ezzzi-y:cloudkey-client:1.0.2"
   }
 ```
 
@@ -71,7 +71,7 @@ mvn clean package
 
 Then manually install the following JARs:
 
-* `target/cloudkey-client-1.0.1.jar`
+* `target/cloudkey-client-1.0.2.jar`
 * `target/lib/*.jar`
 
 ## Getting Started
