@@ -107,18 +107,22 @@ docker-compose up -d
 ### 手动部署
 
 ```bash
-# 1. 构建前端
+# 1. 构建前端并嵌入 Go 项目
 cd web
 npm install
 npm run build
+cp -r dist ../internal/web/dist
 cd ..
 
 # 2. 复制并修改配置
 cp config.yaml.example config.yaml
 
-# 3. 运行
-go run main.go
+# 3. 编译运行
+go build -o cloudkey .
+./cloudkey
 ```
+
+> **说明：** `//go:embed dist/*` 在 Go 编译时将前端产物嵌入二进制文件，因此必须先构建前端到 `internal/web/dist/`，再执行 `go build`。开发时使用 `npm run dev` 启动前端，通过 Vite 代理 `/api` 请求到后端 `localhost:8080`。
 
 服务默认监听 `0.0.0.0:8080`。
 
