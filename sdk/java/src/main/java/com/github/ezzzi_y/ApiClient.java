@@ -1,6 +1,6 @@
 /*
- * CloudKey API
- * 卡密管理系统 API 文档
+ * CloudKey Service Account API
+ * 卡密管理系统 - 服务账号 SDK
  *
  * The version of the OpenAPI document: 1.0
  * 
@@ -101,7 +101,6 @@ public class ApiClient {
         initHttpClient();
 
         // Setup authentications (key: authentication name, value: authentication).
-        authentications.put("ApiKeyAuth", new ApiKeyAuth("header", "Authorization"));
         authentications.put("ServiceKeyAuth", new ApiKeyAuth("header", "X-Service-Key"));
         // Prevent the authentications from being modified.
         authentications = Collections.unmodifiableMap(authentications);
@@ -118,7 +117,6 @@ public class ApiClient {
         httpClient = client;
 
         // Setup authentications (key: authentication name, value: authentication).
-        authentications.put("ApiKeyAuth", new ApiKeyAuth("header", "Authorization"));
         authentications.put("ServiceKeyAuth", new ApiKeyAuth("header", "X-Service-Key"));
         // Prevent the authentications from being modified.
         authentications = Collections.unmodifiableMap(authentications);
@@ -144,7 +142,7 @@ public class ApiClient {
         json = new JSON();
 
         // Set default User-Agent.
-        setUserAgent("OpenAPI-Generator/1.0/java");
+        setUserAgent("OpenAPI-Generator/1.0.0/java");
 
         authentications = new HashMap<String, Authentication>();
     }

@@ -1,6 +1,6 @@
 /*
- * CloudKey API
- * 卡密管理系统 API 文档
+ * CloudKey Service Account API
+ * 卡密管理系统 - 服务账号 SDK
  *
  * The version of the OpenAPI document: 1.0
  * 

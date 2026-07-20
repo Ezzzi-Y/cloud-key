@@ -1,6 +1,6 @@
 /*
- * CloudKey API
- * 卡密管理系统 API 文档
+ * CloudKey Service Account API
+ * 卡密管理系统 - 服务账号 SDK
  *
  * The version of the OpenAPI document: 1.0
  * 
@@ -18,7 +18,7 @@ import java.util.Map;
 /**
  * Representing a Server configuration.
  */
-@javax.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", date = "2026-07-20T19:01:01.615859700+08:00[Asia/Shanghai]", comments = "Generator version: 7.24.0")
+@javax.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", date = "2026-07-20T23:15:03.157136800+08:00[Asia/Shanghai]", comments = "Generator version: 7.24.0")
 public class ServerConfiguration {
     public String URL;
     public String description;

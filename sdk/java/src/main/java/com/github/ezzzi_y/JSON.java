@@ -1,6 +1,6 @@
 /*
- * CloudKey API
- * 卡密管理系统 API 文档
+ * CloudKey Service Account API
+ * 卡密管理系统 - 服务账号 SDK
  *
  * The version of the OpenAPI document: 1.0
  * 
@@ -96,24 +96,10 @@ public class JSON {
         gsonBuilder.registerTypeAdapter(OffsetDateTime.class, offsetDateTimeTypeAdapter);
         gsonBuilder.registerTypeAdapter(LocalDate.class, localDateTypeAdapter);
         gsonBuilder.registerTypeAdapter(byte[].class, byteArrayAdapter);
-        gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.AuthTotpConfirmInitPost200Response.CustomTypeAdapterFactory());
-        gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.AuthTotpConfirmInitPost200ResponseAllOfData.CustomTypeAdapterFactory());
-        gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.AuthTotpSetupInitPost200Response.CustomTypeAdapterFactory());
-        gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.AuthTotpSetupInitPost200ResponseAllOfData.CustomTypeAdapterFactory());
-        gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.HandlerConsumeRequest.CustomTypeAdapterFactory());
-        gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.HandlerCreateKeyJSON.CustomTypeAdapterFactory());
-        gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.HandlerLoginRequest.CustomTypeAdapterFactory());
         gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.HandlerPageData.CustomTypeAdapterFactory());
         gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.HandlerResponse.CustomTypeAdapterFactory());
         gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.HandlerServiceConsumeReq.CustomTypeAdapterFactory());
-        gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.HandlerVerify2FARequest.CustomTypeAdapterFactory());
         gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.ServiceKeysGet200Response.CustomTypeAdapterFactory());
-        gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.SuperTenantsIdResetPasswordPatch200Response.CustomTypeAdapterFactory());
-        gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.SuperTenantsIdResetPasswordPatch200ResponseAllOfData.CustomTypeAdapterFactory());
-        gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.SuperTenantsPost200Response.CustomTypeAdapterFactory());
-        gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.SuperTenantsPost200ResponseAllOfData.CustomTypeAdapterFactory());
-        gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.TenantServiceAccountsPost200Response.CustomTypeAdapterFactory());
-        gsonBuilder.registerTypeAdapterFactory(new com.github.ezzzi_y.model.TenantServiceAccountsPost200ResponseAllOfData.CustomTypeAdapterFactory());
         gson = gsonBuilder.create();
     }
 

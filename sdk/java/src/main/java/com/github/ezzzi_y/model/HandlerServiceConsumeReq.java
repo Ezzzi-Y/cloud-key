@@ -1,6 +1,6 @@
 /*
- * CloudKey API
- * 卡密管理系统 API 文档
+ * CloudKey Service Account API
+ * 卡密管理系统 - 服务账号 SDK
  *
  * The version of the OpenAPI document: 1.0
  * 
@@ -48,7 +48,7 @@ import com.github.ezzzi_y.JSON;
 /**
  * HandlerServiceConsumeReq
  */
-@javax.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", date = "2026-07-20T19:01:01.615859700+08:00[Asia/Shanghai]", comments = "Generator version: 7.24.0")
+@javax.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", date = "2026-07-20T23:15:03.157136800+08:00[Asia/Shanghai]", comments = "Generator version: 7.24.0")
 public class HandlerServiceConsumeReq {
   public static final String SERIALIZED_NAME_AMOUNT = "amount";
   @SerializedName(SERIALIZED_NAME_AMOUNT)

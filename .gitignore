@@ -29,6 +29,10 @@ web/*.tsbuildinfo
 # MCP
 .mcp.json
 
+# Superpowers
+.superpowers/
+docs/superpowers/
+
 # Java SDK 构建产物
 sdk/java/build/
 sdk/java/target/
