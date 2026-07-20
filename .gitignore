@@ -26,6 +26,9 @@ web/node_modules/
 web/dist/
 web/*.tsbuildinfo
 
+# MCP
+.mcp.json
+
 # Java SDK 构建产物
 sdk/java/build/
 sdk/java/target/
