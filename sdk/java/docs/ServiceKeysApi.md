@@ -4,6 +4,7 @@ All URIs are relative to *http://localhost:8080/api*
 
 | Method | HTTP request | Description |
 |------------- | ------------- | -------------|
+| [**adjustBalance**](ServiceKeysApi.md#adjustBalance) | **POST** /service/keys/{id}/adjust-balance | 服务账号调整卡密额度 |
 | [**consumeKey**](ServiceKeysApi.md#consumeKey) | **POST** /service/keys/consume | 服务账号扣减卡密额度 |
 | [**createKey**](ServiceKeysApi.md#createKey) | **POST** /service/keys | 服务账号创建卡密 |
 | [**deleteKey**](ServiceKeysApi.md#deleteKey) | **DELETE** /service/keys/{id} | 服务账号删除卡密 |
@@ -17,6 +18,79 @@ All URIs are relative to *http://localhost:8080/api*
 | [**updateKey**](ServiceKeysApi.md#updateKey) | **PATCH** /service/keys/{id} | 服务账号更新卡密 |
 
 
+<a id="adjustBalance"></a>
+# **adjustBalance**
+> AdjustBalanceResponse adjustBalance(id, body)
+
+服务账号调整卡密额度
+
+通过 X-Service-Key 认证，增加或减少卡密额度（管理员行为），仅支持增量操作
+
+### Example
+```java
+// Import classes:
+import org.openapitools.client.CloudKeyClient;
+import org.openapitools.client.CloudKeyException;
+import org.openapitools.client.Configuration;
+import org.openapitools.client.auth.*;
+import org.openapitools.client.models.*;
+import org.openapitools.client.api.ServiceKeysApi;
+
+public class Example {
+  public static void main(String[] args) {
+    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
+    defaultClient.setBasePath("http://localhost:8080/api");
+    
+    // Configure API key authorization: ServiceKeyAuth
+    ApiKeyAuth ServiceKeyAuth = (ApiKeyAuth) defaultClient.getAuthentication("ServiceKeyAuth");
+    ServiceKeyAuth.setApiKey("YOUR API KEY");
+    // Uncomment the following line to set a prefix for the API key, e.g. "Token" (defaults to null)
+    //ServiceKeyAuth.setApiKeyPrefix("Token");
+
+    ServiceKeysApi apiInstance = new ServiceKeysApi(defaultClient);
+    Integer id = 56; // Integer | 卡密ID
+    AdjustBalanceRequest body = new AdjustBalanceRequest(); // AdjustBalanceRequest | 调整参数
+    try {
+      AdjustBalanceResponse result = apiInstance.adjustBalance(id, body);
+      System.out.println(result);
+    } catch (CloudKeyException e) {
+      System.err.println("Exception when calling ServiceKeysApi#adjustBalance");
+      System.err.println("Status code: " + e.getCode());
+      System.err.println("Reason: " + e.getResponseBody());
+      System.err.println("Response headers: " + e.getResponseHeaders());
+      e.printStackTrace();
+    }
+  }
+}
+```
+
+### Parameters
+
+| Name | Type | Description  | Notes |
+|------------- | ------------- | ------------- | -------------|
+| **id** | **Integer**| 卡密ID | |
+| **body** | [**AdjustBalanceRequest**](AdjustBalanceRequest.md)| 调整参数 | |
+
+### Return type
+
+[**AdjustBalanceResponse**](AdjustBalanceResponse.md)
+
+### Authorization
+
+[ServiceKeyAuth](../README.md#ServiceKeyAuth)
+
+### HTTP request headers
+
+ - **Content-Type**: application/json
+ - **Accept**: application/json
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **200** | 调整结果 |  -  |
+| **400** | 参数错误 |  -  |
+| **401** | 服务账号密钥无效 |  -  |
+
 <a id="consumeKey"></a>
 # **consumeKey**
 > ConsumeResponse consumeKey(body)
@@ -28,12 +102,12 @@ All URIs are relative to *http://localhost:8080/api*
 ### Example
 ```java
 // Import classes:
-import com.github.ezzzi_y.CloudKeyClient;
-import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.Configuration;
-import com.github.ezzzi_y.auth.*;
-import com.github.ezzzi_y.models.*;
-import com.github.ezzzi_y.api.ServiceKeysApi;
+import org.openapitools.client.CloudKeyClient;
+import org.openapitools.client.CloudKeyException;
+import org.openapitools.client.Configuration;
+import org.openapitools.client.auth.*;
+import org.openapitools.client.models.*;
+import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
@@ -99,12 +173,12 @@ public class Example {
 ### Example
 ```java
 // Import classes:
-import com.github.ezzzi_y.CloudKeyClient;
-import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.Configuration;
-import com.github.ezzzi_y.auth.*;
-import com.github.ezzzi_y.models.*;
-import com.github.ezzzi_y.api.ServiceKeysApi;
+import org.openapitools.client.CloudKeyClient;
+import org.openapitools.client.CloudKeyException;
+import org.openapitools.client.Configuration;
+import org.openapitools.client.auth.*;
+import org.openapitools.client.models.*;
+import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
@@ -167,12 +241,12 @@ public class Example {
 ### Example
 ```java
 // Import classes:
-import com.github.ezzzi_y.CloudKeyClient;
-import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.Configuration;
-import com.github.ezzzi_y.auth.*;
-import com.github.ezzzi_y.models.*;
-import com.github.ezzzi_y.api.ServiceKeysApi;
+import org.openapitools.client.CloudKeyClient;
+import org.openapitools.client.CloudKeyException;
+import org.openapitools.client.Configuration;
+import org.openapitools.client.auth.*;
+import org.openapitools.client.models.*;
+import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
@@ -236,12 +310,12 @@ public class Example {
 ### Example
 ```java
 // Import classes:
-import com.github.ezzzi_y.CloudKeyClient;
-import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.Configuration;
-import com.github.ezzzi_y.auth.*;
-import com.github.ezzzi_y.models.*;
-import com.github.ezzzi_y.api.ServiceKeysApi;
+import org.openapitools.client.CloudKeyClient;
+import org.openapitools.client.CloudKeyException;
+import org.openapitools.client.Configuration;
+import org.openapitools.client.auth.*;
+import org.openapitools.client.models.*;
+import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
@@ -305,12 +379,12 @@ public class Example {
 ### Example
 ```java
 // Import classes:
-import com.github.ezzzi_y.CloudKeyClient;
-import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.Configuration;
-import com.github.ezzzi_y.auth.*;
-import com.github.ezzzi_y.models.*;
-import com.github.ezzzi_y.api.ServiceKeysApi;
+import org.openapitools.client.CloudKeyClient;
+import org.openapitools.client.CloudKeyException;
+import org.openapitools.client.Configuration;
+import org.openapitools.client.auth.*;
+import org.openapitools.client.models.*;
+import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
@@ -374,12 +448,12 @@ public class Example {
 ### Example
 ```java
 // Import classes:
-import com.github.ezzzi_y.CloudKeyClient;
-import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.Configuration;
-import com.github.ezzzi_y.auth.*;
-import com.github.ezzzi_y.models.*;
-import com.github.ezzzi_y.api.ServiceKeysApi;
+import org.openapitools.client.CloudKeyClient;
+import org.openapitools.client.CloudKeyException;
+import org.openapitools.client.Configuration;
+import org.openapitools.client.auth.*;
+import org.openapitools.client.models.*;
+import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
@@ -438,12 +512,12 @@ This endpoint does not need any parameter.
 ### Example
 ```java
 // Import classes:
-import com.github.ezzzi_y.CloudKeyClient;
-import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.Configuration;
-import com.github.ezzzi_y.auth.*;
-import com.github.ezzzi_y.models.*;
-import com.github.ezzzi_y.api.ServiceKeysApi;
+import org.openapitools.client.CloudKeyClient;
+import org.openapitools.client.CloudKeyException;
+import org.openapitools.client.Configuration;
+import org.openapitools.client.auth.*;
+import org.openapitools.client.models.*;
+import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
@@ -502,12 +576,12 @@ This endpoint does not need any parameter.
 ### Example
 ```java
 // Import classes:
-import com.github.ezzzi_y.CloudKeyClient;
-import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.Configuration;
-import com.github.ezzzi_y.auth.*;
-import com.github.ezzzi_y.models.*;
-import com.github.ezzzi_y.api.ServiceKeysApi;
+import org.openapitools.client.CloudKeyClient;
+import org.openapitools.client.CloudKeyException;
+import org.openapitools.client.Configuration;
+import org.openapitools.client.auth.*;
+import org.openapitools.client.models.*;
+import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
@@ -574,12 +648,12 @@ public class Example {
 ### Example
 ```java
 // Import classes:
-import com.github.ezzzi_y.CloudKeyClient;
-import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.Configuration;
-import com.github.ezzzi_y.auth.*;
-import com.github.ezzzi_y.models.*;
-import com.github.ezzzi_y.api.ServiceKeysApi;
+import org.openapitools.client.CloudKeyClient;
+import org.openapitools.client.CloudKeyException;
+import org.openapitools.client.Configuration;
+import org.openapitools.client.auth.*;
+import org.openapitools.client.models.*;
+import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
@@ -644,12 +718,12 @@ public class Example {
 ### Example
 ```java
 // Import classes:
-import com.github.ezzzi_y.CloudKeyClient;
-import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.Configuration;
-import com.github.ezzzi_y.auth.*;
-import com.github.ezzzi_y.models.*;
-import com.github.ezzzi_y.api.ServiceKeysApi;
+import org.openapitools.client.CloudKeyClient;
+import org.openapitools.client.CloudKeyException;
+import org.openapitools.client.Configuration;
+import org.openapitools.client.auth.*;
+import org.openapitools.client.models.*;
+import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
@@ -718,12 +792,12 @@ public class Example {
 ### Example
 ```java
 // Import classes:
-import com.github.ezzzi_y.CloudKeyClient;
-import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.Configuration;
-import com.github.ezzzi_y.auth.*;
-import com.github.ezzzi_y.models.*;
-import com.github.ezzzi_y.api.ServiceKeysApi;
+import org.openapitools.client.CloudKeyClient;
+import org.openapitools.client.CloudKeyException;
+import org.openapitools.client.Configuration;
+import org.openapitools.client.auth.*;
+import org.openapitools.client.models.*;
+import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {

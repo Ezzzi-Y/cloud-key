@@ -4,10 +4,11 @@ const (
 	CodeSuccess = 0
 
 	// 卡密相关 1001~1999
-	CodeKeyNotFound     = 1001
-	CodeKeyDisabled     = 1002
-	CodeKeyExhausted    = 1003
-	CodeKeyInsufficient = 1004
+	CodeKeyNotFound       = 1001
+	CodeKeyDisabled       = 1002
+	CodeKeyExhausted      = 1003
+	CodeKeyInsufficient   = 1004
+	CodeInvalidAdjustment = 1005 // 额度调整参数无效
 
 	// 管理员认证相关 2001~2999
 	CodeInvalidCredentials = 2001
@@ -42,6 +43,7 @@ var codeMessages = map[int]string{
 	CodeKeyDisabled:        "卡密已禁用",
 	CodeKeyExhausted:       "卡密额度已用尽",
 	CodeKeyInsufficient:    "扣减数量超过剩余额度",
+	CodeInvalidAdjustment:  "额度调整参数无效",
 	CodeInvalidCredentials: "管理员账号或密码错误",
 	CodeTOTPFailed:         "TOTP 验证失败",
 	CodeJWTInvalid:         "JWT Token 无效或已过期",

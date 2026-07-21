@@ -427,26 +427,84 @@ func (s *KeyService) ListKeysByTenant(tenantID uint64, page, pageSize int) ([]mo
 }
 
 type UpdateKeyRequest struct {
-	Alias           *string `json:"alias"`
-	RemainingAmount *int64  `json:"remaining_amount"`
+	Alias *string `json:"alias"`
 }
 
 func (s *KeyService) UpdateKey(id, tenantID uint64, req UpdateKeyRequest) error {
-	updates := map[string]interface{}{}
-	if req.Alias != nil {
-		updates["alias"] = *req.Alias
-	}
-	if req.RemainingAmount != nil {
-		updates["remaining_amount"] = *req.RemainingAmount
-		updates["status"] = gorm.Expr(
-			"CASE WHEN ? > 0 AND status = 'used' THEN 'unused' ELSE status END",
-			*req.RemainingAmount,
-		)
-	}
-	if len(updates) == 0 {
+	if req.Alias == nil {
 		return nil
 	}
-	return s.db.Model(&model.Key{}).Where("id = ? AND tenant_id = ?", id, tenantID).Updates(updates).Error
+	return s.db.Model(&model.Key{}).Where("id = ? AND tenant_id = ?", id, tenantID).Update("alias", *req.Alias).Error
+}
+
+type AdjustBalanceRequest struct {
+	Delta    int64  `json:"delta"`    // 正=增加, 负=减少
+	Operator string `json:"operator"` // 操作人标识
+	Remark   string `json:"remark"`   // 可选备注
+}
+
+type AdjustBalanceResult struct {
+	BeforeAmount int64 `json:"before_amount"`
+	AfterAmount  int64 `json:"after_amount"`
+}
+
+func (s *KeyService) AdjustBalance(id, tenantID uint64, req AdjustBalanceRequest) (*AdjustBalanceResult, error) {
+	if req.Delta == 0 {
+		return nil, fmt.Errorf("delta 不能为 0")
+	}
+
+	const maxRetries = 3
+	for retry := 0; retry < maxRetries; retry++ {
+		var key model.Key
+		if err := s.db.Where("id = ? AND tenant_id = ?", id, tenantID).First(&key).Error; err != nil {
+			return nil, fmt.Errorf("卡密不存在")
+		}
+
+		newAmount := key.RemainingAmount + req.Delta
+		if newAmount < 0 {
+			return nil, fmt.Errorf("调整后余额不能低于 0，当前余额: %d, 调整量: %d", key.RemainingAmount, req.Delta)
+		}
+
+		tx := s.db.Begin()
+		if tx.Error != nil {
+			return nil, tx.Error
+		}
+
+		result := tx.Model(&model.Key{}).
+			Where("id = ? AND version = ?", key.ID, key.Version).
+			Updates(map[string]interface{}{
+				"remaining_amount": gorm.Expr("remaining_amount + ?", req.Delta),
+				"version":          gorm.Expr("version + 1"),
+			})
+
+		if result.Error != nil {
+			tx.Rollback()
+			return nil, result.Error
+		}
+		if result.RowsAffected == 0 {
+			tx.Rollback()
+			continue // 乐观锁冲突，重试
+		}
+
+		// 如果是增加额度且 key 之前已耗尽，恢复为 unused
+		if req.Delta > 0 && newAmount > 0 && key.Status == model.KeyStatusUsed {
+			if err := tx.Model(&model.Key{}).Where("id = ?", key.ID).
+				Update("status", model.KeyStatusUnused).Error; err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+		}
+
+		if err := tx.Commit().Error; err != nil {
+			return nil, err
+		}
+
+		return &AdjustBalanceResult{
+			BeforeAmount: key.RemainingAmount,
+			AfterAmount:  newAmount,
+		}, nil
+	}
+	return nil, fmt.Errorf("并发冲突，超过最大重试次数")
 }
 
 func (s *KeyService) DisableKey(id, tenantID uint64) error {

@@ -72,6 +72,7 @@ func main() {
 	authSvc := service.NewAuthService(db, rdb, cfg.Auth.Secret, cfg.Auth.Expiration)
 	keySvc := service.NewKeyService(db)
 	usageLogSvc := service.NewUsageLogService(db)
+	balanceLogSvc := service.NewBalanceLogService(db)
 	statsSvc := service.NewStatsService(db)
 	serviceAccountSvc := service.NewServiceAccountService(db)
 	configSvc := service.NewConfigService(db)
@@ -99,10 +100,12 @@ func main() {
 	// Handlers
 	authHandler := handler.NewAuthHandler(authSvc, loginLogSvc)
 	superHandler := handler.NewSuperHandler(tenantSvc, configSvc, loginLogSvc)
-	tenantKeyHandler := handler.NewTenantKeyHandler(keySvc, usageLogSvc, db, false)
-	tenantSAHandler := handler.NewTenantServiceAccountHandler(keySvc, serviceAccountSvc, db)
+	tenantKeyHandler := handler.NewTenantKeyHandler(keySvc, usageLogSvc, balanceLogSvc, db, false)
+	tenantSAHandler := handler.NewTenantServiceAccountHandler(keySvc, serviceAccountSvc, balanceLogSvc, db)
 	tenantStatsHandler := handler.NewTenantStatsHandler(statsSvc)
 	tenantUsageLogHandler := handler.NewTenantUsageLogHandler(usageLogSvc, loginLogSvc)
+	tenantBalanceLogHandler := handler.NewTenantBalanceLogHandler(balanceLogSvc)
+	serviceBalanceLogHandler := handler.NewServiceBalanceLogHandler(balanceLogSvc)
 
 	// Gin mode
 	if cfg.App.Debug {
@@ -115,6 +118,7 @@ func main() {
 	r := router.SetupRouter(
 		authHandler, superHandler,
 		tenantKeyHandler, tenantSAHandler, tenantStatsHandler, tenantUsageLogHandler,
+		tenantBalanceLogHandler, serviceBalanceLogHandler,
 		cfg.Auth.Secret, db, serviceAccountSvc, rdb, cfg.App.Debug,
 	)
 

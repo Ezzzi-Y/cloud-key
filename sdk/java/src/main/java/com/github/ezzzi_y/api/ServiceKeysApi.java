@@ -27,6 +27,8 @@ import com.google.gson.reflect.TypeToken;
 import java.io.IOException;
 
 
+import com.github.ezzzi_y.model.AdjustBalanceRequest;
+import com.github.ezzzi_y.model.AdjustBalanceResponse;
 import com.github.ezzzi_y.model.ConsumeRequest;
 import com.github.ezzzi_y.model.ConsumeResponse;
 import com.github.ezzzi_y.model.CreateKeyRequest;
@@ -81,6 +83,151 @@ public class ServiceKeysApi {
         this.localCustomBaseUrl = customBaseUrl;
     }
 
+    /**
+     * Build call for adjustBalance
+     * @param id 卡密ID (required)
+     * @param body 调整参数 (required)
+     * @param _callback Callback for upload/download progress
+     * @return Call to execute
+     * @throws CloudKeyException If fail to serialize the request body object
+     * @http.response.details
+     <table border="1">
+       <caption>Response Details</caption>
+        <tr><td> Status Code </td><td> Description </td><td> Response Headers </td></tr>
+        <tr><td> 200 </td><td> 调整结果 </td><td>  -  </td></tr>
+        <tr><td> 400 </td><td> 参数错误 </td><td>  -  </td></tr>
+        <tr><td> 401 </td><td> 服务账号密钥无效 </td><td>  -  </td></tr>
+     </table>
+     */
+    public okhttp3.Call adjustBalanceCall(@javax.annotation.Nonnull Integer id, @javax.annotation.Nonnull AdjustBalanceRequest body, final CloudKeyCallback _callback) throws CloudKeyException {
+        String basePath = null;
+        // Operation Servers
+        String[] localBasePaths = new String[] {  };
+
+        // Determine Base Path to Use
+        if (localCustomBaseUrl != null){
+            basePath = localCustomBaseUrl;
+        } else if ( localBasePaths.length > 0 ) {
+            basePath = localBasePaths[localHostIndex];
+        } else {
+            basePath = null;
+        }
+
+        Object localVarPostBody = body;
+
+        // create path and map variables
+        String localVarPath = "/service/keys/{id}/adjust-balance"
+            .replace("{" + "id" + "}", localVarCloudKeyClient.escapeString(id.toString()));
+
+        List<Pair> localVarQueryParams = new ArrayList<Pair>();
+        List<Pair> localVarCollectionQueryParams = new ArrayList<Pair>();
+        Map<String, String> localVarHeaderParams = new HashMap<String, String>();
+        Map<String, String> localVarCookieParams = new HashMap<String, String>();
+        Map<String, Object> localVarFormParams = new HashMap<String, Object>();
+
+        final String[] localVarAccepts = {
+            "application/json"
+        };
+        final String localVarAccept = localVarCloudKeyClient.selectHeaderAccept(localVarAccepts);
+        if (localVarAccept != null) {
+            localVarHeaderParams.put("Accept", localVarAccept);
+        }
+
+        final String[] localVarContentTypes = {
+            "application/json"
+        };
+        final String localVarContentType = localVarCloudKeyClient.selectHeaderContentType(localVarContentTypes);
+        if (localVarContentType != null) {
+            localVarHeaderParams.put("Content-Type", localVarContentType);
+        }
+
+        String[] localVarAuthNames = new String[] { "ServiceKeyAuth" };
+        return localVarCloudKeyClient.buildCall(basePath, localVarPath, "POST", localVarQueryParams, localVarCollectionQueryParams, localVarPostBody, localVarHeaderParams, localVarCookieParams, localVarFormParams, localVarAuthNames, _callback);
+    }
+
+    @SuppressWarnings("rawtypes")
+    private okhttp3.Call adjustBalanceValidateBeforeCall(@javax.annotation.Nonnull Integer id, @javax.annotation.Nonnull AdjustBalanceRequest body, final CloudKeyCallback _callback) throws CloudKeyException {
+        // verify the required parameter 'id' is set
+        if (id == null) {
+            throw new CloudKeyException("Missing the required parameter 'id' when calling adjustBalance(Async)");
+        }
+
+        // verify the required parameter 'body' is set
+        if (body == null) {
+            throw new CloudKeyException("Missing the required parameter 'body' when calling adjustBalance(Async)");
+        }
+
+        return adjustBalanceCall(id, body, _callback);
+
+    }
+
+    /**
+     * 服务账号调整卡密额度
+     * 通过 X-Service-Key 认证，增加或减少卡密额度（管理员行为），仅支持增量操作
+     * @param id 卡密ID (required)
+     * @param body 调整参数 (required)
+     * @return AdjustBalanceResponse
+     * @throws CloudKeyException If fail to call the API, e.g. server error or cannot deserialize the response body
+     * @http.response.details
+     <table border="1">
+       <caption>Response Details</caption>
+        <tr><td> Status Code </td><td> Description </td><td> Response Headers </td></tr>
+        <tr><td> 200 </td><td> 调整结果 </td><td>  -  </td></tr>
+        <tr><td> 400 </td><td> 参数错误 </td><td>  -  </td></tr>
+        <tr><td> 401 </td><td> 服务账号密钥无效 </td><td>  -  </td></tr>
+     </table>
+     */
+    public AdjustBalanceResponse adjustBalance(@javax.annotation.Nonnull Integer id, @javax.annotation.Nonnull AdjustBalanceRequest body) throws CloudKeyException {
+        CloudKeyResponse<AdjustBalanceResponse> localVarResp = adjustBalanceWithHttpInfo(id, body);
+        return localVarResp.getData();
+    }
+
+    /**
+     * 服务账号调整卡密额度
+     * 通过 X-Service-Key 认证，增加或减少卡密额度（管理员行为），仅支持增量操作
+     * @param id 卡密ID (required)
+     * @param body 调整参数 (required)
+     * @return CloudKeyResponse&lt;AdjustBalanceResponse&gt;
+     * @throws CloudKeyException If fail to call the API, e.g. server error or cannot deserialize the response body
+     * @http.response.details
+     <table border="1">
+       <caption>Response Details</caption>
+        <tr><td> Status Code </td><td> Description </td><td> Response Headers </td></tr>
+        <tr><td> 200 </td><td> 调整结果 </td><td>  -  </td></tr>
+        <tr><td> 400 </td><td> 参数错误 </td><td>  -  </td></tr>
+        <tr><td> 401 </td><td> 服务账号密钥无效 </td><td>  -  </td></tr>
+     </table>
+     */
+    public CloudKeyResponse<AdjustBalanceResponse> adjustBalanceWithHttpInfo(@javax.annotation.Nonnull Integer id, @javax.annotation.Nonnull AdjustBalanceRequest body) throws CloudKeyException {
+        okhttp3.Call localVarCall = adjustBalanceValidateBeforeCall(id, body, null);
+        Type localVarReturnType = new TypeToken<AdjustBalanceResponse>(){}.getType();
+        return localVarCloudKeyClient.execute(localVarCall, localVarReturnType);
+    }
+
+    /**
+     * 服务账号调整卡密额度 (asynchronously)
+     * 通过 X-Service-Key 认证，增加或减少卡密额度（管理员行为），仅支持增量操作
+     * @param id 卡密ID (required)
+     * @param body 调整参数 (required)
+     * @param _callback The callback to be executed when the API call finishes
+     * @return The request call
+     * @throws CloudKeyException If fail to process the API call, e.g. serializing the request body object
+     * @http.response.details
+     <table border="1">
+       <caption>Response Details</caption>
+        <tr><td> Status Code </td><td> Description </td><td> Response Headers </td></tr>
+        <tr><td> 200 </td><td> 调整结果 </td><td>  -  </td></tr>
+        <tr><td> 400 </td><td> 参数错误 </td><td>  -  </td></tr>
+        <tr><td> 401 </td><td> 服务账号密钥无效 </td><td>  -  </td></tr>
+     </table>
+     */
+    public okhttp3.Call adjustBalanceAsync(@javax.annotation.Nonnull Integer id, @javax.annotation.Nonnull AdjustBalanceRequest body, final CloudKeyCallback<AdjustBalanceResponse> _callback) throws CloudKeyException {
+
+        okhttp3.Call localVarCall = adjustBalanceValidateBeforeCall(id, body, _callback);
+        Type localVarReturnType = new TypeToken<AdjustBalanceResponse>(){}.getType();
+        localVarCloudKeyClient.executeAsync(localVarCall, localVarReturnType, _callback);
+        return localVarCall;
+    }
     /**
      * Build call for consumeKey
      * @param body 扣减参数 (required)

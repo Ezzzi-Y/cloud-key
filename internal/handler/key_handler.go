@@ -17,14 +17,15 @@ import (
 
 // TenantKeyHandler handles tenant-scoped key management endpoints.
 type TenantKeyHandler struct {
-	keySvc       *service.KeyService
-	usageLogSvc  *service.UsageLogService
-	db           *gorm.DB
-	recordParams bool
+	keySvc        *service.KeyService
+	usageLogSvc   *service.UsageLogService
+	balanceLogSvc *service.BalanceLogService
+	db            *gorm.DB
+	recordParams  bool
 }
 
-func NewTenantKeyHandler(keySvc *service.KeyService, usageLogSvc *service.UsageLogService, db *gorm.DB, recordParams bool) *TenantKeyHandler {
-	return &TenantKeyHandler{keySvc: keySvc, usageLogSvc: usageLogSvc, db: db, recordParams: recordParams}
+func NewTenantKeyHandler(keySvc *service.KeyService, usageLogSvc *service.UsageLogService, balanceLogSvc *service.BalanceLogService, db *gorm.DB, recordParams bool) *TenantKeyHandler {
+	return &TenantKeyHandler{keySvc: keySvc, usageLogSvc: usageLogSvc, balanceLogSvc: balanceLogSvc, db: db, recordParams: recordParams}
 }
 
 // parseExpireAt converts an optional expiry string pointer into *time.Time.
@@ -296,6 +297,73 @@ func (h *TenantKeyHandler) UpdateKey(c *gin.Context) {
 		return
 	}
 	Success(c, nil)
+}
+
+type AdjustBalanceRequest struct {
+	Delta  int64  `json:"delta" binding:"required" example:"100"`
+	Remark string `json:"remark" example:"管理员充值"`
+}
+
+// AdjustBalance 调整卡密额度（管理员行为）
+// @Summary     调整卡密额度
+// @Description 管理员增加或减少卡密额度，仅支持增量操作，所有变动记录在流转日志中
+// @Tags        租户-卡密管理
+// @Accept      json
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       id   path int true "卡密ID"
+// @Param       body body AdjustBalanceRequest true "调整参数"
+// @Success     200 {object} Response "调整结果"
+// @Failure     400 {object} Response "参数错误"
+// @Router      /tenant/keys/{id}/adjust-balance [post]
+func (h *TenantKeyHandler) AdjustBalance(c *gin.Context) {
+	tenantID := getTenantID(c)
+
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
+		return
+	}
+
+	var req AdjustBalanceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		BadRequest(c, http.StatusBadRequest, "参数错误")
+		return
+	}
+
+	if req.Delta == 0 {
+		BadRequest(c, errcode.CodeInvalidAdjustment, "调整量不能为 0")
+		return
+	}
+
+	result, err := h.keySvc.AdjustBalance(id, tenantID, service.AdjustBalanceRequest{
+		Delta:    req.Delta,
+		Operator: "tenant_admin",
+		Remark:   req.Remark,
+	})
+	if err != nil {
+		BadRequest(c, errcode.CodeInvalidAdjustment, err.Error())
+		return
+	}
+
+	// 记录流转日志
+	key, _ := h.keySvc.GetKeyDetail(id, tenantID)
+	keyAlias := ""
+	if key != nil {
+		keyAlias = key.Alias
+	}
+	_ = h.balanceLogSvc.Record(service.RecordBalanceParams{
+		TenantID:     tenantID,
+		KeyID:        id,
+		KeyAlias:     keyAlias,
+		Delta:        req.Delta,
+		BeforeAmount: result.BeforeAmount,
+		AfterAmount:  result.AfterAmount,
+		Operator:     "tenant_admin",
+		Remark:       req.Remark,
+	})
+
+	Success(c, result)
 }
 
 // DisableKey 禁用卡密

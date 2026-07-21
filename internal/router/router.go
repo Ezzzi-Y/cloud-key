@@ -24,6 +24,8 @@ func SetupRouter(
 	tenantSAHandler *handler.TenantServiceAccountHandler,
 	tenantStatsHandler *handler.TenantStatsHandler,
 	tenantUsageLogHandler *handler.TenantUsageLogHandler,
+	tenantBalanceLogHandler *handler.TenantBalanceLogHandler,
+	serviceBalanceLogHandler *handler.ServiceBalanceLogHandler,
 	jwtSecret string,
 	db *gorm.DB,
 	saSvc *service.ServiceAccountService,
@@ -108,6 +110,7 @@ func SetupRouter(
 		tenantKeys.GET("/export/json", tenantKeyHandler.ExportKeysJSON)
 		tenantKeys.GET("/:id", tenantKeyHandler.GetKey)
 		tenantKeys.PATCH("/:id", middleware.TenantBusinessGuard(db), tenantKeyHandler.UpdateKey)
+		tenantKeys.POST("/:id/adjust-balance", middleware.TenantBusinessGuard(db), tenantKeyHandler.AdjustBalance)
 		tenantKeys.PATCH("/:id/disable", middleware.TenantBusinessGuard(db), tenantKeyHandler.DisableKey)
 		tenantKeys.PATCH("/:id/enable", middleware.TenantBusinessGuard(db), tenantKeyHandler.EnableKey)
 		tenantKeys.DELETE("/:id", middleware.TenantBusinessGuard(db), tenantKeyHandler.DeleteKey)
@@ -138,6 +141,13 @@ func SetupRouter(
 			tenantLogs.GET("/export", tenantUsageLogHandler.ExportLogs)
 		}
 
+		// 额度流转日志（不 guard）
+		tenantBalanceLogs := tenant.Group("/balance-logs")
+		{
+			tenantBalanceLogs.GET("", tenantBalanceLogHandler.ListLogs)
+			tenantBalanceLogs.GET("/export", tenantBalanceLogHandler.ExportLogs)
+		}
+
 		// 个人设置
 		tenant.GET("/profile", authHandler.Profile)
 		tenant.PUT("/password", authHandler.ChangePassword)
@@ -158,9 +168,12 @@ func SetupRouter(
 		serviceAPI.GET("/keys/export/json", tenantSAHandler.ServiceExportKeysJSON)
 		serviceAPI.GET("/keys/:id", tenantSAHandler.ServiceGetKey)
 		serviceAPI.PATCH("/keys/:id", middleware.TenantBusinessGuard(db), tenantSAHandler.ServiceUpdateKey)
+		serviceAPI.POST("/keys/:id/adjust-balance", middleware.TenantBusinessGuard(db), tenantSAHandler.ServiceAdjustBalance)
 		serviceAPI.PATCH("/keys/:id/disable", middleware.TenantBusinessGuard(db), tenantSAHandler.ServiceDisableKey)
 		serviceAPI.PATCH("/keys/:id/enable", middleware.TenantBusinessGuard(db), tenantSAHandler.ServiceEnableKey)
 		serviceAPI.DELETE("/keys/:id", middleware.TenantBusinessGuard(db), tenantSAHandler.ServiceDeleteKey)
+		serviceAPI.GET("/balance-logs", serviceBalanceLogHandler.ServiceListLogs)
+		serviceAPI.GET("/balance-logs/export", serviceBalanceLogHandler.ServiceExportLogs)
 	}
 
 	return r

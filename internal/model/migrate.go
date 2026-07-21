@@ -8,6 +8,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&User{},
 		&Key{},
 		&UsageLog{},
+		&BalanceLog{},
 		&ServiceAccount{},
 		&LoginLog{},
 		&SysConfig{},

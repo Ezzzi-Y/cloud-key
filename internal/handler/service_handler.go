@@ -15,11 +15,12 @@ import (
 type TenantServiceAccountHandler struct {
 	keySvc            *service.KeyService
 	serviceAccountSvc *service.ServiceAccountService
+	balanceLogSvc     *service.BalanceLogService
 	db                *gorm.DB
 }
 
-func NewTenantServiceAccountHandler(keySvc *service.KeyService, saSvc *service.ServiceAccountService, db *gorm.DB) *TenantServiceAccountHandler {
-	return &TenantServiceAccountHandler{keySvc: keySvc, serviceAccountSvc: saSvc, db: db}
+func NewTenantServiceAccountHandler(keySvc *service.KeyService, saSvc *service.ServiceAccountService, balanceLogSvc *service.BalanceLogService, db *gorm.DB) *TenantServiceAccountHandler {
+	return &TenantServiceAccountHandler{keySvc: keySvc, serviceAccountSvc: saSvc, balanceLogSvc: balanceLogSvc, db: db}
 }
 
 func (h *TenantServiceAccountHandler) getTenantKeyConfig(tenantID uint64) (string, int, int, error) {
@@ -298,6 +299,85 @@ func (h *TenantServiceAccountHandler) ServiceUpdateKey(c *gin.Context) {
 		return
 	}
 	Success(c, nil)
+}
+
+type serviceAdjustBalanceReq struct {
+	Delta  int64  `json:"delta" binding:"required"`
+	Remark string `json:"remark"`
+}
+
+// ServiceAdjustBalance 服务账号调整卡密额度
+// @Summary     服务账号调整卡密额度
+// @Description 通过 X-Service-Key 认证，增加或减少卡密额度，所有变动记录在流转日志中
+// @Tags        服务账号API
+// @Accept      json
+// @Produce     json
+// @Security    ServiceKeyAuth
+// @Param       id   path int true "卡密ID"
+// @Param       body body serviceAdjustBalanceReq true "调整参数"
+// @Success     200 {object} Response "调整结果"
+// @Failure     400 {object} Response "参数错误"
+// @Failure     401 {object} Response "服务账号密钥无效"
+// @Router      /service/keys/{id}/adjust-balance [post]
+func (h *TenantServiceAccountHandler) ServiceAdjustBalance(c *gin.Context) {
+	saI, exists := c.Get("service_account")
+	if !exists {
+		Unauthorized(c, errcode.CodeServiceKeyInvalid, "未认证的服务账号")
+		return
+	}
+	sa, ok := saI.(*model.ServiceAccount)
+	if !ok {
+		Unauthorized(c, errcode.CodeServiceKeyInvalid, "服务账号信息异常")
+		return
+	}
+
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		BadRequest(c, http.StatusBadRequest, "无效的卡密 ID")
+		return
+	}
+
+	var req serviceAdjustBalanceReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		BadRequest(c, http.StatusBadRequest, "参数错误")
+		return
+	}
+
+	if req.Delta == 0 {
+		BadRequest(c, errcode.CodeInvalidAdjustment, "调整量不能为 0")
+		return
+	}
+
+	operator := "sa:" + sa.Name
+
+	result, err := h.keySvc.AdjustBalance(id, sa.TenantID, service.AdjustBalanceRequest{
+		Delta:    req.Delta,
+		Operator: operator,
+		Remark:   req.Remark,
+	})
+	if err != nil {
+		BadRequest(c, errcode.CodeInvalidAdjustment, err.Error())
+		return
+	}
+
+	// 记录流转日志
+	key, _ := h.keySvc.GetKeyDetail(id, sa.TenantID)
+	keyAlias := ""
+	if key != nil {
+		keyAlias = key.Alias
+	}
+	_ = h.balanceLogSvc.Record(service.RecordBalanceParams{
+		TenantID:     sa.TenantID,
+		KeyID:        id,
+		KeyAlias:     keyAlias,
+		Delta:        req.Delta,
+		BeforeAmount: result.BeforeAmount,
+		AfterAmount:  result.AfterAmount,
+		Operator:     operator,
+		Remark:       req.Remark,
+	})
+
+	Success(c, result)
 }
 
 // ServiceDisableKey 服务账号禁用卡密

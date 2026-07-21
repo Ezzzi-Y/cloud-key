@@ -2,7 +2,7 @@
 
 CloudKey Service Account API
 - API version: 1.2
-  - Build date: 2026-07-21T15:39:59.098139500+08:00[Asia/Shanghai]
+  - Build date: 2026-07-21T19:47:27.911944800+08:00[Asia/Shanghai]
   - Generator version: 7.24.0
 
 卡密管理系统 - 服务账号 SDK
@@ -41,7 +41,7 @@ Add this dependency to your project's POM:
 <dependency>
   <groupId>com.github.ezzzi-y</groupId>
   <artifactId>cloudkey-client</artifactId>
-  <version>1.0.4</version>
+  <version>1.2</version>
   <scope>compile</scope>
 </dependency>
 ```
@@ -57,7 +57,7 @@ Add this dependency to your project's build file:
   }
 
   dependencies {
-     implementation "com.github.ezzzi-y:cloudkey-client:1.0.4"
+     implementation "com.github.ezzzi-y:cloudkey-client:1.2"
   }
 ```
 
@@ -71,7 +71,7 @@ mvn clean package
 
 Then manually install the following JARs:
 
-* `target/cloudkey-client-1.0.4.jar`
+* `target/cloudkey-client-1.2.jar`
 * `target/lib/*.jar`
 
 ## Getting Started
@@ -81,12 +81,12 @@ Please follow the [installation](#installation) instruction and execute the foll
 ```java
 
 // Import classes:
-import com.github.ezzzi_y.CloudKeyClient;
-import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.Configuration;
-import com.github.ezzzi_y.auth.*;
-import com.github.ezzzi_y.model.*;
-import com.github.ezzzi_y.api.ServiceKeysApi;
+import org.openapitools.client.CloudKeyClient;
+import org.openapitools.client.CloudKeyException;
+import org.openapitools.client.Configuration;
+import org.openapitools.client.auth.*;
+import org.openapitools.client.model.*;
+import org.openapitools.client.api.BalanceLogsApi;
 
 public class Example {
   public static void main(String[] args) {
@@ -99,13 +99,16 @@ public class Example {
     // Uncomment the following line to set a prefix for the API key, e.g. "Token" (defaults to null)
     //ServiceKeyAuth.setApiKeyPrefix("Token");
 
-    ServiceKeysApi apiInstance = new ServiceKeysApi(defaultClient);
-    ConsumeRequest body = new ConsumeRequest(); // ConsumeRequest | 扣减参数
+    BalanceLogsApi apiInstance = new BalanceLogsApi(defaultClient);
+    Long keyId = 56L; // Long | 卡密ID过滤
+    String operator = "operator_example"; // String | 操作人过滤
+    String startTime = "startTime_example"; // String | 开始时间
+    String endTime = "endTime_example"; // String | 结束时间
     try {
-      ConsumeResponse result = apiInstance.consumeKey(body);
+      ExportBalanceLogsResponse result = apiInstance.exportBalanceLogs(keyId, operator, startTime, endTime);
       System.out.println(result);
     } catch (CloudKeyException e) {
-      System.err.println("Exception when calling ServiceKeysApi#consumeKey");
+      System.err.println("Exception when calling BalanceLogsApi#exportBalanceLogs");
       System.err.println("Status code: " + e.getCode());
       System.err.println("Reason: " + e.getResponseBody());
       System.err.println("Response headers: " + e.getResponseHeaders());
@@ -122,6 +125,9 @@ All URIs are relative to *http://localhost:8080/api*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
+*BalanceLogsApi* | [**exportBalanceLogs**](docs/BalanceLogsApi.md#exportBalanceLogs) | **GET** /service/balance-logs/export | 导出额度流转日志
+*BalanceLogsApi* | [**listBalanceLogs**](docs/BalanceLogsApi.md#listBalanceLogs) | **GET** /service/balance-logs | 查询额度流转日志
+*ServiceKeysApi* | [**adjustBalance**](docs/ServiceKeysApi.md#adjustBalance) | **POST** /service/keys/{id}/adjust-balance | 服务账号调整卡密额度
 *ServiceKeysApi* | [**consumeKey**](docs/ServiceKeysApi.md#consumeKey) | **POST** /service/keys/consume | 服务账号扣减卡密额度
 *ServiceKeysApi* | [**createKey**](docs/ServiceKeysApi.md#createKey) | **POST** /service/keys | 服务账号创建卡密
 *ServiceKeysApi* | [**deleteKey**](docs/ServiceKeysApi.md#deleteKey) | **DELETE** /service/keys/{id} | 服务账号删除卡密
@@ -137,12 +143,19 @@ Class | Method | HTTP request | Description
 
 ## Documentation for Models
 
+ - [AdjustBalanceRequest](docs/AdjustBalanceRequest.md)
+ - [AdjustBalanceResponse](docs/AdjustBalanceResponse.md)
+ - [AdjustBalanceResult](docs/AdjustBalanceResult.md)
+ - [BalanceLog](docs/BalanceLog.md)
+ - [BalanceLogListResponse](docs/BalanceLogListResponse.md)
+ - [BalanceLogPageData](docs/BalanceLogPageData.md)
  - [ConsumeRequest](docs/ConsumeRequest.md)
  - [ConsumeResponse](docs/ConsumeResponse.md)
  - [ConsumeResult](docs/ConsumeResult.md)
  - [CreateKeyData](docs/CreateKeyData.md)
  - [CreateKeyRequest](docs/CreateKeyRequest.md)
  - [CreateKeyResponse](docs/CreateKeyResponse.md)
+ - [ExportBalanceLogsResponse](docs/ExportBalanceLogsResponse.md)
  - [ExportKeyItem](docs/ExportKeyItem.md)
  - [ExportKeysResponse](docs/ExportKeysResponse.md)
  - [Key](docs/Key.md)

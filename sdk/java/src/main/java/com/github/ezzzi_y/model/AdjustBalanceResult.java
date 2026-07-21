@@ -46,34 +46,58 @@ import java.util.Set;
 import com.github.ezzzi_y.CloudKeyJSON;
 
 /**
- * UpdateKeyRequest
+ * AdjustBalanceResult
  */
 @javax.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", date = "2026-07-21T19:47:27.911944800+08:00[Asia/Shanghai]", comments = "Generator version: 7.24.0")
-public class UpdateKeyRequest {
-  public static final String SERIALIZED_NAME_ALIAS = "alias";
-  @SerializedName(SERIALIZED_NAME_ALIAS)
+public class AdjustBalanceResult {
+  public static final String SERIALIZED_NAME_BEFORE_AMOUNT = "before_amount";
+  @SerializedName(SERIALIZED_NAME_BEFORE_AMOUNT)
   @javax.annotation.Nullable
-  private String alias;
+  private Long beforeAmount;
 
-  public UpdateKeyRequest() {
+  public static final String SERIALIZED_NAME_AFTER_AMOUNT = "after_amount";
+  @SerializedName(SERIALIZED_NAME_AFTER_AMOUNT)
+  @javax.annotation.Nullable
+  private Long afterAmount;
+
+  public AdjustBalanceResult() {
   }
 
-  public UpdateKeyRequest alias(@javax.annotation.Nullable String alias) {
-    this.alias = alias;
+  public AdjustBalanceResult beforeAmount(@javax.annotation.Nullable Long beforeAmount) {
+    this.beforeAmount = beforeAmount;
     return this;
   }
 
   /**
-   * Get alias
-   * @return alias
+   * 调整前余额
+   * @return beforeAmount
    */
   @javax.annotation.Nullable
-  public String getAlias() {
-    return alias;
+  public Long getBeforeAmount() {
+    return beforeAmount;
   }
 
-  public void setAlias(@javax.annotation.Nullable String alias) {
-    this.alias = alias;
+  public void setBeforeAmount(@javax.annotation.Nullable Long beforeAmount) {
+    this.beforeAmount = beforeAmount;
+  }
+
+
+  public AdjustBalanceResult afterAmount(@javax.annotation.Nullable Long afterAmount) {
+    this.afterAmount = afterAmount;
+    return this;
+  }
+
+  /**
+   * 调整后余额
+   * @return afterAmount
+   */
+  @javax.annotation.Nullable
+  public Long getAfterAmount() {
+    return afterAmount;
+  }
+
+  public void setAfterAmount(@javax.annotation.Nullable Long afterAmount) {
+    this.afterAmount = afterAmount;
   }
 
 
@@ -86,20 +110,22 @@ public class UpdateKeyRequest {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    UpdateKeyRequest updateKeyRequest = (UpdateKeyRequest) o;
-    return Objects.equals(this.alias, updateKeyRequest.alias);
+    AdjustBalanceResult adjustBalanceResult = (AdjustBalanceResult) o;
+    return Objects.equals(this.beforeAmount, adjustBalanceResult.beforeAmount) &&
+        Objects.equals(this.afterAmount, adjustBalanceResult.afterAmount);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(alias);
+    return Objects.hash(beforeAmount, afterAmount);
   }
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class UpdateKeyRequest {\n");
-    sb.append("    alias: ").append(toIndentedString(alias)).append("\n");
+    sb.append("class AdjustBalanceResult {\n");
+    sb.append("    beforeAmount: ").append(toIndentedString(beforeAmount)).append("\n");
+    sb.append("    afterAmount: ").append(toIndentedString(afterAmount)).append("\n");
     sb.append("}");
     return sb.toString();
   }
@@ -118,7 +144,7 @@ public class UpdateKeyRequest {
 
   static {
     // a set of all properties/fields (JSON key names)
-    openapiFields = new HashSet<String>(Arrays.asList("alias"));
+    openapiFields = new HashSet<String>(Arrays.asList("before_amount", "after_amount"));
 
     // a set of required properties/fields (JSON key names)
     openapiRequiredFields = new HashSet<String>(0);
@@ -128,48 +154,45 @@ public class UpdateKeyRequest {
    * Validates the JSON Element and throws an exception if issues found
    *
    * @param jsonElement JSON Element
-   * @throws IOException if the JSON Element is invalid with respect to UpdateKeyRequest
+   * @throws IOException if the JSON Element is invalid with respect to AdjustBalanceResult
    */
   public static void validateJsonElement(JsonElement jsonElement) throws IOException {
       if (jsonElement == null) {
-        if (!UpdateKeyRequest.openapiRequiredFields.isEmpty()) { // has required fields but CloudKeyJSON element is null
-          throw new IllegalArgumentException(String.format(java.util.Locale.ROOT, "The required field(s) %s in UpdateKeyRequest is not found in the empty JSON string", UpdateKeyRequest.openapiRequiredFields.toString()));
+        if (!AdjustBalanceResult.openapiRequiredFields.isEmpty()) { // has required fields but CloudKeyJSON element is null
+          throw new IllegalArgumentException(String.format(java.util.Locale.ROOT, "The required field(s) %s in AdjustBalanceResult is not found in the empty JSON string", AdjustBalanceResult.openapiRequiredFields.toString()));
         }
       }
 
       Set<Map.Entry<String, JsonElement>> entries = jsonElement.getAsJsonObject().entrySet();
       // check to see if the JSON string contains additional fields
       for (Map.Entry<String, JsonElement> entry : entries) {
-        if (!UpdateKeyRequest.openapiFields.contains(entry.getKey())) {
-          throw new IllegalArgumentException(String.format(java.util.Locale.ROOT, "The field `%s` in the JSON string is not defined in the `UpdateKeyRequest` properties. CloudKeyJSON: %s", entry.getKey(), jsonElement.toString()));
+        if (!AdjustBalanceResult.openapiFields.contains(entry.getKey())) {
+          throw new IllegalArgumentException(String.format(java.util.Locale.ROOT, "The field `%s` in the JSON string is not defined in the `AdjustBalanceResult` properties. CloudKeyJSON: %s", entry.getKey(), jsonElement.toString()));
         }
       }
         JsonObject jsonObj = jsonElement.getAsJsonObject();
-      if ((jsonObj.get("alias") != null && !jsonObj.get("alias").isJsonNull()) && !jsonObj.get("alias").isJsonPrimitive()) {
-        throw new IllegalArgumentException(String.format(java.util.Locale.ROOT, "Expected the field `alias` to be a primitive type in the JSON string but got `%s`", jsonObj.get("alias").toString()));
-      }
   }
 
   public static class CustomTypeAdapterFactory implements TypeAdapterFactory {
     @SuppressWarnings("unchecked")
     @Override
     public <T> TypeAdapter<T> create(Gson gson, TypeToken<T> type) {
-       if (!UpdateKeyRequest.class.isAssignableFrom(type.getRawType())) {
-         return null; // this class only serializes 'UpdateKeyRequest' and its subtypes
+       if (!AdjustBalanceResult.class.isAssignableFrom(type.getRawType())) {
+         return null; // this class only serializes 'AdjustBalanceResult' and its subtypes
        }
        final TypeAdapter<JsonElement> elementAdapter = gson.getAdapter(JsonElement.class);
-       final TypeAdapter<UpdateKeyRequest> thisAdapter
-                        = gson.getDelegateAdapter(this, TypeToken.get(UpdateKeyRequest.class));
+       final TypeAdapter<AdjustBalanceResult> thisAdapter
+                        = gson.getDelegateAdapter(this, TypeToken.get(AdjustBalanceResult.class));
 
-       return (TypeAdapter<T>) new TypeAdapter<UpdateKeyRequest>() {
+       return (TypeAdapter<T>) new TypeAdapter<AdjustBalanceResult>() {
            @Override
-           public void write(JsonWriter out, UpdateKeyRequest value) throws IOException {
+           public void write(JsonWriter out, AdjustBalanceResult value) throws IOException {
              JsonObject obj = thisAdapter.toJsonTree(value).getAsJsonObject();
              elementAdapter.write(out, obj);
            }
 
            @Override
-           public UpdateKeyRequest read(JsonReader in) throws IOException {
+           public AdjustBalanceResult read(JsonReader in) throws IOException {
              JsonElement jsonElement = elementAdapter.read(in);
              validateJsonElement(jsonElement);
              return thisAdapter.fromJsonTree(jsonElement);
@@ -180,18 +203,18 @@ public class UpdateKeyRequest {
   }
 
   /**
-   * Create an instance of UpdateKeyRequest given an JSON string
+   * Create an instance of AdjustBalanceResult given an JSON string
    *
    * @param jsonString JSON string
-   * @return An instance of UpdateKeyRequest
-   * @throws IOException if the JSON string is invalid with respect to UpdateKeyRequest
+   * @return An instance of AdjustBalanceResult
+   * @throws IOException if the JSON string is invalid with respect to AdjustBalanceResult
    */
-  public static UpdateKeyRequest fromJson(String jsonString) throws IOException {
-    return CloudKeyJSON.getGson().fromJson(jsonString, UpdateKeyRequest.class);
+  public static AdjustBalanceResult fromJson(String jsonString) throws IOException {
+    return CloudKeyJSON.getGson().fromJson(jsonString, AdjustBalanceResult.class);
   }
 
   /**
-   * Convert an instance of UpdateKeyRequest to an JSON string
+   * Convert an instance of AdjustBalanceResult to an JSON string
    *
    * @return JSON string
    */

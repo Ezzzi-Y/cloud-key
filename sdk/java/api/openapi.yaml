@@ -435,6 +435,186 @@ paths:
       - ServiceKeys
       x-accepts:
       - application/json
+  /service/keys/{id}/adjust-balance:
+    post:
+      description: 通过 X-Service-Key 认证，增加或减少卡密额度（管理员行为），仅支持增量操作
+      operationId: adjustBalance
+      parameters:
+      - description: 卡密ID
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdjustBalanceRequest"
+        description: 调整参数
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdjustBalanceResponse"
+          description: 调整结果
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+          description: 参数错误
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+          description: 服务账号密钥无效
+      security:
+      - ServiceKeyAuth: []
+      summary: 服务账号调整卡密额度
+      tags:
+      - ServiceKeys
+      x-codegen-request-body-name: body
+      x-content-type: application/json
+      x-accepts:
+      - application/json
+  /service/balance-logs:
+    get:
+      operationId: listBalanceLogs
+      parameters:
+      - description: 页码
+        explode: true
+        in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          type: integer
+        style: form
+      - description: 每页数量
+        explode: true
+        in: query
+        name: page_size
+        required: false
+        schema:
+          default: 20
+          type: integer
+        style: form
+      - description: 卡密ID过滤
+        explode: true
+        in: query
+        name: key_id
+        required: false
+        schema:
+          format: int64
+          type: integer
+        style: form
+      - description: 操作人过滤
+        explode: true
+        in: query
+        name: operator
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: 开始时间
+        explode: true
+        in: query
+        name: start_time
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: 结束时间
+        explode: true
+        in: query
+        name: end_time
+        required: false
+        schema:
+          type: string
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceLogListResponse"
+          description: 分页额度流转日志
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+          description: 服务账号密钥无效
+      security:
+      - ServiceKeyAuth: []
+      summary: 查询额度流转日志
+      tags:
+      - BalanceLogs
+      x-accepts:
+      - application/json
+  /service/balance-logs/export:
+    get:
+      operationId: exportBalanceLogs
+      parameters:
+      - description: 卡密ID过滤
+        explode: true
+        in: query
+        name: key_id
+        required: false
+        schema:
+          format: int64
+          type: integer
+        style: form
+      - description: 操作人过滤
+        explode: true
+        in: query
+        name: operator
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: 开始时间
+        explode: true
+        in: query
+        name: start_time
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: 结束时间
+        explode: true
+        in: query
+        name: end_time
+        required: false
+        schema:
+          type: string
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportBalanceLogsResponse"
+          description: 导出数据
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+          description: 服务账号密钥无效
+      security:
+      - ServiceKeyAuth: []
+      summary: 导出额度流转日志
+      tags:
+      - BalanceLogs
+      x-accepts:
+      - application/json
 components:
   schemas:
     Result:
@@ -910,20 +1090,201 @@ components:
     UpdateKeyRequest:
       example:
         alias: alias
-        expire_at: 2000-01-23T04:56:07.000+00:00
-        max_usage: 0
       properties:
         alias:
           type: string
-        expire_at:
-          format: date-time
-          nullable: true
-          type: string
-        max_usage:
+      type: object
+    AdjustBalanceRequest:
+      example:
+        delta: 100
+        remark: 管理员充值
+      properties:
+        delta:
+          description: 调整量：正数增加，负数减少
           format: int64
-          nullable: true
+          type: integer
+        remark:
+          description: 可选备注
+          type: string
+      required:
+      - delta
+      type: object
+    AdjustBalanceResult:
+      example:
+        before_amount: 50
+        after_amount: 150
+      properties:
+        before_amount:
+          description: 调整前余额
+          format: int64
+          type: integer
+        after_amount:
+          description: 调整后余额
+          format: int64
           type: integer
       type: object
+    AdjustBalanceResponse:
+      allOf:
+      - $ref: "#/components/schemas/Result"
+      - properties:
+          data:
+            $ref: "#/components/schemas/AdjustBalanceResult"
+        type: object
+      example:
+        code: 0
+        message: message
+        data:
+          before_amount: 50
+          after_amount: 150
+    BalanceLog:
+      example:
+        id: 1
+        tenant_id: 1
+        key_id: 6
+        key_alias: 测试卡密
+        delta: 100
+        before_amount: 50
+        after_amount: 150
+        operator: tenant_admin
+        remark: 管理员充值
+        created_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        id:
+          format: int64
+          type: integer
+        tenant_id:
+          format: int64
+          type: integer
+        key_id:
+          format: int64
+          type: integer
+        key_alias:
+          type: string
+        delta:
+          description: 变动量：正=增加，负=减少
+          format: int64
+          type: integer
+        before_amount:
+          format: int64
+          type: integer
+        after_amount:
+          format: int64
+          type: integer
+        operator:
+          type: string
+        remark:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+      type: object
+    BalanceLogPageData:
+      example:
+        list:
+        - id: 1
+          tenant_id: 1
+          key_id: 6
+          key_alias: 测试卡密
+          delta: 100
+          before_amount: 50
+          after_amount: 150
+          operator: tenant_admin
+          remark: 管理员充值
+          created_at: 2000-01-23T04:56:07.000+00:00
+        - id: 1
+          tenant_id: 1
+          key_id: 6
+          key_alias: 测试卡密
+          delta: 100
+          before_amount: 50
+          after_amount: 150
+          operator: tenant_admin
+          remark: 管理员充值
+          created_at: 2000-01-23T04:56:07.000+00:00
+        total: 6
+        page: 1
+        page_size: 5
+      properties:
+        list:
+          items:
+            $ref: "#/components/schemas/BalanceLog"
+          type: array
+        total:
+          format: int64
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+      type: object
+    BalanceLogListResponse:
+      allOf:
+      - $ref: "#/components/schemas/Result"
+      - properties:
+          data:
+            $ref: "#/components/schemas/BalanceLogPageData"
+        type: object
+      example:
+        code: 0
+        message: message
+        data:
+          list:
+          - id: 1
+            tenant_id: 1
+            key_id: 6
+            key_alias: 测试卡密
+            delta: 100
+            before_amount: 50
+            after_amount: 150
+            operator: tenant_admin
+            remark: 管理员充值
+            created_at: 2000-01-23T04:56:07.000+00:00
+          - id: 1
+            tenant_id: 1
+            key_id: 6
+            key_alias: 测试卡密
+            delta: 100
+            before_amount: 50
+            after_amount: 150
+            operator: tenant_admin
+            remark: 管理员充值
+            created_at: 2000-01-23T04:56:07.000+00:00
+          total: 6
+          page: 1
+          page_size: 5
+    ExportBalanceLogsResponse:
+      allOf:
+      - $ref: "#/components/schemas/Result"
+      - properties:
+          data:
+            items:
+              $ref: "#/components/schemas/BalanceLog"
+            type: array
+        type: object
+      example:
+        code: 0
+        message: message
+        data:
+        - id: 1
+          tenant_id: 1
+          key_id: 6
+          key_alias: 测试卡密
+          delta: 100
+          before_amount: 50
+          after_amount: 150
+          operator: tenant_admin
+          remark: 管理员充值
+          created_at: 2000-01-23T04:56:07.000+00:00
+        - id: 1
+          tenant_id: 1
+          key_id: 6
+          key_alias: 测试卡密
+          delta: 100
+          before_amount: 50
+          after_amount: 150
+          operator: tenant_admin
+          remark: 管理员充值
+          created_at: 2000-01-23T04:56:07.000+00:00
   securitySchemes:
     ServiceKeyAuth:
       description: 服务账号密钥
