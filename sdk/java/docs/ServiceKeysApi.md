@@ -19,7 +19,7 @@ All URIs are relative to *http://localhost:8080/api*
 
 <a id="consumeKey"></a>
 # **consumeKey**
-> Result consumeKey(body)
+> ConsumeResponse consumeKey(body)
 
 服务账号扣减卡密额度
 
@@ -30,14 +30,14 @@ All URIs are relative to *http://localhost:8080/api*
 // Import classes:
 import com.github.ezzzi_y.CloudKeyClient;
 import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.CloudKeyConfiguration;
+import com.github.ezzzi_y.Configuration;
 import com.github.ezzzi_y.auth.*;
 import com.github.ezzzi_y.models.*;
 import com.github.ezzzi_y.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultApiClient();
+    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -49,7 +49,7 @@ public class Example {
     ServiceKeysApi apiInstance = new ServiceKeysApi(defaultClient);
     ConsumeRequest body = new ConsumeRequest(); // ConsumeRequest | 扣减参数
     try {
-      Result result = apiInstance.consumeKey(body);
+      ConsumeResponse result = apiInstance.consumeKey(body);
       System.out.println(result);
     } catch (CloudKeyException e) {
       System.err.println("Exception when calling ServiceKeysApi#consumeKey");
@@ -70,7 +70,7 @@ public class Example {
 
 ### Return type
 
-[**Result**](Result.md)
+[**ConsumeResponse**](ConsumeResponse.md)
 
 ### Authorization
 
@@ -90,7 +90,7 @@ public class Example {
 
 <a id="createKey"></a>
 # **createKey**
-> Result createKey(body)
+> CreateKeyResponse createKey(body)
 
 服务账号创建卡密
 
@@ -101,14 +101,14 @@ public class Example {
 // Import classes:
 import com.github.ezzzi_y.CloudKeyClient;
 import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.CloudKeyConfiguration;
+import com.github.ezzzi_y.Configuration;
 import com.github.ezzzi_y.auth.*;
 import com.github.ezzzi_y.models.*;
 import com.github.ezzzi_y.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultApiClient();
+    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -118,9 +118,9 @@ public class Example {
     //ServiceKeyAuth.setApiKeyPrefix("Token");
 
     ServiceKeysApi apiInstance = new ServiceKeysApi(defaultClient);
-    Object body = null; // Object | 卡密参数
+    CreateKeyRequest body = new CreateKeyRequest(); // CreateKeyRequest | 卡密参数
     try {
-      Result result = apiInstance.createKey(body);
+      CreateKeyResponse result = apiInstance.createKey(body);
       System.out.println(result);
     } catch (CloudKeyException e) {
       System.err.println("Exception when calling ServiceKeysApi#createKey");
@@ -137,11 +137,11 @@ public class Example {
 
 | Name | Type | Description  | Notes |
 |------------- | ------------- | ------------- | -------------|
-| **body** | **Object**| 卡密参数 | |
+| **body** | [**CreateKeyRequest**](CreateKeyRequest.md)| 卡密参数 | |
 
 ### Return type
 
-[**Result**](Result.md)
+[**CreateKeyResponse**](CreateKeyResponse.md)
 
 ### Authorization
 
@@ -169,14 +169,14 @@ public class Example {
 // Import classes:
 import com.github.ezzzi_y.CloudKeyClient;
 import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.CloudKeyConfiguration;
+import com.github.ezzzi_y.Configuration;
 import com.github.ezzzi_y.auth.*;
 import com.github.ezzzi_y.models.*;
 import com.github.ezzzi_y.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultApiClient();
+    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -238,14 +238,14 @@ public class Example {
 // Import classes:
 import com.github.ezzzi_y.CloudKeyClient;
 import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.CloudKeyConfiguration;
+import com.github.ezzzi_y.Configuration;
 import com.github.ezzzi_y.auth.*;
 import com.github.ezzzi_y.models.*;
 import com.github.ezzzi_y.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultApiClient();
+    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -307,14 +307,14 @@ public class Example {
 // Import classes:
 import com.github.ezzzi_y.CloudKeyClient;
 import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.CloudKeyConfiguration;
+import com.github.ezzzi_y.Configuration;
 import com.github.ezzzi_y.auth.*;
 import com.github.ezzzi_y.models.*;
 import com.github.ezzzi_y.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultApiClient();
+    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -376,14 +376,14 @@ public class Example {
 // Import classes:
 import com.github.ezzzi_y.CloudKeyClient;
 import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.CloudKeyConfiguration;
+import com.github.ezzzi_y.Configuration;
 import com.github.ezzzi_y.auth.*;
 import com.github.ezzzi_y.models.*;
 import com.github.ezzzi_y.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultApiClient();
+    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -426,12 +426,12 @@ This endpoint does not need any parameter.
 ### HTTP response details
 | Status code | Description | Response headers |
 |-------------|-------------|------------------|
-| **200** | 导出数据 |  -  |
+| **200** | 导出数据（文本格式） |  -  |
 | **401** | 服务账号密钥无效 |  -  |
 
 <a id="exportKeysJson"></a>
 # **exportKeysJson**
-> Result exportKeysJson()
+> ExportKeysResponse exportKeysJson()
 
 服务账号导出卡密（JSON 格式）
 
@@ -440,14 +440,14 @@ This endpoint does not need any parameter.
 // Import classes:
 import com.github.ezzzi_y.CloudKeyClient;
 import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.CloudKeyConfiguration;
+import com.github.ezzzi_y.Configuration;
 import com.github.ezzzi_y.auth.*;
 import com.github.ezzzi_y.models.*;
 import com.github.ezzzi_y.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultApiClient();
+    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -458,7 +458,7 @@ public class Example {
 
     ServiceKeysApi apiInstance = new ServiceKeysApi(defaultClient);
     try {
-      Result result = apiInstance.exportKeysJson();
+      ExportKeysResponse result = apiInstance.exportKeysJson();
       System.out.println(result);
     } catch (CloudKeyException e) {
       System.err.println("Exception when calling ServiceKeysApi#exportKeysJson");
@@ -476,7 +476,7 @@ This endpoint does not need any parameter.
 
 ### Return type
 
-[**Result**](Result.md)
+[**ExportKeysResponse**](ExportKeysResponse.md)
 
 ### Authorization
 
@@ -495,7 +495,7 @@ This endpoint does not need any parameter.
 
 <a id="getKey"></a>
 # **getKey**
-> Result getKey(id)
+> KeyResponse getKey(id)
 
 服务账号查询卡密详情
 
@@ -504,14 +504,14 @@ This endpoint does not need any parameter.
 // Import classes:
 import com.github.ezzzi_y.CloudKeyClient;
 import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.CloudKeyConfiguration;
+import com.github.ezzzi_y.Configuration;
 import com.github.ezzzi_y.auth.*;
 import com.github.ezzzi_y.models.*;
 import com.github.ezzzi_y.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultApiClient();
+    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -523,7 +523,7 @@ public class Example {
     ServiceKeysApi apiInstance = new ServiceKeysApi(defaultClient);
     Integer id = 56; // Integer | 卡密ID
     try {
-      Result result = apiInstance.getKey(id);
+      KeyResponse result = apiInstance.getKey(id);
       System.out.println(result);
     } catch (CloudKeyException e) {
       System.err.println("Exception when calling ServiceKeysApi#getKey");
@@ -544,7 +544,7 @@ public class Example {
 
 ### Return type
 
-[**Result**](Result.md)
+[**KeyResponse**](KeyResponse.md)
 
 ### Authorization
 
@@ -565,7 +565,7 @@ public class Example {
 
 <a id="getKeyStatus"></a>
 # **getKeyStatus**
-> Result getKeyStatus(sk)
+> KeyStatusResponse getKeyStatus(sk)
 
 服务账号查询卡密状态
 
@@ -576,14 +576,14 @@ public class Example {
 // Import classes:
 import com.github.ezzzi_y.CloudKeyClient;
 import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.CloudKeyConfiguration;
+import com.github.ezzzi_y.Configuration;
 import com.github.ezzzi_y.auth.*;
 import com.github.ezzzi_y.models.*;
 import com.github.ezzzi_y.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultApiClient();
+    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -595,7 +595,7 @@ public class Example {
     ServiceKeysApi apiInstance = new ServiceKeysApi(defaultClient);
     String sk = "sk_example"; // String | 卡密值
     try {
-      Result result = apiInstance.getKeyStatus(sk);
+      KeyStatusResponse result = apiInstance.getKeyStatus(sk);
       System.out.println(result);
     } catch (CloudKeyException e) {
       System.err.println("Exception when calling ServiceKeysApi#getKeyStatus");
@@ -616,7 +616,7 @@ public class Example {
 
 ### Return type
 
-[**Result**](Result.md)
+[**KeyStatusResponse**](KeyStatusResponse.md)
 
 ### Authorization
 
@@ -646,14 +646,14 @@ public class Example {
 // Import classes:
 import com.github.ezzzi_y.CloudKeyClient;
 import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.CloudKeyConfiguration;
+import com.github.ezzzi_y.Configuration;
 import com.github.ezzzi_y.auth.*;
 import com.github.ezzzi_y.models.*;
 import com.github.ezzzi_y.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultApiClient();
+    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -665,7 +665,7 @@ public class Example {
     ServiceKeysApi apiInstance = new ServiceKeysApi(defaultClient);
     Integer page = 1; // Integer | 页码
     Integer pageSize = 20; // Integer | 每页数量
-    String status = "status_example"; // String | 状态过滤: unused/used/disabled/expired
+    String status = "unused"; // String | 状态过滤: unused/used/disabled/expired
     String search = "search_example"; // String | 关键字搜索
     try {
       KeyListResponse result = apiInstance.listKeys(page, pageSize, status, search);
@@ -687,7 +687,7 @@ public class Example {
 |------------- | ------------- | ------------- | -------------|
 | **page** | **Integer**| 页码 | [optional] [default to 1] |
 | **pageSize** | **Integer**| 每页数量 | [optional] [default to 20] |
-| **status** | **String**| 状态过滤: unused/used/disabled/expired | [optional] |
+| **status** | **String**| 状态过滤: unused/used/disabled/expired | [optional] [enum: unused, used, disabled, expired] |
 | **search** | **String**| 关键字搜索 | [optional] |
 
 ### Return type
@@ -720,14 +720,14 @@ public class Example {
 // Import classes:
 import com.github.ezzzi_y.CloudKeyClient;
 import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.CloudKeyConfiguration;
+import com.github.ezzzi_y.Configuration;
 import com.github.ezzzi_y.auth.*;
 import com.github.ezzzi_y.models.*;
 import com.github.ezzzi_y.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultApiClient();
+    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -738,7 +738,7 @@ public class Example {
 
     ServiceKeysApi apiInstance = new ServiceKeysApi(defaultClient);
     Integer id = 56; // Integer | 卡密ID
-    Object body = null; // Object | 更新字段
+    UpdateKeyRequest body = new UpdateKeyRequest(); // UpdateKeyRequest | 更新字段
     try {
       Result result = apiInstance.updateKey(id, body);
       System.out.println(result);
@@ -758,7 +758,7 @@ public class Example {
 | Name | Type | Description  | Notes |
 |------------- | ------------- | ------------- | -------------|
 | **id** | **Integer**| 卡密ID | |
-| **body** | **Object**| 更新字段 | |
+| **body** | [**UpdateKeyRequest**](UpdateKeyRequest.md)| 更新字段 | |
 
 ### Return type
 

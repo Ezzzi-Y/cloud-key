@@ -3,7 +3,7 @@ info:
   contact: {}
   description: 卡密管理系统 - 服务账号 SDK
   title: CloudKey Service Account API
-  version: "1.1"
+  version: "1.2"
 servers:
 - url: //localhost:8080/api
 paths:
@@ -35,6 +35,11 @@ paths:
         name: status
         required: false
         schema:
+          enum:
+          - unused
+          - used
+          - disabled
+          - expired
           type: string
         style: form
       - description: 关键字搜索
@@ -72,7 +77,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              $ref: "#/components/schemas/CreateKeyRequest"
         description: 卡密参数
         required: true
       responses:
@@ -80,7 +85,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Result"
+                $ref: "#/components/schemas/CreateKeyResponse"
           description: 创建成功
         "401":
           content:
@@ -113,7 +118,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Result"
+                $ref: "#/components/schemas/ConsumeResponse"
           description: 扣减结果
         "400":
           content:
@@ -145,7 +150,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Result"
-          description: 导出数据
+          description: 导出数据（文本格式）
         "401":
           content:
             application/json:
@@ -167,7 +172,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Result"
+                $ref: "#/components/schemas/ExportKeysResponse"
           description: 导出数据 JSON 数组
         "401":
           content:
@@ -200,7 +205,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Result"
+                $ref: "#/components/schemas/KeyStatusResponse"
           description: 卡密状态信息
         "400":
           content:
@@ -281,7 +286,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Result"
+                $ref: "#/components/schemas/KeyResponse"
           description: 卡密详情
         "400":
           content:
@@ -323,7 +328,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              $ref: "#/components/schemas/UpdateKeyRequest"
         description: 更新字段
         required: true
       responses:
@@ -432,47 +437,222 @@ paths:
       - application/json
 components:
   schemas:
+    Result:
+      example:
+        code: 2
+        message: message
+        data: "{}"
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        data:
+          type: object
+      type: object
+    Key:
+      example:
+        id: 6
+        tenant_id: 1
+        alias: alias
+        key_prefix: key_prefix
+        key_suffix: key_suffix
+        billing_mode: count
+        initial_amount: 5
+        remaining_amount: 5
+        status: unused
+        created_by: created_by
+        created_at: 2000-01-23T04:56:07.000+00:00
+        updated_at: 2000-01-23T04:56:07.000+00:00
+        used_at: 2000-01-23T04:56:07.000+00:00
+        expire_at: 2000-01-23T04:56:07.000+00:00
+        max_usage: 2
+      properties:
+        id:
+          format: int64
+          type: integer
+        tenant_id:
+          format: int64
+          type: integer
+        alias:
+          type: string
+        key_prefix:
+          type: string
+        key_suffix:
+          type: string
+        billing_mode:
+          enum:
+          - count
+          - credit
+          type: string
+        initial_amount:
+          format: int64
+          type: integer
+        remaining_amount:
+          format: int64
+          type: integer
+        status:
+          enum:
+          - unused
+          - used
+          - disabled
+          - expired
+          type: string
+        created_by:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        used_at:
+          format: date-time
+          nullable: true
+          type: string
+        expire_at:
+          format: date-time
+          nullable: true
+          type: string
+        max_usage:
+          format: int64
+          nullable: true
+          type: integer
+      type: object
     PageData:
       example:
-        list: "{}"
-        page: 6
-        page_size: 1
-        total: 5
+        list:
+        - id: 6
+          tenant_id: 1
+          alias: alias
+          key_prefix: key_prefix
+          key_suffix: key_suffix
+          billing_mode: count
+          initial_amount: 5
+          remaining_amount: 5
+          status: unused
+          created_by: created_by
+          created_at: 2000-01-23T04:56:07.000+00:00
+          updated_at: 2000-01-23T04:56:07.000+00:00
+          used_at: 2000-01-23T04:56:07.000+00:00
+          expire_at: 2000-01-23T04:56:07.000+00:00
+          max_usage: 2
+        - id: 6
+          tenant_id: 1
+          alias: alias
+          key_prefix: key_prefix
+          key_suffix: key_suffix
+          billing_mode: count
+          initial_amount: 5
+          remaining_amount: 5
+          status: unused
+          created_by: created_by
+          created_at: 2000-01-23T04:56:07.000+00:00
+          updated_at: 2000-01-23T04:56:07.000+00:00
+          used_at: 2000-01-23T04:56:07.000+00:00
+          expire_at: 2000-01-23T04:56:07.000+00:00
+          max_usage: 2
+        total: 7
+        page: 9
+        page_size: 3
       properties:
         list:
-          type: object
+          items:
+            $ref: "#/components/schemas/Key"
+          type: array
+        total:
+          format: int64
+          type: integer
         page:
           type: integer
         page_size:
           type: integer
-        total:
-          type: integer
       type: object
-    Result:
+    CreateKeyRequest:
+      example:
+        alias: alias
+        billing_mode: count
+        initial_amount: 0
+        expire_at: 2000-01-23T04:56:07.000+00:00
+        max_usage: 6
+      properties:
+        alias:
+          type: string
+        billing_mode:
+          enum:
+          - count
+          - credit
+          type: string
+        initial_amount:
+          format: int64
+          type: integer
+        expire_at:
+          format: date-time
+          nullable: true
+          type: string
+        max_usage:
+          format: int64
+          nullable: true
+          type: integer
+      required:
+      - alias
+      - billing_mode
+      - initial_amount
+      type: object
+    CreateKeyData:
+      example:
+        raw_key: raw_key
+        key:
+          id: 6
+          tenant_id: 1
+          alias: alias
+          key_prefix: key_prefix
+          key_suffix: key_suffix
+          billing_mode: count
+          initial_amount: 5
+          remaining_amount: 5
+          status: unused
+          created_by: created_by
+          created_at: 2000-01-23T04:56:07.000+00:00
+          updated_at: 2000-01-23T04:56:07.000+00:00
+          used_at: 2000-01-23T04:56:07.000+00:00
+          expire_at: 2000-01-23T04:56:07.000+00:00
+          max_usage: 2
+      properties:
+        raw_key:
+          description: 创建时返回的原始密钥（仅此处可见）
+          type: string
+        key:
+          $ref: "#/components/schemas/Key"
+      type: object
+    CreateKeyResponse:
+      allOf:
+      - $ref: "#/components/schemas/Result"
+      - properties:
+          data:
+            $ref: "#/components/schemas/CreateKeyData"
+        type: object
       example:
         code: 0
-        data: "{}"
         message: message
-      properties:
-        code:
-          type: integer
         data:
-          type: object
-        message:
-          type: string
-      type: object
-    ConsumeRequest:
-      example:
-        amount: 0
-        key: key
-      properties:
-        amount:
-          type: integer
-        key:
-          type: string
-      required:
-      - key
-      type: object
+          raw_key: raw_key
+          key:
+            id: 6
+            tenant_id: 1
+            alias: alias
+            key_prefix: key_prefix
+            key_suffix: key_suffix
+            billing_mode: count
+            initial_amount: 5
+            remaining_amount: 5
+            status: unused
+            created_by: created_by
+            created_at: 2000-01-23T04:56:07.000+00:00
+            updated_at: 2000-01-23T04:56:07.000+00:00
+            used_at: 2000-01-23T04:56:07.000+00:00
+            expire_at: 2000-01-23T04:56:07.000+00:00
+            max_usage: 2
     KeyListResponse:
       allOf:
       - $ref: "#/components/schemas/Result"
@@ -482,12 +662,268 @@ components:
         type: object
       example:
         code: 0
-        data:
-          list: "{}"
-          page: 6
-          page_size: 1
-          total: 5
         message: message
+        data:
+          list:
+          - id: 6
+            tenant_id: 1
+            alias: alias
+            key_prefix: key_prefix
+            key_suffix: key_suffix
+            billing_mode: count
+            initial_amount: 5
+            remaining_amount: 5
+            status: unused
+            created_by: created_by
+            created_at: 2000-01-23T04:56:07.000+00:00
+            updated_at: 2000-01-23T04:56:07.000+00:00
+            used_at: 2000-01-23T04:56:07.000+00:00
+            expire_at: 2000-01-23T04:56:07.000+00:00
+            max_usage: 2
+          - id: 6
+            tenant_id: 1
+            alias: alias
+            key_prefix: key_prefix
+            key_suffix: key_suffix
+            billing_mode: count
+            initial_amount: 5
+            remaining_amount: 5
+            status: unused
+            created_by: created_by
+            created_at: 2000-01-23T04:56:07.000+00:00
+            updated_at: 2000-01-23T04:56:07.000+00:00
+            used_at: 2000-01-23T04:56:07.000+00:00
+            expire_at: 2000-01-23T04:56:07.000+00:00
+            max_usage: 2
+          total: 7
+          page: 9
+          page_size: 3
+    KeyResponse:
+      allOf:
+      - $ref: "#/components/schemas/Result"
+      - properties:
+          data:
+            $ref: "#/components/schemas/Key"
+        type: object
+      example:
+        code: 0
+        message: message
+        data:
+          id: 6
+          tenant_id: 1
+          alias: alias
+          key_prefix: key_prefix
+          key_suffix: key_suffix
+          billing_mode: count
+          initial_amount: 5
+          remaining_amount: 5
+          status: unused
+          created_by: created_by
+          created_at: 2000-01-23T04:56:07.000+00:00
+          updated_at: 2000-01-23T04:56:07.000+00:00
+          used_at: 2000-01-23T04:56:07.000+00:00
+          expire_at: 2000-01-23T04:56:07.000+00:00
+          max_usage: 2
+    ConsumeRequest:
+      example:
+        key: key
+        amount: 0
+      properties:
+        key:
+          type: string
+        amount:
+          format: int64
+          type: integer
+      required:
+      - key
+      type: object
+    ConsumeResult:
+      example:
+        remaining_amount: 6
+        status: unused
+        exhausted: true
+      properties:
+        remaining_amount:
+          format: int64
+          type: integer
+        status:
+          enum:
+          - unused
+          - used
+          - disabled
+          - expired
+          type: string
+        exhausted:
+          type: boolean
+      type: object
+    ConsumeResponse:
+      allOf:
+      - $ref: "#/components/schemas/Result"
+      - properties:
+          data:
+            $ref: "#/components/schemas/ConsumeResult"
+        type: object
+      example:
+        code: 0
+        message: message
+        data:
+          remaining_amount: 6
+          status: unused
+          exhausted: true
+    KeyStatusResult:
+      example:
+        alias: alias
+        billing_mode: count
+        remaining_amount: 6
+        status: unused
+        created_at: created_at
+        used_at: used_at
+      properties:
+        alias:
+          type: string
+        billing_mode:
+          enum:
+          - count
+          - credit
+          type: string
+        remaining_amount:
+          format: int64
+          type: integer
+        status:
+          enum:
+          - unused
+          - used
+          - disabled
+          - expired
+          type: string
+        created_at:
+          type: string
+        used_at:
+          nullable: true
+          type: string
+      type: object
+    KeyStatusResponse:
+      allOf:
+      - $ref: "#/components/schemas/Result"
+      - properties:
+          data:
+            $ref: "#/components/schemas/KeyStatusResult"
+        type: object
+      example:
+        code: 0
+        message: message
+        data:
+          alias: alias
+          billing_mode: count
+          remaining_amount: 6
+          status: unused
+          created_at: created_at
+          used_at: used_at
+    ExportKeyItem:
+      example:
+        id: 6
+        key_prefix: key_prefix
+        key_suffix: key_suffix
+        alias: alias
+        billing_mode: count
+        initial_amount: 1
+        remaining_amount: 5
+        status: unused
+        created_at: 2000-01-23T04:56:07.000+00:00
+        expire_at: 2000-01-23T04:56:07.000+00:00
+        max_usage: 5
+      properties:
+        id:
+          format: int64
+          type: integer
+        key_prefix:
+          type: string
+        key_suffix:
+          type: string
+        alias:
+          type: string
+        billing_mode:
+          enum:
+          - count
+          - credit
+          type: string
+        initial_amount:
+          format: int64
+          type: integer
+        remaining_amount:
+          format: int64
+          type: integer
+        status:
+          enum:
+          - unused
+          - used
+          - disabled
+          - expired
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        expire_at:
+          format: date-time
+          nullable: true
+          type: string
+        max_usage:
+          format: int64
+          nullable: true
+          type: integer
+      type: object
+    ExportKeysResponse:
+      allOf:
+      - $ref: "#/components/schemas/Result"
+      - properties:
+          data:
+            items:
+              $ref: "#/components/schemas/ExportKeyItem"
+            type: array
+        type: object
+      example:
+        code: 0
+        message: message
+        data:
+        - id: 6
+          key_prefix: key_prefix
+          key_suffix: key_suffix
+          alias: alias
+          billing_mode: count
+          initial_amount: 1
+          remaining_amount: 5
+          status: unused
+          created_at: 2000-01-23T04:56:07.000+00:00
+          expire_at: 2000-01-23T04:56:07.000+00:00
+          max_usage: 5
+        - id: 6
+          key_prefix: key_prefix
+          key_suffix: key_suffix
+          alias: alias
+          billing_mode: count
+          initial_amount: 1
+          remaining_amount: 5
+          status: unused
+          created_at: 2000-01-23T04:56:07.000+00:00
+          expire_at: 2000-01-23T04:56:07.000+00:00
+          max_usage: 5
+    UpdateKeyRequest:
+      example:
+        alias: alias
+        expire_at: 2000-01-23T04:56:07.000+00:00
+        max_usage: 0
+      properties:
+        alias:
+          type: string
+        expire_at:
+          format: date-time
+          nullable: true
+          type: string
+        max_usage:
+          format: int64
+          nullable: true
+          type: integer
+      type: object
   securitySchemes:
     ServiceKeyAuth:
       description: 服务账号密钥

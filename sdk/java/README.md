@@ -1,8 +1,8 @@
 # cloudkey-client
 
 CloudKey Service Account API
-- API version: 1.1
-  - Build date: 2026-07-21T10:58:27.051587900+08:00[Asia/Shanghai]
+- API version: 1.2
+  - Build date: 2026-07-21T15:39:59.098139500+08:00[Asia/Shanghai]
   - Generator version: 7.24.0
 
 卡密管理系统 - 服务账号 SDK
@@ -41,7 +41,7 @@ Add this dependency to your project's POM:
 <dependency>
   <groupId>com.github.ezzzi-y</groupId>
   <artifactId>cloudkey-client</artifactId>
-  <version>1.0.3</version>
+  <version>1.0.4</version>
   <scope>compile</scope>
 </dependency>
 ```
@@ -57,7 +57,7 @@ Add this dependency to your project's build file:
   }
 
   dependencies {
-     implementation "com.github.ezzzi-y:cloudkey-client:1.0.3"
+     implementation "com.github.ezzzi-y:cloudkey-client:1.0.4"
   }
 ```
 
@@ -71,7 +71,7 @@ mvn clean package
 
 Then manually install the following JARs:
 
-* `target/cloudkey-client-1.0.3.jar`
+* `target/cloudkey-client-1.0.4.jar`
 * `target/lib/*.jar`
 
 ## Getting Started
@@ -83,16 +83,16 @@ Please follow the [installation](#installation) instruction and execute the foll
 // Import classes:
 import com.github.ezzzi_y.CloudKeyClient;
 import com.github.ezzzi_y.CloudKeyException;
-import com.github.ezzzi_y.CloudKeyConfiguration;
+import com.github.ezzzi_y.Configuration;
 import com.github.ezzzi_y.auth.*;
 import com.github.ezzzi_y.model.*;
 import com.github.ezzzi_y.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultApiClient();
+    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
-
+    
     // Configure API key authorization: ServiceKeyAuth
     ApiKeyAuth ServiceKeyAuth = (ApiKeyAuth) defaultClient.getAuthentication("ServiceKeyAuth");
     ServiceKeyAuth.setApiKey("YOUR API KEY");
@@ -102,7 +102,7 @@ public class Example {
     ServiceKeysApi apiInstance = new ServiceKeysApi(defaultClient);
     ConsumeRequest body = new ConsumeRequest(); // ConsumeRequest | 扣减参数
     try {
-      Result result = apiInstance.consumeKey(body);
+      ConsumeResponse result = apiInstance.consumeKey(body);
       System.out.println(result);
     } catch (CloudKeyException e) {
       System.err.println("Exception when calling ServiceKeysApi#consumeKey");
@@ -138,9 +138,21 @@ Class | Method | HTTP request | Description
 ## Documentation for Models
 
  - [ConsumeRequest](docs/ConsumeRequest.md)
+ - [ConsumeResponse](docs/ConsumeResponse.md)
+ - [ConsumeResult](docs/ConsumeResult.md)
+ - [CreateKeyData](docs/CreateKeyData.md)
+ - [CreateKeyRequest](docs/CreateKeyRequest.md)
+ - [CreateKeyResponse](docs/CreateKeyResponse.md)
+ - [ExportKeyItem](docs/ExportKeyItem.md)
+ - [ExportKeysResponse](docs/ExportKeysResponse.md)
+ - [Key](docs/Key.md)
  - [KeyListResponse](docs/KeyListResponse.md)
+ - [KeyResponse](docs/KeyResponse.md)
+ - [KeyStatusResponse](docs/KeyStatusResponse.md)
+ - [KeyStatusResult](docs/KeyStatusResult.md)
  - [PageData](docs/PageData.md)
  - [Result](docs/Result.md)
+ - [UpdateKeyRequest](docs/UpdateKeyRequest.md)
 
 
 <a id="documentation-for-authorization"></a>
