@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listServiceAccounts, createServiceAccount, toggleServiceAccount, deleteServiceAccount } from '@/api/service-accounts'
+import type { CreateServiceAccountResult } from '@/api/service-accounts'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,11 +29,11 @@ export default function ServiceAccounts() {
 
   const createMutation = useMutation({
     mutationFn: (name: string) => createServiceAccount(name),
-    onSuccess: (res) => { if (res.code === 0) { setRawKey((res.data as { account: unknown; raw_key: string }).raw_key); queryClient.invalidateQueries({ queryKey: ['tenant-service-accounts'] }); toast.success('服务账号创建成功') } else toast.error(res.message) },
+    onSuccess: (res) => { if (res.code === 0) { setRawKey((res.data as CreateServiceAccountResult).raw_key); queryClient.invalidateQueries({ queryKey: ['tenant-service-accounts'] }); toast.success('服务账号创建成功') } else toast.error(res.message) },
   })
 
   const toggleMutation = useMutation({
-    mutationFn: toggleServiceAccount,
+    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) => toggleServiceAccount(id, isActive),
     onSuccess: (res) => { if (res.code === 0) { queryClient.invalidateQueries({ queryKey: ['tenant-service-accounts'] }); toast.success('状态已切换') } else toast.error(res.message) },
   })
 
@@ -97,7 +98,7 @@ export default function ServiceAccounts() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => toggleMutation.mutate(sa.id)}>
+                          <DropdownMenuItem onClick={() => toggleMutation.mutate({ id: sa.id, isActive: !sa.is_active })}>
                             <Power className="mr-2 h-4 w-4" />{sa.is_active ? '禁用' : '启用'}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />

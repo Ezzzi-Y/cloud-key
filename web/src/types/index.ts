@@ -76,14 +76,13 @@ export interface CreateKeyRequest {
 
 export interface UpdateKeyRequest {
   alias?: string
-  remaining_amount?: number
 }
 
 export interface KeyListParams {
   page?: number
   page_size?: number
   status?: KeyStatus
-  keyword?: string
+  search?: string
 }
 
 export interface KeyStatusResult {
@@ -178,6 +177,38 @@ export interface TopItem {
   ip?: string
   count: number
   total_amount: number
+}
+
+export interface BalanceLog {
+  id: number
+  tenant_id: number
+  key_id: number
+  key_alias: string
+  delta: number
+  before_amount: number
+  after_amount: number
+  operator: string
+  remark: string
+  created_at: string
+}
+
+export interface BalanceLogQuery {
+  page?: number
+  page_size?: number
+  key_id?: number
+  operator?: string
+  start_time?: string
+  end_time?: string
+}
+
+export interface AdjustBalanceRequest {
+  delta: number
+  remark?: string
+}
+
+export interface AdjustBalanceResult {
+  before_amount: number
+  after_amount: number
 }
 
 export interface SysConfig {

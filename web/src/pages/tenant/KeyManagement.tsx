@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { listKeys, createKey, disableKey, enableKey, deleteKey, exportKeysCSV, exportKeysJSON, updateKey } from '@/api/keys'
+import { listKeys, createKey, disableKey, enableKey, deleteKey, exportKeysCSV, exportKeysJSON, updateKey, adjustKeyBalance } from '@/api/keys'
 import type { KeyListParams, CreateKeyRequest, KeyBillingMode, KeyStatus, Key } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,17 +16,21 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { SkeletonTable } from '@/components/SkeletonTable'
 import { TablePagination } from '@/components/TablePagination'
 import { toast } from 'sonner'
-import { Plus, Download, RefreshCw, MoreHorizontal, Edit, Ban, CheckCircle, Trash2, FileDown } from 'lucide-react'
+import { Plus, Download, RefreshCw, MoreHorizontal, Edit, Ban, CheckCircle, Trash2, FileDown, TrendingUp } from 'lucide-react'
 
 export default function KeyManagement() {
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState<KeyStatus | ''>('')
-  const [keyword, setKeyword] = useState('')
+  const [search, setSearch] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [adjustOpen, setAdjustOpen] = useState(false)
+  const [adjustTarget, setAdjustTarget] = useState<{ id: number; alias: string; remaining: number } | null>(null)
+  const [adjustDelta, setAdjustDelta] = useState('')
+  const [adjustRemark, setAdjustRemark] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null)
   const [rawKey, setRawKey] = useState('')
-  const [selectedKey, setSelectedKey] = useState<{ id: number; alias: string; remaining: number } | null>(null)
+  const [selectedKey, setSelectedKey] = useState<{ id: number; alias: string } | null>(null)
   const [newAlias, setNewAlias] = useState('')
   const [newBilling, setNewBilling] = useState<KeyBillingMode>('count')
   const [newAmount, setNewAmount] = useState(100)
@@ -37,7 +41,7 @@ export default function KeyManagement() {
 
   const params: KeyListParams = { page, page_size: 20 }
   if (status) params.status = status as KeyStatus
-  if (keyword) params.keyword = keyword
+  if (search) params.search = search
 
   const { data, isLoading } = useQuery({
     queryKey: ['tenant-keys', params],
@@ -63,6 +67,17 @@ export default function KeyManagement() {
   const deleteMutation = useMutation({
     mutationFn: deleteKey,
     onSuccess: (res) => { if (res.code === 0) { toast.success('Key 已删除'); queryClient.invalidateQueries({ queryKey: ['tenant-keys'] }) } else toast.error(res.message); setDeleteTarget(null) },
+  })
+
+  const adjustMutation = useMutation({
+    mutationFn: ({ id, delta, remark }: { id: number; delta: number; remark?: string }) => adjustKeyBalance(id, { delta, remark: remark || undefined }),
+    onSuccess: (res) => {
+      if (res.code === 0) {
+        toast.success(`额度已调整：${res.data.before_amount} → ${res.data.after_amount}`)
+        queryClient.invalidateQueries({ queryKey: ['tenant-keys'] })
+        setAdjustOpen(false)
+      } else toast.error(res.message)
+    },
   })
 
   const handleCreate = () => {
@@ -91,7 +106,7 @@ export default function KeyManagement() {
     if (selectedKey) {
       setSaving(true)
       try {
-        const res = await updateKey(selectedKey.id, { alias: selectedKey.alias, remaining_amount: selectedKey.remaining })
+        const res = await updateKey(selectedKey.id, { alias: selectedKey.alias })
         if (res.code === 0) { toast.success('Key 已更新'); queryClient.invalidateQueries({ queryKey: ['tenant-keys'] }) }
         else toast.error(res.message)
         setEditOpen(false)
@@ -153,7 +168,7 @@ export default function KeyManagement() {
       </div>
 
       <div className="flex gap-4">
-        <Input placeholder="搜索别名..." value={keyword} onChange={(e) => { setKeyword(e.target.value); setPage(1) }} className="max-w-xs" />
+        <Input placeholder="搜索别名..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} className="max-w-xs" />
         <Select value={status} onValueChange={(v) => { setStatus(v as KeyStatus | ''); setPage(1) }}>
           <SelectTrigger className="w-32"><SelectValue placeholder="全部状态" /></SelectTrigger>
           <SelectContent>
@@ -203,8 +218,11 @@ export default function KeyManagement() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => { setSelectedKey({ id: key.id, alias: key.alias, remaining: key.remaining_amount }); setEditOpen(true) }}>
+                            <DropdownMenuItem onClick={() => { setSelectedKey({ id: key.id, alias: key.alias }); setEditOpen(true) }}>
                               <Edit className="mr-2 h-4 w-4" />编辑
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { setAdjustTarget({ id: key.id, alias: key.alias, remaining: key.remaining_amount }); setAdjustDelta(''); setAdjustRemark(''); setAdjustOpen(true) }}>
+                              <TrendingUp className="mr-2 h-4 w-4" />调整额度
                             </DropdownMenuItem>
                             {key.status === 'unused' && (
                               <DropdownMenuItem onClick={() => toggleDisableMutation.mutate(key.id)}>
@@ -239,11 +257,54 @@ export default function KeyManagement() {
           <DialogHeader><DialogTitle>编辑 Key</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2"><Label>别名</Label><Input value={selectedKey?.alias || ''} onChange={(e) => setSelectedKey((p) => p ? { ...p, alias: e.target.value } : null)} /></div>
-            <div className="space-y-2"><Label>剩余额度</Label><Input type="number" value={selectedKey?.remaining || 0} onChange={(e) => setSelectedKey((p) => p ? { ...p, remaining: Number(e.target.value) } : null)} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>取消</Button>
             <Button onClick={handleEdit} disabled={saving}>{saving ? '保存中...' : '保存'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>调整额度</DialogTitle>
+            <DialogDescription>
+              {adjustTarget?.alias || '-'}　当前余额：{adjustTarget?.remaining ?? 0}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>调整量</Label>
+              <Input
+                type="number"
+                value={adjustDelta}
+                onChange={(e) => setAdjustDelta(e.target.value)}
+                placeholder="正数增加，负数减少"
+              />
+              {adjustDelta && adjustTarget && (
+                <p className="text-sm text-muted-foreground">
+                  调整后余额：{adjustTarget.remaining + Number(adjustDelta)}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>备注（可选）</Label>
+              <Input
+                value={adjustRemark}
+                onChange={(e) => setAdjustRemark(e.target.value)}
+                placeholder="说明调整原因"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdjustOpen(false)}>取消</Button>
+            <Button
+              onClick={() => adjustTarget && adjustMutation.mutate({ id: adjustTarget.id, delta: Number(adjustDelta), remark: adjustRemark })}
+              disabled={!adjustDelta || Number(adjustDelta) === 0 || adjustMutation.isPending}
+            >
+              {adjustMutation.isPending ? '调整中...' : '确认调整'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

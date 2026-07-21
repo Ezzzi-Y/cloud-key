@@ -16,6 +16,7 @@ const TenantDashboard = lazy(() => import('@/pages/tenant/Dashboard'))
 const KeyManagement = lazy(() => import('@/pages/tenant/KeyManagement'))
 const KeyVerify = lazy(() => import('@/pages/tenant/KeyVerify'))
 const UsageLogs = lazy(() => import('@/pages/tenant/UsageLogs'))
+const BalanceLogs = lazy(() => import('@/pages/tenant/BalanceLogs'))
 const ServiceAccounts = lazy(() => import('@/pages/tenant/ServiceAccounts'))
 const TenantProfile = lazy(() => import('@/pages/tenant/Profile'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
@@ -47,6 +48,7 @@ export default function App() {
               <Route path="keys" element={<KeyManagement />} />
               <Route path="keys/verify" element={<KeyVerify />} />
               <Route path="logs" element={<UsageLogs />} />
+              <Route path="balance-logs" element={<BalanceLogs />} />
               <Route path="service-accounts" element={<ServiceAccounts />} />
               <Route path="profile" element={<TenantProfile />} />
             </Route>

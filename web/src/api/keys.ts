@@ -1,5 +1,5 @@
 import api from './client'
-import type { ApiResponse, PaginatedData, Key, CreateKeyRequest, UpdateKeyRequest, KeyListParams, KeyStatusResult, ConsumeKeyRequest, ConsumeKeyResult } from '@/types'
+import type { ApiResponse, PaginatedData, Key, CreateKeyRequest, UpdateKeyRequest, KeyListParams, KeyStatusResult, ConsumeKeyRequest, ConsumeKeyResult, AdjustBalanceRequest, AdjustBalanceResult } from '@/types'
 
 export function getKeyStatus(sk: string) {
   return api.get<unknown, ApiResponse<KeyStatusResult>>('/tenant/keys/status', { params: { sk } })
@@ -39,6 +39,10 @@ export function deleteKey(id: number) {
 
 export function exportKeysCSV() {
   return api.get('/tenant/keys/export', { responseType: 'text' })
+}
+
+export function adjustKeyBalance(id: number, data: AdjustBalanceRequest) {
+  return api.post<unknown, ApiResponse<AdjustBalanceResult>>(`/tenant/keys/${id}/adjust-balance`, data)
 }
 
 export function exportKeysJSON() {
