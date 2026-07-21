@@ -1,6 +1,6 @@
 
 
-# HandlerResponse
+# Result
 
 
 ## Properties

@@ -1,8 +1,8 @@
 # cloudkey-client
 
 CloudKey Service Account API
-- API version: 1.0
-  - Build date: 2026-07-20T23:15:03.157136800+08:00[Asia/Shanghai]
+- API version: 1.1
+  - Build date: 2026-07-21T10:58:27.051587900+08:00[Asia/Shanghai]
   - Generator version: 7.24.0
 
 卡密管理系统 - 服务账号 SDK
@@ -41,7 +41,7 @@ Add this dependency to your project's POM:
 <dependency>
   <groupId>com.github.ezzzi-y</groupId>
   <artifactId>cloudkey-client</artifactId>
-  <version>1.0.2</version>
+  <version>1.0.3</version>
   <scope>compile</scope>
 </dependency>
 ```
@@ -57,7 +57,7 @@ Add this dependency to your project's build file:
   }
 
   dependencies {
-     implementation "com.github.ezzzi-y:cloudkey-client:1.0.2"
+     implementation "com.github.ezzzi-y:cloudkey-client:1.0.3"
   }
 ```
 
@@ -71,7 +71,7 @@ mvn clean package
 
 Then manually install the following JARs:
 
-* `target/cloudkey-client-1.0.2.jar`
+* `target/cloudkey-client-1.0.3.jar`
 * `target/lib/*.jar`
 
 ## Getting Started
@@ -81,31 +81,31 @@ Please follow the [installation](#installation) instruction and execute the foll
 ```java
 
 // Import classes:
-import com.github.ezzzi_y.ApiClient;
-import com.github.ezzzi_y.ApiException;
-import com.github.ezzzi_y.Configuration;
+import com.github.ezzzi_y.CloudKeyClient;
+import com.github.ezzzi_y.CloudKeyException;
+import com.github.ezzzi_y.CloudKeyConfiguration;
 import com.github.ezzzi_y.auth.*;
 import com.github.ezzzi_y.model.*;
-import com.github.ezzzi_y.api.ApiApi;
+import com.github.ezzzi_y.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    ApiClient defaultClient = Configuration.getDefaultApiClient();
+    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultApiClient();
     defaultClient.setBasePath("http://localhost:8080/api");
-    
+
     // Configure API key authorization: ServiceKeyAuth
     ApiKeyAuth ServiceKeyAuth = (ApiKeyAuth) defaultClient.getAuthentication("ServiceKeyAuth");
     ServiceKeyAuth.setApiKey("YOUR API KEY");
     // Uncomment the following line to set a prefix for the API key, e.g. "Token" (defaults to null)
     //ServiceKeyAuth.setApiKeyPrefix("Token");
 
-    ApiApi apiInstance = new ApiApi(defaultClient);
-    HandlerServiceConsumeReq body = new HandlerServiceConsumeReq(); // HandlerServiceConsumeReq | 扣减参数
+    ServiceKeysApi apiInstance = new ServiceKeysApi(defaultClient);
+    ConsumeRequest body = new ConsumeRequest(); // ConsumeRequest | 扣减参数
     try {
-      HandlerResponse result = apiInstance.serviceKeysConsumePost(body);
+      Result result = apiInstance.consumeKey(body);
       System.out.println(result);
-    } catch (ApiException e) {
-      System.err.println("Exception when calling ApiApi#serviceKeysConsumePost");
+    } catch (CloudKeyException e) {
+      System.err.println("Exception when calling ServiceKeysApi#consumeKey");
       System.err.println("Status code: " + e.getCode());
       System.err.println("Reason: " + e.getResponseBody());
       System.err.println("Response headers: " + e.getResponseHeaders());
@@ -122,25 +122,25 @@ All URIs are relative to *http://localhost:8080/api*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
-*ApiApi* | [**serviceKeysConsumePost**](docs/ApiApi.md#serviceKeysConsumePost) | **POST** /service/keys/consume | 服务账号扣减卡密额度
-*ApiApi* | [**serviceKeysExportGet**](docs/ApiApi.md#serviceKeysExportGet) | **GET** /service/keys/export | 服务账号导出卡密（文本格式）
-*ApiApi* | [**serviceKeysExportJsonGet**](docs/ApiApi.md#serviceKeysExportJsonGet) | **GET** /service/keys/export/json | 服务账号导出卡密（JSON 格式）
-*ApiApi* | [**serviceKeysGet**](docs/ApiApi.md#serviceKeysGet) | **GET** /service/keys | 服务账号查询卡密列表
-*ApiApi* | [**serviceKeysIdDelete**](docs/ApiApi.md#serviceKeysIdDelete) | **DELETE** /service/keys/{id} | 服务账号删除卡密
-*ApiApi* | [**serviceKeysIdDisablePatch**](docs/ApiApi.md#serviceKeysIdDisablePatch) | **PATCH** /service/keys/{id}/disable | 服务账号禁用卡密
-*ApiApi* | [**serviceKeysIdEnablePatch**](docs/ApiApi.md#serviceKeysIdEnablePatch) | **PATCH** /service/keys/{id}/enable | 服务账号启用卡密
-*ApiApi* | [**serviceKeysIdGet**](docs/ApiApi.md#serviceKeysIdGet) | **GET** /service/keys/{id} | 服务账号查询卡密详情
-*ApiApi* | [**serviceKeysIdPatch**](docs/ApiApi.md#serviceKeysIdPatch) | **PATCH** /service/keys/{id} | 服务账号更新卡密
-*ApiApi* | [**serviceKeysPost**](docs/ApiApi.md#serviceKeysPost) | **POST** /service/keys | 服务账号创建卡密
-*ApiApi* | [**serviceKeysStatusGet**](docs/ApiApi.md#serviceKeysStatusGet) | **GET** /service/keys/status | 服务账号查询卡密状态
+*ServiceKeysApi* | [**consumeKey**](docs/ServiceKeysApi.md#consumeKey) | **POST** /service/keys/consume | 服务账号扣减卡密额度
+*ServiceKeysApi* | [**createKey**](docs/ServiceKeysApi.md#createKey) | **POST** /service/keys | 服务账号创建卡密
+*ServiceKeysApi* | [**deleteKey**](docs/ServiceKeysApi.md#deleteKey) | **DELETE** /service/keys/{id} | 服务账号删除卡密
+*ServiceKeysApi* | [**disableKey**](docs/ServiceKeysApi.md#disableKey) | **PATCH** /service/keys/{id}/disable | 服务账号禁用卡密
+*ServiceKeysApi* | [**enableKey**](docs/ServiceKeysApi.md#enableKey) | **PATCH** /service/keys/{id}/enable | 服务账号启用卡密
+*ServiceKeysApi* | [**exportKeys**](docs/ServiceKeysApi.md#exportKeys) | **GET** /service/keys/export | 服务账号导出卡密（文本格式）
+*ServiceKeysApi* | [**exportKeysJson**](docs/ServiceKeysApi.md#exportKeysJson) | **GET** /service/keys/export/json | 服务账号导出卡密（JSON 格式）
+*ServiceKeysApi* | [**getKey**](docs/ServiceKeysApi.md#getKey) | **GET** /service/keys/{id} | 服务账号查询卡密详情
+*ServiceKeysApi* | [**getKeyStatus**](docs/ServiceKeysApi.md#getKeyStatus) | **GET** /service/keys/status | 服务账号查询卡密状态
+*ServiceKeysApi* | [**listKeys**](docs/ServiceKeysApi.md#listKeys) | **GET** /service/keys | 服务账号查询卡密列表
+*ServiceKeysApi* | [**updateKey**](docs/ServiceKeysApi.md#updateKey) | **PATCH** /service/keys/{id} | 服务账号更新卡密
 
 
 ## Documentation for Models
 
- - [HandlerPageData](docs/HandlerPageData.md)
- - [HandlerResponse](docs/HandlerResponse.md)
- - [HandlerServiceConsumeReq](docs/HandlerServiceConsumeReq.md)
- - [ServiceKeysGet200Response](docs/ServiceKeysGet200Response.md)
+ - [ConsumeRequest](docs/ConsumeRequest.md)
+ - [KeyListResponse](docs/KeyListResponse.md)
+ - [PageData](docs/PageData.md)
+ - [Result](docs/Result.md)
 
 
 <a id="documentation-for-authorization"></a>
@@ -158,7 +158,7 @@ Authentication schemes defined for the API:
 
 ## Recommendation
 
-It's recommended to create an instance of `ApiClient` per thread in a multithreaded environment to avoid any potential issues.
+It's recommended to create an instance of `CloudKeyClient` per thread in a multithreaded environment to avoid any potential issues.
 
 ## Author
 

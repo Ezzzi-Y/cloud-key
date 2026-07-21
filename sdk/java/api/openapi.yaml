@@ -3,12 +3,13 @@ info:
   contact: {}
   description: 卡密管理系统 - 服务账号 SDK
   title: CloudKey Service Account API
-  version: "1.0"
+  version: "1.1"
 servers:
 - url: //localhost:8080/api
 paths:
   /service/keys:
     get:
+      operationId: listKeys
       parameters:
       - description: 页码
         explode: true
@@ -49,23 +50,24 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/_service_keys_get_200_response"
+                $ref: "#/components/schemas/KeyListResponse"
           description: 分页卡密列表
         "401":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 服务账号密钥无效
       security:
       - ServiceKeyAuth: []
       summary: 服务账号查询卡密列表
       tags:
-      - 服务账号API
+      - ServiceKeys
       x-accepts:
       - application/json
     post:
       description: 通过 X-Service-Key 认证，服务账号创建卡密
+      operationId: createKey
       requestBody:
         content:
           application/json:
@@ -78,19 +80,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 创建成功
         "401":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 服务账号密钥无效
       security:
       - ServiceKeyAuth: []
       summary: 服务账号创建卡密
       tags:
-      - 服务账号API
+      - ServiceKeys
       x-codegen-request-body-name: body
       x-content-type: application/json
       x-accepts:
@@ -98,11 +100,12 @@ paths:
   /service/keys/consume:
     post:
       description: 通过 X-Service-Key 认证，扣减指定卡密的剩余额度
+      operationId: consumeKey
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/handler.serviceConsumeReq"
+              $ref: "#/components/schemas/ConsumeRequest"
         description: 扣减参数
         required: true
       responses:
@@ -110,76 +113,79 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 扣减结果
         "400":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 参数错误或卡密无效
         "401":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 服务账号密钥无效
       security:
       - ServiceKeyAuth: []
       summary: 服务账号扣减卡密额度
       tags:
-      - 服务账号API
+      - ServiceKeys
       x-codegen-request-body-name: body
       x-content-type: application/json
       x-accepts:
       - application/json
   /service/keys/export:
     get:
+      operationId: exportKeys
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 导出数据
         "401":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 服务账号密钥无效
       security:
       - ServiceKeyAuth: []
       summary: 服务账号导出卡密（文本格式）
       tags:
-      - 服务账号API
+      - ServiceKeys
       x-accepts:
       - application/json
   /service/keys/export/json:
     get:
+      operationId: exportKeysJson
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 导出数据 JSON 数组
         "401":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 服务账号密钥无效
       security:
       - ServiceKeyAuth: []
       summary: 服务账号导出卡密（JSON 格式）
       tags:
-      - 服务账号API
+      - ServiceKeys
       x-accepts:
       - application/json
   /service/keys/status:
     get:
       description: 通过 X-Service-Key 认证，根据卡密值查询状态
+      operationId: getKeyStatus
       parameters:
       - description: 卡密值
         explode: true
@@ -194,35 +200,36 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 卡密状态信息
         "400":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 缺少卡密参数
         "401":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 服务账号密钥无效
         "404":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 卡密不存在
       security:
       - ServiceKeyAuth: []
       summary: 服务账号查询卡密状态
       tags:
-      - 服务账号API
+      - ServiceKeys
       x-accepts:
       - application/json
   /service/keys/{id}:
     delete:
+      operationId: deleteKey
       parameters:
       - description: 卡密ID
         explode: false
@@ -237,28 +244,29 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 删除成功
         "400":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 无效的卡密 ID
         "401":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 服务账号密钥无效
       security:
       - ServiceKeyAuth: []
       summary: 服务账号删除卡密
       tags:
-      - 服务账号API
+      - ServiceKeys
       x-accepts:
       - application/json
     get:
+      operationId: getKey
       parameters:
       - description: 卡密ID
         explode: false
@@ -273,34 +281,35 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 卡密详情
         "400":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 无效的卡密 ID
         "401":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 服务账号密钥无效
         "404":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 卡密不存在
       security:
       - ServiceKeyAuth: []
       summary: 服务账号查询卡密详情
       tags:
-      - 服务账号API
+      - ServiceKeys
       x-accepts:
       - application/json
     patch:
+      operationId: updateKey
       parameters:
       - description: 卡密ID
         explode: false
@@ -322,31 +331,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 更新成功
         "400":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 参数错误
         "401":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 服务账号密钥无效
       security:
       - ServiceKeyAuth: []
       summary: 服务账号更新卡密
       tags:
-      - 服务账号API
+      - ServiceKeys
       x-codegen-request-body-name: body
       x-content-type: application/json
       x-accepts:
       - application/json
   /service/keys/{id}/disable:
     patch:
+      operationId: disableKey
       parameters:
       - description: 卡密ID
         explode: false
@@ -361,29 +371,30 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 禁用成功
         "400":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 无效的卡密 ID
         "401":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 服务账号密钥无效
       security:
       - ServiceKeyAuth: []
       summary: 服务账号禁用卡密
       tags:
-      - 服务账号API
+      - ServiceKeys
       x-accepts:
       - application/json
   /service/keys/{id}/enable:
     patch:
+      operationId: enableKey
       parameters:
       - description: 卡密ID
         explode: false
@@ -398,30 +409,30 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 启用成功
         "400":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 无效的卡密 ID
         "401":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/handler.Response"
+                $ref: "#/components/schemas/Result"
           description: 服务账号密钥无效
       security:
       - ServiceKeyAuth: []
       summary: 服务账号启用卡密
       tags:
-      - 服务账号API
+      - ServiceKeys
       x-accepts:
       - application/json
 components:
   schemas:
-    handler.PageData:
+    PageData:
       example:
         list: "{}"
         page: 6
@@ -437,7 +448,7 @@ components:
         total:
           type: integer
       type: object
-    handler.Response:
+    Result:
       example:
         code: 0
         data: "{}"
@@ -450,7 +461,10 @@ components:
         message:
           type: string
       type: object
-    handler.serviceConsumeReq:
+    ConsumeRequest:
+      example:
+        amount: 0
+        key: key
       properties:
         amount:
           type: integer
@@ -459,12 +473,12 @@ components:
       required:
       - key
       type: object
-    _service_keys_get_200_response:
+    KeyListResponse:
       allOf:
-      - $ref: "#/components/schemas/handler.Response"
+      - $ref: "#/components/schemas/Result"
       - properties:
           data:
-            $ref: "#/components/schemas/handler.PageData"
+            $ref: "#/components/schemas/PageData"
         type: object
       example:
         code: 0

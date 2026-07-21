@@ -1,6 +1,6 @@
 
 
-# ServiceKeysGet200Response
+# KeyListResponse
 
 
 ## Properties
@@ -8,7 +8,7 @@
 | Name | Type | Description | Notes |
 |------------ | ------------- | ------------- | -------------|
 |**code** | **Integer** |  |  [optional] |
-|**data** | [**HandlerPageData**](HandlerPageData.md) |  |  [optional] |
+|**data** | [**PageData**](PageData.md) |  |  [optional] |
 |**message** | **String** |  |  [optional] |
 
 
