@@ -1,8 +1,8 @@
-# cloudkey-client
+# openapi-java-client
 
 CloudKey Service Account API
-- API version: 1.2
-  - Build date: 2026-07-21T19:47:27.911944800+08:00[Asia/Shanghai]
+- API version: 1.4
+  - Build date: 2026-07-22T22:12:40.541788+08:00[Asia/Shanghai]
   - Generator version: 7.24.0
 
 卡密管理系统 - 服务账号 SDK
@@ -39,9 +39,9 @@ Add this dependency to your project's POM:
 
 ```xml
 <dependency>
-  <groupId>com.github.ezzzi-y</groupId>
-  <artifactId>cloudkey-client</artifactId>
-  <version>1.2</version>
+  <groupId>org.openapitools</groupId>
+  <artifactId>openapi-java-client</artifactId>
+  <version>1.4</version>
   <scope>compile</scope>
 </dependency>
 ```
@@ -52,12 +52,12 @@ Add this dependency to your project's build file:
 
 ```groovy
   repositories {
-    mavenCentral()     // Needed if the 'cloudkey-client' jar has been published to maven central.
-    mavenLocal()       // Needed if the 'cloudkey-client' jar has been published to the local maven repo.
+    mavenCentral()     // Needed if the 'openapi-java-client' jar has been published to maven central.
+    mavenLocal()       // Needed if the 'openapi-java-client' jar has been published to the local maven repo.
   }
 
   dependencies {
-     implementation "com.github.ezzzi-y:cloudkey-client:1.2"
+     implementation "org.openapitools:openapi-java-client:1.4"
   }
 ```
 
@@ -71,7 +71,7 @@ mvn clean package
 
 Then manually install the following JARs:
 
-* `target/cloudkey-client-1.2.jar`
+* `target/openapi-java-client-1.4.jar`
 * `target/lib/*.jar`
 
 ## Getting Started
@@ -90,7 +90,7 @@ import org.openapitools.client.api.BalanceLogsApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
+    CloudKeyClient defaultClient = CloudKeyCloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth

@@ -141,11 +141,10 @@ func (h *TenantKeyHandler) Consume(c *gin.Context) {
 }
 
 type CreateKeyJSON struct {
-	Alias         string  `json:"alias" binding:"required" example:"测试卡密"`
-	BillingMode   string  `json:"billing_mode" binding:"required" example:"count"`
-	InitialAmount int64   `json:"initial_amount" binding:"required" example:"100"`
-	ExpireAt      *string `json:"expire_at" example:"2025-12-31 23:59:59"`
-	MaxUsage      *int64  `json:"max_usage" example:"10"`
+	Alias           string  `json:"alias" binding:"required" example:"测试卡密"`
+	RemainingAmount int64   `json:"remaining_amount" binding:"required" example:"100"`
+	ExpireAt        *string `json:"expire_at" example:"2025-12-31 23:59:59"`
+	MaxUsage        *int64  `json:"max_usage" example:"10"`
 }
 
 func (h *TenantKeyHandler) getTenantKeyConfig(tenantID uint64) (string, int, int, error) {
@@ -191,8 +190,7 @@ func (h *TenantKeyHandler) CreateKey(c *gin.Context) {
 	}
 
 	result, err := h.keySvc.CreateKey(service.CreateKeyRequest{
-		Alias: req.Alias, BillingMode: model.KeyBillingMode(req.BillingMode),
-		InitialAmount: req.InitialAmount, CreatedBy: createdBy,
+		Alias: req.Alias, RemainingAmount: req.RemainingAmount, CreatedBy: createdBy,
 		ExpireAt: expireAt, MaxUsage: req.MaxUsage,
 	}, tenantID, keyPrefix, keyLen, suffixLen)
 	if err != nil {
@@ -203,7 +201,6 @@ func (h *TenantKeyHandler) CreateKey(c *gin.Context) {
 	Success(c, gin.H{
 		"id": result.Key.ID, "raw_key": result.RawKey, "alias": result.Key.Alias,
 		"key_prefix": result.Key.KeyPrefix, "key_suffix": result.Key.KeySuffix,
-		"billing_mode": result.Key.BillingMode, "initial_amount": result.Key.InitialAmount,
 		"remaining_amount": result.Key.RemainingAmount, "status": result.Key.Status,
 		"created_by": result.Key.CreatedBy, "created_at": result.Key.CreatedAt,
 		"expire_at": result.Key.ExpireAt, "max_usage": result.Key.MaxUsage,

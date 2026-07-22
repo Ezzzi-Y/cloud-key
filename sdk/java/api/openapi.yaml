@@ -3,7 +3,7 @@ info:
   contact: {}
   description: 卡密管理系统 - 服务账号 SDK
   title: CloudKey Service Account API
-  version: "1.2"
+  version: "1.4"
 servers:
 - url: //localhost:8080/api
 paths:
@@ -637,8 +637,6 @@ components:
         alias: alias
         key_prefix: key_prefix
         key_suffix: key_suffix
-        billing_mode: count
-        initial_amount: 5
         remaining_amount: 5
         status: unused
         created_by: created_by
@@ -660,14 +658,6 @@ components:
           type: string
         key_suffix:
           type: string
-        billing_mode:
-          enum:
-          - count
-          - credit
-          type: string
-        initial_amount:
-          format: int64
-          type: integer
         remaining_amount:
           format: int64
           type: integer
@@ -707,8 +697,6 @@ components:
           alias: alias
           key_prefix: key_prefix
           key_suffix: key_suffix
-          billing_mode: count
-          initial_amount: 5
           remaining_amount: 5
           status: unused
           created_by: created_by
@@ -722,8 +710,6 @@ components:
           alias: alias
           key_prefix: key_prefix
           key_suffix: key_suffix
-          billing_mode: count
-          initial_amount: 5
           remaining_amount: 5
           status: unused
           created_by: created_by
@@ -751,19 +737,13 @@ components:
     CreateKeyRequest:
       example:
         alias: alias
-        billing_mode: count
-        initial_amount: 0
+        remaining_amount: 0
         expire_at: 2000-01-23T04:56:07.000+00:00
         max_usage: 6
       properties:
         alias:
           type: string
-        billing_mode:
-          enum:
-          - count
-          - credit
-          type: string
-        initial_amount:
+        remaining_amount:
           format: int64
           type: integer
         expire_at:
@@ -776,8 +756,7 @@ components:
           type: integer
       required:
       - alias
-      - billing_mode
-      - initial_amount
+      - remaining_amount
       type: object
     CreateKeyData:
       example:
@@ -788,8 +767,6 @@ components:
           alias: alias
           key_prefix: key_prefix
           key_suffix: key_suffix
-          billing_mode: count
-          initial_amount: 5
           remaining_amount: 5
           status: unused
           created_by: created_by
@@ -823,8 +800,6 @@ components:
             alias: alias
             key_prefix: key_prefix
             key_suffix: key_suffix
-            billing_mode: count
-            initial_amount: 5
             remaining_amount: 5
             status: unused
             created_by: created_by
@@ -850,8 +825,6 @@ components:
             alias: alias
             key_prefix: key_prefix
             key_suffix: key_suffix
-            billing_mode: count
-            initial_amount: 5
             remaining_amount: 5
             status: unused
             created_by: created_by
@@ -865,8 +838,6 @@ components:
             alias: alias
             key_prefix: key_prefix
             key_suffix: key_suffix
-            billing_mode: count
-            initial_amount: 5
             remaining_amount: 5
             status: unused
             created_by: created_by
@@ -894,8 +865,6 @@ components:
           alias: alias
           key_prefix: key_prefix
           key_suffix: key_suffix
-          billing_mode: count
-          initial_amount: 5
           remaining_amount: 5
           status: unused
           created_by: created_by
@@ -953,18 +922,12 @@ components:
     KeyStatusResult:
       example:
         alias: alias
-        billing_mode: count
         remaining_amount: 6
         status: unused
         created_at: created_at
         used_at: used_at
       properties:
         alias:
-          type: string
-        billing_mode:
-          enum:
-          - count
-          - credit
           type: string
         remaining_amount:
           format: int64
@@ -994,7 +957,6 @@ components:
         message: message
         data:
           alias: alias
-          billing_mode: count
           remaining_amount: 6
           status: unused
           created_at: created_at
@@ -1005,8 +967,6 @@ components:
         key_prefix: key_prefix
         key_suffix: key_suffix
         alias: alias
-        billing_mode: count
-        initial_amount: 1
         remaining_amount: 5
         status: unused
         created_at: 2000-01-23T04:56:07.000+00:00
@@ -1022,14 +982,6 @@ components:
           type: string
         alias:
           type: string
-        billing_mode:
-          enum:
-          - count
-          - credit
-          type: string
-        initial_amount:
-          format: int64
-          type: integer
         remaining_amount:
           format: int64
           type: integer
@@ -1069,8 +1021,6 @@ components:
           key_prefix: key_prefix
           key_suffix: key_suffix
           alias: alias
-          billing_mode: count
-          initial_amount: 1
           remaining_amount: 5
           status: unused
           created_at: 2000-01-23T04:56:07.000+00:00
@@ -1080,8 +1030,6 @@ components:
           key_prefix: key_prefix
           key_suffix: key_suffix
           alias: alias
-          billing_mode: count
-          initial_amount: 1
           remaining_amount: 5
           status: unused
           created_at: 2000-01-23T04:56:07.000+00:00

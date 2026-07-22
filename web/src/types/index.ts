@@ -45,7 +45,6 @@ export interface TenantListItem extends Tenant {
   user_count: number
 }
 
-export type KeyBillingMode = 'count' | 'credit'
 export type KeyStatus = 'unused' | 'used' | 'disabled' | 'expired'
 
 export interface Key {
@@ -54,8 +53,6 @@ export interface Key {
   alias: string
   key_prefix: string
   key_suffix: string
-  billing_mode: KeyBillingMode
-  initial_amount: number
   remaining_amount: number
   status: KeyStatus
   created_by: string
@@ -68,8 +65,7 @@ export interface Key {
 
 export interface CreateKeyRequest {
   alias: string
-  billing_mode: KeyBillingMode
-  initial_amount: number
+  remaining_amount: number
   expire_at?: string
   max_usage?: number
 }
@@ -87,7 +83,6 @@ export interface KeyListParams {
 
 export interface KeyStatusResult {
   alias: string
-  billing_mode: KeyBillingMode
   remaining_amount: number
   status: KeyStatus
   created_at: string

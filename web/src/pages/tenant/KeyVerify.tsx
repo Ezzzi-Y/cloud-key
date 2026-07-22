@@ -61,7 +61,6 @@ export default function KeyVerify() {
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div><div className="text-sm text-muted-foreground">别名</div><div className="font-medium">{result.alias || '-'}</div></div>
-              <div><div className="text-sm text-muted-foreground">计费模式</div><div className="font-medium">{result.billing_mode === 'count' ? '按次数' : '按 Credit'}</div></div>
               <div><div className="text-sm text-muted-foreground">剩余额度</div><div className="font-medium">{result.remaining_amount}</div></div>
               <div><div className="text-sm text-muted-foreground">状态</div>
                 <Badge variant={result.status === 'unused' ? 'secondary' : result.status === 'used' ? 'outline' : result.status === 'disabled' ? 'destructive' : 'warning'}>

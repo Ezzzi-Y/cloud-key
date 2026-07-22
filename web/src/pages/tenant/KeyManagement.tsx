@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listKeys, createKey, disableKey, enableKey, deleteKey, exportKeysCSV, exportKeysJSON, updateKey, adjustKeyBalance } from '@/api/keys'
-import type { KeyListParams, CreateKeyRequest, KeyBillingMode, KeyStatus, Key } from '@/types'
+import type { KeyListParams, CreateKeyRequest, KeyStatus, Key } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,7 +32,6 @@ export default function KeyManagement() {
   const [rawKey, setRawKey] = useState('')
   const [selectedKey, setSelectedKey] = useState<{ id: number; alias: string } | null>(null)
   const [newAlias, setNewAlias] = useState('')
-  const [newBilling, setNewBilling] = useState<KeyBillingMode>('count')
   const [newAmount, setNewAmount] = useState(100)
   const [newExpireAt, setNewExpireAt] = useState('')
   const [newMaxUsage, setNewMaxUsage] = useState('')
@@ -81,7 +80,7 @@ export default function KeyManagement() {
   })
 
   const handleCreate = () => {
-    createMutation.mutate({ alias: newAlias, billing_mode: newBilling, initial_amount: newAmount, expire_at: newExpireAt || undefined, max_usage: newMaxUsage ? Number(newMaxUsage) : undefined })
+    createMutation.mutate({ alias: newAlias, remaining_amount: newAmount, expire_at: newExpireAt || undefined, max_usage: newMaxUsage ? Number(newMaxUsage) : undefined })
   }
 
   const closeCreate = () => { setRawKey(''); setCreateOpen(false); setNewAlias(''); setNewAmount(100); setNewExpireAt(''); setNewMaxUsage('') }
@@ -138,13 +137,7 @@ export default function KeyManagement() {
                   <DialogHeader><DialogTitle>创建新 Key</DialogTitle><DialogDescription>Key 明文仅在创建时显示一次，请妥善保存</DialogDescription></DialogHeader>
                   <div className="space-y-4">
                     <div className="space-y-2"><Label>别名</Label><Input value={newAlias} onChange={(e) => setNewAlias(e.target.value)} placeholder="可选" /></div>
-                    <div className="space-y-2"><Label>计费模式</Label>
-                      <Select value={newBilling} onValueChange={(v) => setNewBilling(v as KeyBillingMode)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent><SelectItem value="count">按次数</SelectItem><SelectItem value="credit">按 Credit</SelectItem></SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2"><Label>初始额度</Label><Input type="number" value={newAmount} onChange={(e) => setNewAmount(Number(e.target.value))} /></div>
+                    <div className="space-y-2"><Label>额度</Label><Input type="number" value={newAmount} onChange={(e) => setNewAmount(Number(e.target.value))} /></div>
                     <div className="space-y-2"><Label>过期时间（可选）</Label><Input type="datetime-local" value={newExpireAt} onChange={(e) => setNewExpireAt(e.target.value.replace('T', ' '))} /></div>
                     <div className="space-y-2"><Label>最大使用次数（可选）</Label><Input type="number" value={newMaxUsage} onChange={(e) => setNewMaxUsage(e.target.value)} /></div>
                   </div>
@@ -182,27 +175,26 @@ export default function KeyManagement() {
       </div>
 
       {isLoading ? (
-        <SkeletonTable rows={5} cols={8} />
+        <SkeletonTable rows={5} cols={7} />
       ) : (
         <Card>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>别名</TableHead><TableHead>Key</TableHead><TableHead>计费模式</TableHead><TableHead>额度(初始/剩余)</TableHead>
+                  <TableHead>别名</TableHead><TableHead>Key</TableHead><TableHead>剩余额度</TableHead>
                   <TableHead>状态</TableHead><TableHead>创建时间</TableHead><TableHead>最后使用</TableHead><TableHead className="w-12">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data?.list.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">暂无 Key 数据</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">暂无 Key 数据</TableCell></TableRow>
                 ) : (
                   data?.list.map((key: Key) => (
                     <TableRow key={key.id} className="group">
                       <TableCell className="font-medium">{key.alias || '-'}</TableCell>
                       <TableCell className="font-mono text-sm text-muted-foreground">{key.key_prefix}****{key.key_suffix}</TableCell>
-                      <TableCell>{key.billing_mode === 'count' ? '按次数' : '按Credit'}</TableCell>
-                      <TableCell>{key.initial_amount} / {key.remaining_amount}</TableCell>
+                      <TableCell>{key.remaining_amount}</TableCell>
                       <TableCell>
                         <Badge variant={key.status === 'unused' ? 'secondary' : key.status === 'used' ? 'outline' : key.status === 'disabled' ? 'destructive' : 'warning'}>
                           {key.status === 'unused' ? '可用' : key.status === 'used' ? '已用尽' : key.status === 'disabled' ? '已禁用' : '已过期'}

@@ -19,8 +19,6 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		key_hash TEXT NOT NULL UNIQUE,
 		key_prefix TEXT NOT NULL,
 		key_suffix TEXT NOT NULL,
-		billing_mode TEXT NOT NULL,
-		initial_amount INTEGER NOT NULL,
 		remaining_amount INTEGER NOT NULL,
 		version INTEGER NOT NULL DEFAULT 0,
 		status TEXT NOT NULL DEFAULT 'unused',
@@ -41,7 +39,7 @@ func TestCreateKey(t *testing.T) {
 	svc := NewKeyService(db)
 
 	result, err := svc.CreateKey(CreateKeyRequest{
-		Alias: "test-key", BillingMode: "count", InitialAmount: 100, CreatedBy: "admin",
+		Alias: "test-key", RemainingAmount: 100, CreatedBy: "admin",
 	}, testTenantID, "sk-", 32, 4)
 	if err != nil {
 		t.Fatal(err)
@@ -62,7 +60,7 @@ func TestFindByRawKey(t *testing.T) {
 	svc := NewKeyService(db)
 
 	result, _ := svc.CreateKey(CreateKeyRequest{
-		Alias: "find-test", BillingMode: "count", InitialAmount: 50, CreatedBy: "admin",
+		Alias: "find-test", RemainingAmount: 50, CreatedBy: "admin",
 	}, testTenantID, "sk-", 32, 4)
 
 	found, err := svc.FindByRawKey(result.RawKey)
@@ -95,7 +93,7 @@ func TestGetKeyStatus(t *testing.T) {
 	svc := NewKeyService(db)
 
 	result, _ := svc.CreateKey(CreateKeyRequest{
-		Alias: "status-test", BillingMode: "count", InitialAmount: 10, CreatedBy: "admin",
+		Alias: "status-test", RemainingAmount: 10, CreatedBy: "admin",
 	}, testTenantID, "sk-", 32, 4)
 
 	status, err := svc.GetKeyStatus(result.RawKey)
@@ -119,7 +117,7 @@ func TestListKeys(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		svc.CreateKey(CreateKeyRequest{
-			Alias: "key-" + string(rune('A'+i)), BillingMode: "count", InitialAmount: 10, CreatedBy: "admin",
+			Alias: "key-" + string(rune('A'+i)), RemainingAmount: 10, CreatedBy: "admin",
 		}, testTenantID, "sk-", 32, 4)
 	}
 
@@ -140,7 +138,7 @@ func TestDisableEnableKey(t *testing.T) {
 	svc := NewKeyService(db)
 
 	result, _ := svc.CreateKey(CreateKeyRequest{
-		Alias: "toggle-test", BillingMode: "count", InitialAmount: 10, CreatedBy: "admin",
+		Alias: "toggle-test", RemainingAmount: 10, CreatedBy: "admin",
 	}, testTenantID, "sk-", 32, 4)
 
 	if err := svc.DisableKey(result.Key.ID, testTenantID); err != nil {

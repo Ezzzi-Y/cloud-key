@@ -53,12 +53,11 @@ func (s *KeyService) hashKey(rawKey string) string {
 }
 
 type CreateKeyRequest struct {
-	Alias         string               `json:"alias"`
-	BillingMode   model.KeyBillingMode `json:"billing_mode"`
-	InitialAmount int64                `json:"initial_amount"`
-	CreatedBy     string               `json:"created_by"`
-	ExpireAt      *time.Time           `json:"expire_at"`
-	MaxUsage      *int64               `json:"max_usage"`
+	Alias           string     `json:"alias"`
+	RemainingAmount int64      `json:"remaining_amount"`
+	CreatedBy       string     `json:"created_by"`
+	ExpireAt        *time.Time `json:"expire_at"`
+	MaxUsage        *int64     `json:"max_usage"`
 }
 
 type CreateKeyResult struct {
@@ -85,9 +84,7 @@ func (s *KeyService) CreateKey(req CreateKeyRequest, tenantID uint64, keyPrefix 
 		KeyHash:         keyHash,
 		KeyPrefix:       keyPrefix,
 		KeySuffix:       suffix,
-		BillingMode:     req.BillingMode,
-		InitialAmount:   req.InitialAmount,
-		RemainingAmount: req.InitialAmount,
+		RemainingAmount: req.RemainingAmount,
 		Version:         0,
 		Status:          model.KeyStatusUnused,
 		CreatedBy:       req.CreatedBy,
@@ -127,12 +124,11 @@ func (s *KeyService) FindByRawKeyTenant(rawKey string, tenantID uint64) (*model.
 }
 
 type KeyStatusResult struct {
-	Alias           string               `json:"alias"`
-	BillingMode     model.KeyBillingMode `json:"billing_mode"`
-	RemainingAmount int64                `json:"remaining_amount"`
-	Status          model.KeyStatus      `json:"status"`
-	CreatedAt       string               `json:"created_at"`
-	UsedAt          *string              `json:"used_at"`
+	Alias           string          `json:"alias"`
+	RemainingAmount int64           `json:"remaining_amount"`
+	Status          model.KeyStatus `json:"status"`
+	CreatedAt       string          `json:"created_at"`
+	UsedAt          *string         `json:"used_at"`
 }
 
 func (s *KeyService) GetKeyStatus(rawKey string) (*KeyStatusResult, error) {
@@ -152,7 +148,6 @@ func (s *KeyService) GetKeyStatus(rawKey string) (*KeyStatusResult, error) {
 
 	return &KeyStatusResult{
 		Alias:           key.Alias,
-		BillingMode:     key.BillingMode,
 		RemainingAmount: key.RemainingAmount,
 		Status:          key.Status,
 		CreatedAt:       key.CreatedAt.Format("2006-01-02 15:04:05"),
@@ -177,7 +172,6 @@ func (s *KeyService) GetKeyStatusByTenant(rawKey string, tenantID uint64) (*KeyS
 
 	return &KeyStatusResult{
 		Alias:           key.Alias,
-		BillingMode:     key.BillingMode,
 		RemainingAmount: key.RemainingAmount,
 		Status:          key.Status,
 		CreatedAt:       key.CreatedAt.Format("2006-01-02 15:04:05"),
@@ -520,17 +514,15 @@ func (s *KeyService) DeleteKey(id, tenantID uint64) error {
 }
 
 type ExportKeyItem struct {
-	ID              uint64              `json:"id"`
-	KeyPrefix       string              `json:"key_prefix"`
-	KeySuffix       string              `json:"key_suffix"`
-	Alias           string              `json:"alias"`
-	BillingMode     model.KeyBillingMode `json:"billing_mode"`
-	InitialAmount   int64               `json:"initial_amount"`
-	RemainingAmount int64               `json:"remaining_amount"`
-	Status          model.KeyStatus     `json:"status"`
-	CreatedAt       time.Time           `json:"created_at"`
-	ExpireAt        *time.Time          `json:"expire_at"`
-	MaxUsage        *int64              `json:"max_usage"`
+	ID              uint64         `json:"id"`
+	KeyPrefix       string         `json:"key_prefix"`
+	KeySuffix       string         `json:"key_suffix"`
+	Alias           string         `json:"alias"`
+	RemainingAmount int64          `json:"remaining_amount"`
+	Status          model.KeyStatus `json:"status"`
+	CreatedAt       time.Time      `json:"created_at"`
+	ExpireAt        *time.Time     `json:"expire_at"`
+	MaxUsage        *int64         `json:"max_usage"`
 }
 
 func (s *KeyService) ExportKeysJSON(tenantID uint64) ([]ExportKeyItem, error) {
@@ -546,8 +538,6 @@ func (s *KeyService) ExportKeysJSON(tenantID uint64) ([]ExportKeyItem, error) {
 			KeyPrefix:       k.KeyPrefix,
 			KeySuffix:       k.KeySuffix,
 			Alias:           k.Alias,
-			BillingMode:     k.BillingMode,
-			InitialAmount:   k.InitialAmount,
 			RemainingAmount: k.RemainingAmount,
 			Status:          k.Status,
 			CreatedAt:       k.CreatedAt,

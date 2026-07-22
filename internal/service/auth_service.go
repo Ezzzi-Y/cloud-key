@@ -73,7 +73,7 @@ func (s *AuthService) checkLockout(userID uint64) error {
 		if remainingSec <= 0 {
 			remainingSec = 1
 		}
-		return fmt.Errorf(errcode.GetMessage(errcode.CodeAccountLocked))
+		return fmt.Errorf("%s", errcode.GetMessage(errcode.CodeAccountLocked))
 	}
 
 	return nil
@@ -118,7 +118,7 @@ func (s *AuthService) ValidatePreAuthToken(userID uint64, token string) (uint64,
 
 	stored, err := s.rdb.GetDel(ctx, key).Result()
 	if err == redis.Nil {
-		return 0, fmt.Errorf(errcode.GetMessage(errcode.CodePreAuthInvalid))
+		return 0, fmt.Errorf("%s", errcode.GetMessage(errcode.CodePreAuthInvalid))
 	}
 	if err != nil {
 		return 0, fmt.Errorf("validate pre-auth token: %w", err)
@@ -130,7 +130,7 @@ func (s *AuthService) ValidatePreAuthToken(userID uint64, token string) (uint64,
 	}
 
 	if storedUserID != userID {
-		return 0, fmt.Errorf(errcode.GetMessage(errcode.CodePreAuthInvalid))
+		return 0, fmt.Errorf("%s", errcode.GetMessage(errcode.CodePreAuthInvalid))
 	}
 
 	return storedUserID, nil

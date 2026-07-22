@@ -38,7 +38,7 @@ import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
+    CloudKeyClient defaultClient = CloudKeyCloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -111,7 +111,7 @@ import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
+    CloudKeyClient defaultClient = CloudKeyCloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -182,7 +182,7 @@ import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
+    CloudKeyClient defaultClient = CloudKeyCloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -250,7 +250,7 @@ import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
+    CloudKeyClient defaultClient = CloudKeyCloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -319,7 +319,7 @@ import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
+    CloudKeyClient defaultClient = CloudKeyCloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -388,7 +388,7 @@ import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
+    CloudKeyClient defaultClient = CloudKeyCloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -457,7 +457,7 @@ import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
+    CloudKeyClient defaultClient = CloudKeyCloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -521,7 +521,7 @@ import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
+    CloudKeyClient defaultClient = CloudKeyCloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -585,7 +585,7 @@ import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
+    CloudKeyClient defaultClient = CloudKeyCloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -657,7 +657,7 @@ import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
+    CloudKeyClient defaultClient = CloudKeyCloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -727,7 +727,7 @@ import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
+    CloudKeyClient defaultClient = CloudKeyCloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth
@@ -801,7 +801,7 @@ import org.openapitools.client.api.ServiceKeysApi;
 
 public class Example {
   public static void main(String[] args) {
-    CloudKeyClient defaultClient = CloudKeyConfiguration.getDefaultCloudKeyClient();
+    CloudKeyClient defaultClient = CloudKeyCloudKeyConfiguration.getDefaultCloudKeyClient();
     defaultClient.setBasePath("http://localhost:8080/api");
     
     // Configure API key authorization: ServiceKeyAuth

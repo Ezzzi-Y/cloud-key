@@ -8,20 +8,10 @@
 | Name | Type | Description | Notes |
 |------------ | ------------- | ------------- | -------------|
 |**alias** | **String** |  |  [optional] |
-|**billingMode** | [**BillingModeEnum**](#BillingModeEnum) |  |  [optional] |
 |**remainingAmount** | **Long** |  |  [optional] |
 |**status** | [**StatusEnum**](#StatusEnum) |  |  [optional] |
 |**createdAt** | **String** |  |  [optional] |
 |**usedAt** | **String** |  |  [optional] |
-
-
-
-## Enum: BillingModeEnum
-
-| Name | Value |
-|---- | -----|
-| COUNT | &quot;count&quot; |
-| CREDIT | &quot;credit&quot; |
 
 
 

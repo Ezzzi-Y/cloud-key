@@ -1,8 +1,8 @@
 lazy val root = (project in file(".")).
   settings(
-    organization := "com.github.ezzzi-y",
-    name := "cloudkey-client",
-    version := "1.2",
+    organization := "org.openapitools",
+    name := "openapi-java-client",
+    version := "1.4",
     scalaVersion := "2.11.12",
     scalacOptions ++= Seq("-feature"),
     compile / javacOptions ++= Seq("-Xlint:deprecation"),

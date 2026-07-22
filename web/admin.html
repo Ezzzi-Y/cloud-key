@@ -164,8 +164,7 @@ tr:hover { background: #f9f9f9; }
   <div class="modal">
     <h3>创建卡密</h3>
     <label>别名</label><input id="ckAlias" placeholder="给卡密起个名字">
-    <label>计费模式</label><select id="ckBilling"><option value="count">次数计费</option><option value="credit">额度计费</option></select>
-    <label>初始额度</label><input id="ckAmount" type="number" value="100" min="1">
+    <label>额度</label><input id="ckAmount" type="number" value="100" min="1">
     <div class="btns"><button onclick="closeModal('createKeyModal')">取消</button><button class="btn-primary" onclick="doCreateKey()">创建</button></div>
   </div>
 </div>
@@ -398,7 +397,7 @@ async function loadKeys() {
   document.getElementById('keyTable').innerHTML = keys.map(k => `
     <tr>
       <td>${k.id}</td><td>${esc(k.alias)}</td><td>${esc(k.key_prefix)}</td><td>${esc(k.key_suffix)}</td>
-      <td>${k.billing_mode==='count'?'次数':'额度'}</td><td>${k.initial_amount}</td><td>${k.remaining_amount}</td>
+      <td>${k.remaining_amount}</td>
       <td><span class="badge badge-${k.status}">${statusLabel(k.status)}</span></td>
       <td>${esc(k.created_by||'')}</td><td>${fmtTime(k.created_at)}</td>
       <td>
@@ -431,11 +430,10 @@ function showCreateKey() { document.getElementById('createKeyModal').classList.r
 
 async function doCreateKey() {
   const alias = document.getElementById('ckAlias').value;
-  const billing = document.getElementById('ckBilling').value;
   const amount = parseInt(document.getElementById('ckAmount').value);
   if (!alias) { toast('请输入别名', 'error'); return; }
   const data = await api('/api/admin/keys', {
-    method: 'POST', body: JSON.stringify({ alias, billing_mode: billing, initial_amount: amount })
+    method: 'POST', body: JSON.stringify({ alias, remaining_amount: amount })
   });
   if (!data) return;
   closeModal('createKeyModal');

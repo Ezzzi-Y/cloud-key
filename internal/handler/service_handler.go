@@ -38,7 +38,7 @@ func (h *TenantServiceAccountHandler) getTenantKeyConfig(tenantID uint64) (strin
 // @Accept      json
 // @Produce     json
 // @Security    ServiceKeyAuth
-// @Param       body body object true "卡密参数" Schema({"alias":"string","billing_mode":"count","initial_amount":100,"expire_at":"string","max_usage":10})
+// @Param       body body object true "卡密参数" Schema({"alias":"string","remaining_amount":100,"expire_at":"string","max_usage":10})
 // @Success     200 {object} Response "创建成功"
 // @Failure     401 {object} Response "服务账号密钥无效"
 // @Router      /service/keys [post]
@@ -55,11 +55,10 @@ func (h *TenantServiceAccountHandler) ServiceCreateKey(c *gin.Context) {
 	}
 
 	var req struct {
-		Alias         string  `json:"alias" binding:"required"`
-		BillingMode   string  `json:"billing_mode" binding:"required"`
-		InitialAmount int64   `json:"initial_amount" binding:"required"`
-		ExpireAt      *string `json:"expire_at"`
-		MaxUsage      *int64  `json:"max_usage"`
+		Alias           string  `json:"alias" binding:"required"`
+		RemainingAmount int64   `json:"remaining_amount" binding:"required"`
+		ExpireAt        *string `json:"expire_at"`
+		MaxUsage        *int64  `json:"max_usage"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		BadRequest(c, errcode.CodeServiceKeyInvalid, "参数错误")
@@ -81,8 +80,7 @@ func (h *TenantServiceAccountHandler) ServiceCreateKey(c *gin.Context) {
 	}
 
 	result, err := h.keySvc.CreateKey(service.CreateKeyRequest{
-		Alias: req.Alias, BillingMode: model.KeyBillingMode(req.BillingMode),
-		InitialAmount: req.InitialAmount, CreatedBy: createdBy,
+		Alias: req.Alias, RemainingAmount: req.RemainingAmount, CreatedBy: createdBy,
 		ExpireAt: expireAt, MaxUsage: req.MaxUsage,
 	}, sa.TenantID, prefix, keyLen, suffixLen)
 	if err != nil {
@@ -92,9 +90,8 @@ func (h *TenantServiceAccountHandler) ServiceCreateKey(c *gin.Context) {
 
 	Success(c, gin.H{
 		"id": result.Key.ID, "raw_key": result.RawKey, "alias": result.Key.Alias,
-		"key_suffix": result.Key.KeySuffix, "billing_mode": result.Key.BillingMode,
-		"initial_amount": result.Key.InitialAmount, "remaining_amount": result.Key.RemainingAmount,
-		"status": result.Key.Status,
+		"key_suffix": result.Key.KeySuffix,
+		"remaining_amount": result.Key.RemainingAmount, "status": result.Key.Status,
 		"expire_at": result.Key.ExpireAt, "max_usage": result.Key.MaxUsage,
 	})
 }
