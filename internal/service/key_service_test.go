@@ -36,7 +36,7 @@ const testTenantID uint64 = 1
 
 func TestCreateKey(t *testing.T) {
 	db := setupTestDB(t)
-	svc := NewKeyService(db, nil)
+	svc := NewKeyService(db, nil, nil)
 
 	result, err := svc.CreateKey(CreateKeyRequest{
 		Alias: "test-key", RemainingAmount: 100, CreatedBy: "admin",
@@ -57,7 +57,7 @@ func TestCreateKey(t *testing.T) {
 
 func TestFindByRawKeyTenant(t *testing.T) {
 	db := setupTestDB(t)
-	svc := NewKeyService(db, nil)
+	svc := NewKeyService(db, nil, nil)
 
 	result, _ := svc.CreateKey(CreateKeyRequest{
 		Alias: "find-test", RemainingAmount: 50, CreatedBy: "admin",
@@ -77,7 +77,7 @@ func TestFindByRawKeyTenant(t *testing.T) {
 
 func TestFindByRawKeyTenant_WrongTenant(t *testing.T) {
 	db := setupTestDB(t)
-	svc := NewKeyService(db, nil)
+	svc := NewKeyService(db, nil, nil)
 
 	result, _ := svc.CreateKey(CreateKeyRequest{
 		Alias: "isolation-test", RemainingAmount: 50, CreatedBy: "admin",
@@ -94,7 +94,7 @@ func TestFindByRawKeyTenant_WrongTenant(t *testing.T) {
 
 func TestFindByRawKeyTenant_NotFound(t *testing.T) {
 	db := setupTestDB(t)
-	svc := NewKeyService(db, nil)
+	svc := NewKeyService(db, nil, nil)
 
 	found, err := svc.FindByRawKeyTenant("sk-nonexistent-key", testTenantID)
 	if err != nil {
@@ -107,7 +107,7 @@ func TestFindByRawKeyTenant_NotFound(t *testing.T) {
 
 func TestGetKeyStatusByTenant(t *testing.T) {
 	db := setupTestDB(t)
-	svc := NewKeyService(db, nil)
+	svc := NewKeyService(db, nil, nil)
 
 	result, _ := svc.CreateKey(CreateKeyRequest{
 		Alias: "status-test", RemainingAmount: 10, CreatedBy: "admin",
@@ -130,7 +130,7 @@ func TestGetKeyStatusByTenant(t *testing.T) {
 
 func TestListKeys(t *testing.T) {
 	db := setupTestDB(t)
-	svc := NewKeyService(db, nil)
+	svc := NewKeyService(db, nil, nil)
 
 	for i := 0; i < 5; i++ {
 		svc.CreateKey(CreateKeyRequest{
@@ -152,7 +152,7 @@ func TestListKeys(t *testing.T) {
 
 func TestDisableEnableKey(t *testing.T) {
 	db := setupTestDB(t)
-	svc := NewKeyService(db, nil)
+	svc := NewKeyService(db, nil, nil)
 
 	result, _ := svc.CreateKey(CreateKeyRequest{
 		Alias: "toggle-test", RemainingAmount: 10, CreatedBy: "admin",
@@ -179,7 +179,7 @@ func TestDisableEnableKey(t *testing.T) {
 
 func TestConsumeKeyByTenant(t *testing.T) {
 	db := setupTestDB(t)
-	svc := NewKeyService(db, nil)
+	svc := NewKeyService(db, nil, nil)
 
 	result, _ := svc.CreateKey(CreateKeyRequest{
 		Alias: "consume-test", RemainingAmount: 100, CreatedBy: "admin",
@@ -199,7 +199,7 @@ func TestConsumeKeyByTenant(t *testing.T) {
 
 func TestConsumeKeyByTenant_WrongTenant(t *testing.T) {
 	db := setupTestDB(t)
-	svc := NewKeyService(db, nil)
+	svc := NewKeyService(db, nil, nil)
 
 	result, _ := svc.CreateKey(CreateKeyRequest{
 		Alias: "isolation-consume", RemainingAmount: 100, CreatedBy: "admin",

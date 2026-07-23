@@ -69,9 +69,23 @@ func main() {
 	defer database.CloseRedis(rdb)
 	log.Info("Redis 连接成功")
 
+	// RabbitMQ
+	log.Info("MQ 配置读取",
+		zap.String("host", cfg.MQ.Host),
+		zap.Int("port", cfg.MQ.Port),
+		zap.String("username", cfg.MQ.Username),
+	)
+	var mqSvc *service.MQService
+	mqSvc, err = service.NewMQService(cfg.MQ)
+	if err != nil {
+		log.Fatal("RabbitMQ 连接失败", zap.Error(err))
+	}
+	defer mqSvc.Close()
+	log.Info("RabbitMQ 连接成功")
+
 	// Services
 	authSvc := service.NewAuthService(db, rdb, cfg.Auth.Secret, cfg.Auth.Expiration)
-	keySvc := service.NewKeyService(db, rdb)
+	keySvc := service.NewKeyService(db, rdb, mqSvc)
 	usageLogSvc := service.NewUsageLogService(db)
 	balanceLogSvc := service.NewBalanceLogService(db)
 	statsSvc := service.NewStatsService(db, rdb)
@@ -115,10 +129,15 @@ func main() {
 	// 回填 Redis top_keys 缓存
 	keySvc.BackfillTopKeys()
 
+	// MQ 消费者 Worker
+	mqWorker := service.NewMQWorker(mqSvc, db)
+	mqWorker.Start()
+	defer mqWorker.Stop()
+
 	// Handlers
 	authHandler := handler.NewAuthHandler(authSvc, loginLogSvc)
 	superHandler := handler.NewSuperHandler(tenantSvc, configSvc, loginLogSvc)
-	tenantKeyHandler := handler.NewTenantKeyHandler(keySvc, usageLogSvc, balanceLogSvc, db, false)
+	tenantKeyHandler := handler.NewTenantKeyHandler(keySvc, balanceLogSvc, db)
 	tenantSAHandler := handler.NewTenantServiceAccountHandler(keySvc, serviceAccountSvc, balanceLogSvc, db)
 	tenantStatsHandler := handler.NewTenantStatsHandler(statsSvc)
 	tenantUsageLogHandler := handler.NewTenantUsageLogHandler(usageLogSvc, loginLogSvc)

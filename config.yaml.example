@@ -20,7 +20,7 @@ database:
   dbname: cloudkey
   sslmode: disabled
 
-# Redis 配置（用于 TOTP 待确认密钥暂存等）
+# Redis 配置（消费缓存、限流、TOTP 暂存、Top Keys 排名等）
 redis:
   host: 127.0.0.1
   port: 6379
@@ -55,3 +55,10 @@ security:
     enabled: false
     algorithm: aes-256-gcm
     key: ""
+
+# RabbitMQ 配置（消费扣减和额度调整事件异步落库）
+rabbitmq:
+  host: 127.0.0.1
+  port: 5672
+  username: guest
+  password: guest

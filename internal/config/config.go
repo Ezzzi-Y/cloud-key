@@ -12,6 +12,7 @@ type AppConfig struct {
 	Auth     AuthConfig     `yaml:"auth"`
 	Security SecurityConfig `yaml:"security"`
 	App      AppSettings    `yaml:"app"`
+	MQ       MQConfig       `yaml:"rabbitmq" mapstructure:"rabbitmq"`
 }
 
 // AppSettings 应用级别设置
@@ -79,6 +80,14 @@ type EncryptionConfig struct {
 	Enabled   bool   `yaml:"enabled"`
 	Algorithm string `yaml:"algorithm"`
 	Key       string `yaml:"key"`
+}
+
+// MQConfig RabbitMQ 配置
+type MQConfig struct {
+	Host     string `yaml:"host" mapstructure:"host"`
+	Port     int    `yaml:"port" mapstructure:"port"`
+	Username string `yaml:"username" mapstructure:"username"`
+	Password string `yaml:"password" mapstructure:"password"`
 }
 
 // setDefaults 设置默认值

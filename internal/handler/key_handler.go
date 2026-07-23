@@ -18,14 +18,12 @@ import (
 // TenantKeyHandler handles tenant-scoped key management endpoints.
 type TenantKeyHandler struct {
 	keySvc        *service.KeyService
-	usageLogSvc   *service.UsageLogService
 	balanceLogSvc *service.BalanceLogService
 	db            *gorm.DB
-	recordParams  bool
 }
 
-func NewTenantKeyHandler(keySvc *service.KeyService, usageLogSvc *service.UsageLogService, balanceLogSvc *service.BalanceLogService, db *gorm.DB, recordParams bool) *TenantKeyHandler {
-	return &TenantKeyHandler{keySvc: keySvc, usageLogSvc: usageLogSvc, balanceLogSvc: balanceLogSvc, db: db, recordParams: recordParams}
+func NewTenantKeyHandler(keySvc *service.KeyService, balanceLogSvc *service.BalanceLogService, db *gorm.DB) *TenantKeyHandler {
+	return &TenantKeyHandler{keySvc: keySvc, balanceLogSvc: balanceLogSvc, db: db}
 }
 
 // parseExpireAt converts an optional expiry string pointer into *time.Time.
@@ -101,41 +99,15 @@ func (h *TenantKeyHandler) Consume(c *gin.Context) {
 		req.Amount = 1
 	}
 
-	requestParams := ""
-	if h.recordParams {
-		requestParams = c.Request.URL.RawQuery
-	}
-
 	result, code, err := h.keySvc.ConsumeKeyByTenant(req.Key, req.Amount, tenantID)
 	if err != nil {
 		InternalError(c)
 		return
 	}
 	if code != 0 {
-		key, _ := h.keySvc.FindByRawKeyTenant(req.Key, tenantID)
-		keyID, keyAlias := uint64(0), ""
-		if key != nil {
-			keyID, keyAlias = key.ID, key.Alias
-		}
-		h.usageLogSvc.Record(service.RecordUsageParams{
-			TenantID: tenantID, KeyID: keyID, KeyAlias: keyAlias, Amount: req.Amount,
-			IP: c.ClientIP(), UserAgent: c.GetHeader("User-Agent"),
-			RequestPath: c.Request.URL.Path, RequestParams: requestParams, ResponseStatus: code,
-		})
 		BadRequest(c, code, errcode.GetMessage(code))
 		return
 	}
-
-	key, _ := h.keySvc.FindByRawKeyTenant(req.Key, tenantID)
-	keyID, keyAlias := uint64(0), ""
-	if key != nil {
-		keyID, keyAlias = key.ID, key.Alias
-	}
-	h.usageLogSvc.Record(service.RecordUsageParams{
-		TenantID: tenantID, KeyID: keyID, KeyAlias: keyAlias, Amount: req.Amount,
-		IP: c.ClientIP(), UserAgent: c.GetHeader("User-Agent"),
-		RequestPath: c.Request.URL.Path, RequestParams: requestParams, ResponseStatus: http.StatusOK,
-	})
 
 	Success(c, result)
 }
@@ -356,23 +328,6 @@ func (h *TenantKeyHandler) AdjustBalance(c *gin.Context) {
 		BadRequest(c, errcode.CodeInvalidAdjustment, err.Error())
 		return
 	}
-
-	// 记录流转日志
-	key, _ := h.keySvc.GetKeyDetail(id, tenantID)
-	keyAlias := ""
-	if key != nil {
-		keyAlias = key.Alias
-	}
-	_ = h.balanceLogSvc.Record(service.RecordBalanceParams{
-		TenantID:     tenantID,
-		KeyID:        id,
-		KeyAlias:     keyAlias,
-		Delta:        req.Delta,
-		BeforeAmount: result.BeforeAmount,
-		AfterAmount:  result.AfterAmount,
-		Operator:     "tenant_admin",
-		Remark:       req.Remark,
-	})
 
 	Success(c, result)
 }

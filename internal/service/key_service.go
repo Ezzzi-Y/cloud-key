@@ -7,27 +7,38 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 )
+
+// cacheKey 返回 Redis 缓存 key
+func cacheKey(keyHash string) string {
+	return "ck:" + keyHash
+}
 
 type KeyService struct {
 	db        *gorm.DB
 	rdb       *redis.Client
+	mqSvc     *MQService
 	keyPrefix string
 	keyLength int
 	suffixLen int
+	sfGroup   singleflight.Group
 }
 
-func NewKeyService(db *gorm.DB, rdb *redis.Client) *KeyService {
+func NewKeyService(db *gorm.DB, rdb *redis.Client, mqSvc *MQService) *KeyService {
 	return &KeyService{
 		db:        db,
 		rdb:       rdb,
+		mqSvc:     mqSvc,
 		keyPrefix: "sk-",
 		keyLength: 16,
 		suffixLen: 4,
@@ -107,7 +118,33 @@ func (s *KeyService) CreateKey(req CreateKeyRequest, tenantID uint64, keyPrefix 
 		return nil, fmt.Errorf("create key: %w", err)
 	}
 
+	s.syncCacheOnCreate(&key)
+
 	return &CreateKeyResult{RawKey: rawKey, Key: key}, nil
+}
+
+// syncCacheOnCreate 创建 key 后同步缓存
+func (s *KeyService) syncCacheOnCreate(key *model.Key) {
+	if s.rdb == nil {
+		return
+	}
+	ctx := context.Background()
+	ck := cacheKey(key.KeyHash)
+	expireTs := int64(0)
+	if key.ExpireAt != nil {
+		expireTs = key.ExpireAt.UnixMilli()
+	}
+	if err := s.rdb.HSet(ctx, ck, map[string]interface{}{
+		"id":         key.ID,
+		"tenant_id":  key.TenantID,
+		"alias":      key.Alias,
+		"remaining":  key.RemainingAmount,
+		"status":     key.Status,
+		"version":    key.Version,
+		"expire_at":  expireTs,
+	}).Err(); err != nil {
+		zap.L().Debug("syncCacheOnCreate failed", zap.Error(err))
+	}
 }
 
 func (s *KeyService) FindByRawKeyTenant(rawKey string, tenantID uint64) (*model.Key, error) {
@@ -160,11 +197,132 @@ type ConsumeResult struct {
 	Exhausted       bool            `json:"exhausted"`
 }
 
-func (s *KeyService) ConsumeKeyByTenant(rawKey string, amount int64, tenantID uint64) (*ConsumeResult, int, error) {
-	if amount <= 0 {
-		return nil, 0, fmt.Errorf("invalid amount: %d", amount)
+// consumeResult 从 Lua 脚本返回的 JSON 解析
+type consumeResult struct {
+	Code      int    `json:"code"`
+	Remaining int64  `json:"remaining"`
+	Status    string `json:"status"`
+	KeyID     uint64 `json:"key_id"`
+	TenantID  uint64 `json:"tenant_id"`
+	Alias     string `json:"alias"`
+}
+
+// loadKeyToCache 从 MySQL 加载 key 到 Redis 缓存（带 singleflight 防击穿）
+// 返回 model.Key 指针和 error。key 不存在时返回 (nil, nil)。
+func (s *KeyService) loadKeyToCache(rawKey string, tenantID uint64) (*model.Key, error) {
+	keyHash := s.hashKey(rawKey)
+	ck := cacheKey(keyHash)
+
+	v, err, _ := s.sfGroup.Do(ck, func() (interface{}, error) {
+		// 查 MySQL
+		var key model.Key
+		if err := s.db.Where("key_hash = ? AND tenant_id = ?", keyHash, tenantID).First(&key).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil, nil
+			}
+			return nil, err
+		}
+
+		// 写入 Redis 缓存
+		if s.rdb != nil {
+			ctx := context.Background()
+			expireTs := int64(0)
+			if key.ExpireAt != nil {
+				expireTs = key.ExpireAt.UnixMilli()
+			}
+			s.rdb.HSet(ctx, ck, map[string]interface{}{
+				"id":         key.ID,
+				"tenant_id":  key.TenantID,
+				"alias":      key.Alias,
+				"remaining":  key.RemainingAmount,
+				"status":     key.Status,
+				"version":    key.Version,
+				"expire_at":  expireTs,
+			})
+		}
+
+		return &key, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	if v == nil {
+		return nil, nil
+	}
+	return v.(*model.Key), nil
+}
+
+// consumeViaRedis Redis 快速路径：Lua 扣减 + MQ 发布
+func (s *KeyService) consumeViaRedis(rawKey string, amount int64, tenantID uint64) (*ConsumeResult, int, error) {
+	keyHash := s.hashKey(rawKey)
+	ck := cacheKey(keyHash)
+	ctx := context.Background()
+
+	// 执行 Lua 脚本
+	raw, err := consumeLuaScript.Run(ctx, s.rdb, []string{ck}, amount, time.Now().UnixMilli()).Result()
+	if err != nil {
+		return nil, 0, fmt.Errorf("lua consume: %w", err)
 	}
 
+	var res consumeResult
+	if err := json.Unmarshal([]byte(raw.(string)), &res); err != nil {
+		return nil, 0, fmt.Errorf("unmarshal lua result: %w", err)
+	}
+
+	// Cache miss → 回源加载后重试
+	if res.Code == -1 {
+		_, err := s.loadKeyToCache(rawKey, tenantID)
+		if err != nil {
+			return nil, 0, err
+		}
+		// 重试 Lua
+		raw, err = consumeLuaScript.Run(ctx, s.rdb, []string{ck}, amount, time.Now().UnixMilli()).Result()
+		if err != nil {
+			return nil, 0, fmt.Errorf("lua consume retry: %w", err)
+		}
+		if err := json.Unmarshal([]byte(raw.(string)), &res); err != nil {
+			return nil, 0, fmt.Errorf("unmarshal lua result: %w", err)
+		}
+		if res.Code == -1 {
+			// 回源后仍然 miss → key 不存在
+			return nil, errcode.CodeKeyNotFound, nil
+		}
+	}
+
+	// 业务错误
+	if res.Code != 0 {
+		return nil, res.Code, nil
+	}
+
+	// 发布 MQ 事件
+	if s.mqSvc != nil {
+		event := ConsumeEvent{
+			EventID:        uuid.New().String(),
+			KeyID:          res.KeyID,
+			KeyAlias:       res.Alias,
+			TenantID:       res.TenantID,
+			Amount:         amount,
+			RemainingAfter: res.Remaining,
+			StatusAfter:    res.Status,
+			Timestamp:      time.Now().UnixMilli(),
+		}
+		if err := s.mqSvc.PublishConsumeEvent(event); err != nil {
+			zap.L().Error("发布 ConsumeEvent 失败", zap.Error(err))
+			// MQ 失败不影响消费结果，Redis 已扣减
+		}
+	}
+
+	status := model.KeyStatus(res.Status)
+	return &ConsumeResult{
+		RemainingAmount: res.Remaining,
+		Status:          status,
+		Exhausted:       res.Remaining <= 0,
+	}, 0, nil
+}
+
+// consumeViaMySQL MySQL 降级路径：乐观锁重试
+func (s *KeyService) consumeViaMySQL(rawKey string, amount int64, tenantID uint64) (*ConsumeResult, int, error) {
 	const maxRetries = 3
 	for retry := 0; retry < maxRetries; retry++ {
 		key, err := s.FindByRawKeyTenant(rawKey, tenantID)
@@ -251,6 +409,24 @@ func (s *KeyService) ConsumeKeyByTenant(rawKey string, amount int64, tenantID ui
 		}, 0, nil
 	}
 	return nil, 0, fmt.Errorf("concurrency conflict after %d retries", maxRetries)
+}
+
+func (s *KeyService) ConsumeKeyByTenant(rawKey string, amount int64, tenantID uint64) (*ConsumeResult, int, error) {
+	if amount <= 0 {
+		return nil, 0, fmt.Errorf("invalid amount: %d", amount)
+	}
+
+	// Redis 可用时走快速路径
+	if s.rdb != nil {
+		result, code, err := s.consumeViaRedis(rawKey, amount, tenantID)
+		if err == nil {
+			return result, code, nil
+		}
+		zap.L().Warn("Redis consume failed, falling back to MySQL", zap.Error(err))
+	}
+
+	// 降级到 MySQL
+	return s.consumeViaMySQL(rawKey, amount, tenantID)
 }
 
 type KeyListQuery struct {
@@ -345,11 +521,105 @@ type AdjustBalanceResult struct {
 	AfterAmount  int64 `json:"after_amount"`
 }
 
+// adjustResult 从调额 Lua 脚本返回的 JSON 解析
+type adjustResult struct {
+	Code     int    `json:"code"`
+	Before   int64  `json:"before"`
+	After    int64  `json:"after"`
+	Status   string `json:"status"`
+	KeyID    uint64 `json:"key_id"`
+	TenantID uint64 `json:"tenant_id"`
+	Alias    string `json:"alias"`
+	Error    string `json:"error"`
+}
+
 func (s *KeyService) AdjustBalance(id, tenantID uint64, req AdjustBalanceRequest) (*AdjustBalanceResult, error) {
 	if req.Delta == 0 {
 		return nil, fmt.Errorf("delta 不能为 0")
 	}
 
+	// 需要先拿到 keyHash（从 MySQL）
+	var key model.Key
+	if err := s.db.Where("id = ? AND tenant_id = ?", id, tenantID).First(&key).Error; err != nil {
+		return nil, fmt.Errorf("卡密不存在")
+	}
+
+	// Redis 快速路径
+	if s.rdb != nil {
+		result, err := s.adjustViaRedis(key.KeyHash, id, tenantID, req, key)
+		if err == nil {
+			return result, nil
+		}
+		zap.L().Warn("Redis adjust failed, falling back to MySQL", zap.Error(err))
+	}
+
+	// 降级到 MySQL
+	return s.adjustViaMySQL(id, tenantID, req)
+}
+
+func (s *KeyService) adjustViaRedis(keyHash string, id, tenantID uint64, req AdjustBalanceRequest, key model.Key) (*AdjustBalanceResult, error) {
+	ck := cacheKey(keyHash)
+	ctx := context.Background()
+
+	raw, err := adjustLuaScript.Run(ctx, s.rdb, []string{ck}, req.Delta).Result()
+	if err != nil {
+		return nil, fmt.Errorf("lua adjust: %w", err)
+	}
+
+	var res adjustResult
+	if err := json.Unmarshal([]byte(raw.(string)), &res); err != nil {
+		return nil, fmt.Errorf("unmarshal lua result: %w", err)
+	}
+
+	// Cache miss → 加载后重试
+	if res.Code == -1 {
+		// 先把当前 MySQL 数据加载到缓存
+		if s.rdb != nil {
+			s.syncCacheOnCreate(&key)
+		}
+		raw, err = adjustLuaScript.Run(ctx, s.rdb, []string{ck}, req.Delta).Result()
+		if err != nil {
+			return nil, fmt.Errorf("lua adjust retry: %w", err)
+		}
+		if err := json.Unmarshal([]byte(raw.(string)), &res); err != nil {
+			return nil, fmt.Errorf("unmarshal lua result: %w", err)
+		}
+		if res.Code == -1 {
+			return nil, fmt.Errorf("缓存加载失败")
+		}
+	}
+
+	if res.Code != 0 {
+		return nil, fmt.Errorf("%s", res.Error)
+	}
+
+	// 发布 MQ 事件
+	if s.mqSvc != nil {
+		event := AdjustEvent{
+			EventID:        uuid.New().String(),
+			KeyID:          id,
+			KeyAlias:       key.Alias,
+			TenantID:       tenantID,
+			Delta:          req.Delta,
+			RemainingAfter: res.After,
+			StatusAfter:    res.Status,
+			Operator:       req.Operator,
+			Remark:         req.Remark,
+			Timestamp:      time.Now().UnixMilli(),
+		}
+		if err := s.mqSvc.PublishAdjustEvent(event); err != nil {
+			zap.L().Error("发布 AdjustEvent 失败", zap.Error(err))
+		}
+	}
+
+	return &AdjustBalanceResult{
+		BeforeAmount: res.Before,
+		AfterAmount:  res.After,
+	}, nil
+}
+
+// adjustViaMySQL MySQL 降级路径：乐观锁重试
+func (s *KeyService) adjustViaMySQL(id, tenantID uint64, req AdjustBalanceRequest) (*AdjustBalanceResult, error) {
 	const maxRetries = 3
 	for retry := 0; retry < maxRetries; retry++ {
 		var key model.Key
@@ -404,8 +674,28 @@ func (s *KeyService) AdjustBalance(id, tenantID uint64, req AdjustBalanceRequest
 	return nil, fmt.Errorf("并发冲突，超过最大重试次数")
 }
 
+// syncCacheOnStatusChange 更新缓存中的 status 字段
+func (s *KeyService) syncCacheOnStatusChange(keyHash string, status model.KeyStatus) {
+	if s.rdb == nil {
+		return
+	}
+	ctx := context.Background()
+	ck := cacheKey(keyHash)
+	if err := s.rdb.HSet(ctx, ck, "status", string(status)).Err(); err != nil {
+		zap.L().Debug("syncCacheOnStatusChange failed", zap.Error(err))
+	}
+}
+
 func (s *KeyService) DisableKey(id, tenantID uint64) error {
-	return s.db.Model(&model.Key{}).Where("id = ? AND tenant_id = ?", id, tenantID).Update("status", model.KeyStatusDisabled).Error
+	var key model.Key
+	if err := s.db.Where("id = ? AND tenant_id = ?", id, tenantID).First(&key).Error; err != nil {
+		return err
+	}
+	if err := s.db.Model(&model.Key{}).Where("id = ? AND tenant_id = ?", id, tenantID).Update("status", model.KeyStatusDisabled).Error; err != nil {
+		return err
+	}
+	s.syncCacheOnStatusChange(key.KeyHash, model.KeyStatusDisabled)
+	return nil
 }
 
 func (s *KeyService) EnableKey(id, tenantID uint64) error {
@@ -417,15 +707,36 @@ func (s *KeyService) EnableKey(id, tenantID uint64) error {
 	if key.RemainingAmount <= 0 {
 		newStatus = model.KeyStatusExhausted
 	}
-	return s.db.Model(&model.Key{}).
+	if err := s.db.Model(&model.Key{}).
 		Where("id = ? AND tenant_id = ?", id, tenantID).
-		Update("status", newStatus).Error
+		Update("status", newStatus).Error; err != nil {
+		return err
+	}
+	s.syncCacheOnStatusChange(key.KeyHash, newStatus)
+	return nil
+}
+
+// syncCacheOnDelete 删除缓存
+func (s *KeyService) syncCacheOnDelete(keyHash string) {
+	if s.rdb == nil {
+		return
+	}
+	ctx := context.Background()
+	ck := cacheKey(keyHash)
+	if err := s.rdb.Del(ctx, ck).Err(); err != nil {
+		zap.L().Debug("syncCacheOnDelete failed", zap.Error(err))
+	}
 }
 
 func (s *KeyService) DeleteKey(id, tenantID uint64) error {
+	var key model.Key
+	if err := s.db.Where("id = ? AND tenant_id = ?", id, tenantID).First(&key).Error; err != nil {
+		return err
+	}
 	if err := s.db.Where("id = ? AND tenant_id = ?", id, tenantID).Delete(&model.Key{}).Error; err != nil {
 		return err
 	}
+	s.syncCacheOnDelete(key.KeyHash)
 	// 从 Redis ZSET 中移除该 key
 	s.RemoveFromTopKeys(tenantID, id)
 	return nil
@@ -483,12 +794,40 @@ func (s *KeyService) FindKeysByTenant(tenantID uint64) ([]model.Key, error) {
 	return keys, nil
 }
 
+// syncCacheOnBalanceChange 更新缓存中的 remaining 和 status（管理员调额后）
+func (s *KeyService) syncCacheOnBalanceChange(keyHash string, remaining int64, status model.KeyStatus) {
+	if s.rdb == nil {
+		return
+	}
+	ctx := context.Background()
+	ck := cacheKey(keyHash)
+	if err := s.rdb.HSet(ctx, ck, map[string]interface{}{
+		"remaining": remaining,
+		"status":    string(status),
+	}).Err(); err != nil {
+		zap.L().Debug("syncCacheOnBalanceChange failed", zap.Error(err))
+	}
+}
+
 // ExpireKeys 标记已过期的 key 为 expired 状态。
 // 只处理 active 或 exhausted 状态的 key，disabled 优先级更高不会被覆盖。
 func (s *KeyService) ExpireKeys() (int64, error) {
+	// 先查出即将过期的 key
+	var keys []model.Key
+	s.db.Where("expire_at IS NOT NULL AND expire_at < NOW() AND status IN ?",
+		[]string{string(model.KeyStatusActive), string(model.KeyStatusExhausted)}).
+		Find(&keys)
+
 	result := s.db.Model(&model.Key{}).
-		Where("expire_at IS NOT NULL AND expire_at < NOW() AND status IN ?", []string{string(model.KeyStatusActive), string(model.KeyStatusExhausted)}).
+		Where("expire_at IS NOT NULL AND expire_at < NOW() AND status IN ?",
+			[]string{string(model.KeyStatusActive), string(model.KeyStatusExhausted)}).
 		Update("status", model.KeyStatusExpired)
+
+	// 同步 Redis 缓存
+	for _, k := range keys {
+		s.syncCacheOnStatusChange(k.KeyHash, model.KeyStatusExpired)
+	}
+
 	return result.RowsAffected, result.Error
 }
 
