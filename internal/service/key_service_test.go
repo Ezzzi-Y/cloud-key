@@ -55,7 +55,7 @@ func TestCreateKey(t *testing.T) {
 	}
 }
 
-func TestFindByRawKey(t *testing.T) {
+func TestFindByRawKeyTenant(t *testing.T) {
 	db := setupTestDB(t)
 	svc := NewKeyService(db)
 
@@ -63,7 +63,7 @@ func TestFindByRawKey(t *testing.T) {
 		Alias: "find-test", RemainingAmount: 50, CreatedBy: "admin",
 	}, testTenantID, "sk-", 32, 4)
 
-	found, err := svc.FindByRawKey(result.RawKey)
+	found, err := svc.FindByRawKeyTenant(result.RawKey, testTenantID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,11 +75,28 @@ func TestFindByRawKey(t *testing.T) {
 	}
 }
 
-func TestFindByRawKey_NotFound(t *testing.T) {
+func TestFindByRawKeyTenant_WrongTenant(t *testing.T) {
 	db := setupTestDB(t)
 	svc := NewKeyService(db)
 
-	found, err := svc.FindByRawKey("sk-nonexistent-key")
+	result, _ := svc.CreateKey(CreateKeyRequest{
+		Alias: "isolation-test", RemainingAmount: 50, CreatedBy: "admin",
+	}, testTenantID, "sk-", 32, 4)
+
+	found, err := svc.FindByRawKeyTenant(result.RawKey, 999)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found != nil {
+		t.Error("expected nil for key belonging to different tenant")
+	}
+}
+
+func TestFindByRawKeyTenant_NotFound(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewKeyService(db)
+
+	found, err := svc.FindByRawKeyTenant("sk-nonexistent-key", testTenantID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +105,7 @@ func TestFindByRawKey_NotFound(t *testing.T) {
 	}
 }
 
-func TestGetKeyStatus(t *testing.T) {
+func TestGetKeyStatusByTenant(t *testing.T) {
 	db := setupTestDB(t)
 	svc := NewKeyService(db)
 
@@ -96,7 +113,7 @@ func TestGetKeyStatus(t *testing.T) {
 		Alias: "status-test", RemainingAmount: 10, CreatedBy: "admin",
 	}, testTenantID, "sk-", 32, 4)
 
-	status, err := svc.GetKeyStatus(result.RawKey)
+	status, err := svc.GetKeyStatusByTenant(result.RawKey, testTenantID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,5 +174,42 @@ func TestDisableEnableKey(t *testing.T) {
 	key, _ = svc.GetKeyDetail(result.Key.ID, testTenantID)
 	if key.Status != "unused" {
 		t.Errorf("expected unused, got %s", key.Status)
+	}
+}
+
+func TestConsumeKeyByTenant(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewKeyService(db)
+
+	result, _ := svc.CreateKey(CreateKeyRequest{
+		Alias: "consume-test", RemainingAmount: 100, CreatedBy: "admin",
+	}, testTenantID, "sk-", 32, 4)
+
+	consumeResult, code, err := svc.ConsumeKeyByTenant(result.RawKey, 30, testTenantID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 {
+		t.Fatalf("expected code 0, got %d", code)
+	}
+	if consumeResult.RemainingAmount != 70 {
+		t.Errorf("expected 70 remaining, got %d", consumeResult.RemainingAmount)
+	}
+}
+
+func TestConsumeKeyByTenant_WrongTenant(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewKeyService(db)
+
+	result, _ := svc.CreateKey(CreateKeyRequest{
+		Alias: "isolation-consume", RemainingAmount: 100, CreatedBy: "admin",
+	}, testTenantID, "sk-", 32, 4)
+
+	_, code, err := svc.ConsumeKeyByTenant(result.RawKey, 10, 999)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code == 0 {
+		t.Error("expected non-zero code for wrong tenant, got 0 (key consumed across tenants!)")
 	}
 }

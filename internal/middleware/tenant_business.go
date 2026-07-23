@@ -13,8 +13,8 @@ func TenantBusinessGuard(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenantIDI, exists := c.Get("tenant_id")
 		if !exists {
-			// 非租户管理员，跳过（可能是 super_admin，但它不应调用租户业务接口）
-			c.Next()
+			c.JSON(http.StatusForbidden, gin.H{"code": errcode.CodeTenantNotFound, "message": "租户信息缺失，拒绝访问", "data": nil})
+			c.Abort()
 			return
 		}
 		tenantID := tenantIDI.(uint64)
