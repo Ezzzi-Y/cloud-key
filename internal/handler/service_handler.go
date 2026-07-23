@@ -88,6 +88,20 @@ func (h *TenantServiceAccountHandler) ServiceCreateKey(c *gin.Context) {
 		return
 	}
 
+	// 创建时有初始额度，记录到流转日志
+	if result.Key.RemainingAmount > 0 {
+		_ = h.balanceLogSvc.Record(service.RecordBalanceParams{
+			TenantID:     sa.TenantID,
+			KeyID:        result.Key.ID,
+			KeyAlias:     result.Key.Alias,
+			Delta:        result.Key.RemainingAmount,
+			BeforeAmount: 0,
+			AfterAmount:  result.Key.RemainingAmount,
+			Operator:     createdBy,
+			Remark:       "创建卡密初始额度",
+		})
+	}
+
 	Success(c, gin.H{
 		"id": result.Key.ID, "raw_key": result.RawKey, "alias": result.Key.Alias,
 		"key_suffix": result.Key.KeySuffix,
