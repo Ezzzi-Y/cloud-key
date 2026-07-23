@@ -2,18 +2,23 @@ package service
 
 import (
 	"CloudKey/internal/model"
+	"context"
 	"fmt"
+	"strconv"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type StatsService struct {
-	db *gorm.DB
+	db  *gorm.DB
+	rdb *redis.Client
 }
 
-func NewStatsService(db *gorm.DB) *StatsService {
-	return &StatsService{db: db}
+func NewStatsService(db *gorm.DB, rdb *redis.Client) *StatsService {
+	return &StatsService{db: db, rdb: rdb}
 }
 
 // DateRange holds optional start/end date filters.
@@ -128,6 +133,80 @@ type TopItem struct {
 }
 
 func (s *StatsService) GetTopKeys(dateRange *DateRange, tenantID uint64) ([]TopItem, error) {
+	// 无日期过滤时优先走 Redis 缓存
+	if dateRange == nil {
+		items, err := s.getTopKeysFromRedis(tenantID)
+		if err == nil && len(items) > 0 {
+			return items, nil
+		}
+		if err != nil {
+			zap.L().Debug("top_keys Redis read failed, falling back to SQL", zap.Error(err))
+		}
+	}
+
+	// SQL fallback（支持日期过滤 或 Redis miss）
+	return s.getTopKeysFromDB(dateRange, tenantID)
+}
+
+// getTopKeysFromRedis 从 Redis ZSET 读取 top 10 热门卡密，批量解析 alias。
+func (s *StatsService) getTopKeysFromRedis(tenantID uint64) ([]TopItem, error) {
+	ctx := context.Background()
+	zsetKey := topKeysZSetKey(tenantID)
+
+	// ZREVRANGE key 0 9 WITHSCORES — O(log N + 10)
+	zs, err := s.rdb.ZRevRangeWithScores(ctx, zsetKey, 0, 9).Result()
+	if err != nil {
+		return nil, err
+	}
+	if len(zs) == 0 {
+		return nil, nil
+	}
+
+	// 收集 key ID，批量查询 alias
+	ids := make([]uint64, 0, len(zs))
+	for _, z := range zs {
+		id, err := strconv.ParseUint(z.Member.(string), 10, 64)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, id)
+	}
+
+	type keyInfo struct {
+		ID    uint64
+		Alias string
+	}
+	var keys []keyInfo
+	if err := s.db.Model(&model.Key{}).
+		Where("id IN ?", ids).
+		Select("id, alias").
+		Scan(&keys).Error; err != nil {
+		return nil, err
+	}
+
+	aliasMap := make(map[uint64]string, len(keys))
+	for _, k := range keys {
+		aliasMap[k.ID] = k.Alias
+	}
+
+	items := make([]TopItem, 0, len(zs))
+	for _, z := range zs {
+		id, _ := strconv.ParseUint(z.Member.(string), 10, 64)
+		alias, ok := aliasMap[id]
+		if !ok {
+			continue // key 已被删除，跳过
+		}
+		items = append(items, TopItem{
+			KeyAlias: alias,
+			Count:    int64(z.Score),
+		})
+	}
+
+	return items, nil
+}
+
+// getTopKeysFromDB 从 usage_logs 表查询 top 10（支持日期过滤）。
+func (s *StatsService) getTopKeysFromDB(dateRange *DateRange, tenantID uint64) ([]TopItem, error) {
 	items := make([]TopItem, 0)
 	db := applyDateFilter(s.db.Model(&model.UsageLog{}), dateRange).Where("tenant_id = ?", tenantID)
 	if err := db.

@@ -71,10 +71,10 @@ func main() {
 
 	// Services
 	authSvc := service.NewAuthService(db, rdb, cfg.Auth.Secret, cfg.Auth.Expiration)
-	keySvc := service.NewKeyService(db)
+	keySvc := service.NewKeyService(db, rdb)
 	usageLogSvc := service.NewUsageLogService(db)
 	balanceLogSvc := service.NewBalanceLogService(db)
-	statsSvc := service.NewStatsService(db)
+	statsSvc := service.NewStatsService(db, rdb)
 	serviceAccountSvc := service.NewServiceAccountService(db)
 	configSvc := service.NewConfigService(db)
 	loginLogSvc := service.NewLoginLogService(db)
@@ -111,6 +111,9 @@ func main() {
 	if err := authSvc.SeedSuperAdmin(superAdminUser, superAdminPass); err != nil {
 		log.Warn("创建超级管理员失败", zap.Error(err))
 	}
+
+	// 回填 Redis top_keys 缓存
+	keySvc.BackfillTopKeys()
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authSvc, loginLogSvc)

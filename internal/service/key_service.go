@@ -3,29 +3,40 @@ package service
 import (
 	"CloudKey/internal/errcode"
 	"CloudKey/internal/model"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type KeyService struct {
 	db        *gorm.DB
+	rdb       *redis.Client
 	keyPrefix string
 	keyLength int
 	suffixLen int
 }
 
-func NewKeyService(db *gorm.DB) *KeyService {
+func NewKeyService(db *gorm.DB, rdb *redis.Client) *KeyService {
 	return &KeyService{
 		db:        db,
+		rdb:       rdb,
 		keyPrefix: "sk-",
 		keyLength: 16,
 		suffixLen: 4,
 	}
+}
+
+// topKeysZSetKey returns the Redis ZSET key for a tenant's top-keys ranking.
+func topKeysZSetKey(tenantID uint64) string {
+	return "top_keys:" + strconv.FormatUint(tenantID, 10)
 }
 
 func (s *KeyService) WithConfig(prefix string, keyLen, suffixLen int) *KeyService {
@@ -223,6 +234,16 @@ func (s *KeyService) ConsumeKeyByTenant(rawKey string, amount int64, tenantID ui
 			status = model.KeyStatusExhausted
 		}
 
+		// 原子递增 Redis ZSET 中该 key 的消费计数
+		if s.rdb != nil {
+			ctx := context.Background()
+			member := strconv.FormatUint(key.ID, 10)
+			if err := s.rdb.ZIncrBy(ctx, topKeysZSetKey(tenantID), 1, member).Err(); err != nil {
+				// Redis 故障不影响主流程，降级到 SQL 查询即可
+				zap.L().Debug("top_keys ZINCRBY failed", zap.Error(err))
+			}
+		}
+
 		return &ConsumeResult{
 			RemainingAmount: newRemaining,
 			Status:          status,
@@ -402,7 +423,12 @@ func (s *KeyService) EnableKey(id, tenantID uint64) error {
 }
 
 func (s *KeyService) DeleteKey(id, tenantID uint64) error {
-	return s.db.Where("id = ? AND tenant_id = ?", id, tenantID).Delete(&model.Key{}).Error
+	if err := s.db.Where("id = ? AND tenant_id = ?", id, tenantID).Delete(&model.Key{}).Error; err != nil {
+		return err
+	}
+	// 从 Redis ZSET 中移除该 key
+	s.RemoveFromTopKeys(tenantID, id)
+	return nil
 }
 
 type ExportKeyItem struct {
@@ -464,4 +490,64 @@ func (s *KeyService) ExpireKeys() (int64, error) {
 		Where("expire_at IS NOT NULL AND expire_at < NOW() AND status IN ?", []string{string(model.KeyStatusActive), string(model.KeyStatusExhausted)}).
 		Update("status", model.KeyStatusExpired)
 	return result.RowsAffected, result.Error
+}
+
+// RemoveFromTopKeys 从 Redis ZSET 中移除指定 key（用于卡密删除时清理）。
+func (s *KeyService) RemoveFromTopKeys(tenantID, keyID uint64) {
+	if s.rdb == nil {
+		return
+	}
+	ctx := context.Background()
+	member := strconv.FormatUint(keyID, 10)
+	if err := s.rdb.ZRem(ctx, topKeysZSetKey(tenantID), member).Err(); err != nil {
+		zap.L().Debug("top_keys ZREM failed", zap.Error(err))
+	}
+}
+
+// BackfillTopKeys 从 usage_logs 聚合历史消费数据，回填 Redis ZSET。
+// 应在服务启动时调用一次，确保 Redis 与数据库一致。
+func (s *KeyService) BackfillTopKeys() {
+	if s.rdb == nil {
+		return
+	}
+
+	type keyCount struct {
+		TenantID uint64
+		KeyID    uint64
+		Count    int64
+	}
+	var rows []keyCount
+
+	if err := s.db.Model(&model.UsageLog{}).
+		Select("tenant_id, key_id, COUNT(*) as count").
+		Where("key_id > 0").
+		Group("tenant_id, key_id").
+		Scan(&rows).Error; err != nil {
+		zap.L().Error("top_keys backfill query failed", zap.Error(err))
+		return
+	}
+
+	// 按 tenantID 分组，批量 ZADD
+	grouped := make(map[uint64][]redis.Z)
+	for _, r := range rows {
+		grouped[r.TenantID] = append(grouped[r.TenantID], redis.Z{
+			Score:  float64(r.Count),
+			Member: strconv.FormatUint(r.KeyID, 10),
+		})
+	}
+
+	ctx := context.Background()
+	var total int
+	for tenantID, members := range grouped {
+		if err := s.rdb.ZAdd(ctx, topKeysZSetKey(tenantID), members...).Err(); err != nil {
+			zap.L().Error("top_keys ZADD failed",
+				zap.Uint64("tenant_id", tenantID), zap.Error(err))
+			continue
+		}
+		total += len(members)
+	}
+
+	zap.L().Info("top_keys 回填完成",
+		zap.Int("tenants", len(grouped)),
+		zap.Int("total_keys", total))
 }
