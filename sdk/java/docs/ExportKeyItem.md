@@ -23,8 +23,8 @@
 
 | Name | Value |
 |---- | -----|
-| UNUSED | &quot;unused&quot; |
-| USED | &quot;used&quot; |
+| ACTIVE | &quot;active&quot; |
+| EXHAUSTED | &quot;exhausted&quot; |
 | DISABLED | &quot;disabled&quot; |
 | EXPIRED | &quot;expired&quot; |
 

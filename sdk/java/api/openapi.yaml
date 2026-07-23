@@ -3,7 +3,7 @@ info:
   contact: {}
   description: 卡密管理系统 - 服务账号 SDK
   title: CloudKey Service Account API
-  version: "1.4"
+  version: "2.0"
 servers:
 - url: //localhost:8080/api
 paths:
@@ -29,15 +29,15 @@ paths:
           default: 20
           type: integer
         style: form
-      - description: "状态过滤: unused/used/disabled/expired"
+      - description: "状态过滤: active/exhausted/disabled/expired"
         explode: true
         in: query
         name: status
         required: false
         schema:
           enum:
-          - unused
-          - used
+          - active
+          - exhausted
           - disabled
           - expired
           type: string
@@ -638,7 +638,7 @@ components:
         key_prefix: key_prefix
         key_suffix: key_suffix
         remaining_amount: 5
-        status: unused
+        status: active
         created_by: created_by
         created_at: 2000-01-23T04:56:07.000+00:00
         updated_at: 2000-01-23T04:56:07.000+00:00
@@ -663,8 +663,8 @@ components:
           type: integer
         status:
           enum:
-          - unused
-          - used
+          - active
+          - exhausted
           - disabled
           - expired
           type: string
@@ -698,7 +698,7 @@ components:
           key_prefix: key_prefix
           key_suffix: key_suffix
           remaining_amount: 5
-          status: unused
+          status: active
           created_by: created_by
           created_at: 2000-01-23T04:56:07.000+00:00
           updated_at: 2000-01-23T04:56:07.000+00:00
@@ -711,7 +711,7 @@ components:
           key_prefix: key_prefix
           key_suffix: key_suffix
           remaining_amount: 5
-          status: unused
+          status: active
           created_by: created_by
           created_at: 2000-01-23T04:56:07.000+00:00
           updated_at: 2000-01-23T04:56:07.000+00:00
@@ -768,7 +768,7 @@ components:
           key_prefix: key_prefix
           key_suffix: key_suffix
           remaining_amount: 5
-          status: unused
+          status: active
           created_by: created_by
           created_at: 2000-01-23T04:56:07.000+00:00
           updated_at: 2000-01-23T04:56:07.000+00:00
@@ -801,7 +801,7 @@ components:
             key_prefix: key_prefix
             key_suffix: key_suffix
             remaining_amount: 5
-            status: unused
+            status: active
             created_by: created_by
             created_at: 2000-01-23T04:56:07.000+00:00
             updated_at: 2000-01-23T04:56:07.000+00:00
@@ -826,7 +826,7 @@ components:
             key_prefix: key_prefix
             key_suffix: key_suffix
             remaining_amount: 5
-            status: unused
+            status: active
             created_by: created_by
             created_at: 2000-01-23T04:56:07.000+00:00
             updated_at: 2000-01-23T04:56:07.000+00:00
@@ -839,7 +839,7 @@ components:
             key_prefix: key_prefix
             key_suffix: key_suffix
             remaining_amount: 5
-            status: unused
+            status: active
             created_by: created_by
             created_at: 2000-01-23T04:56:07.000+00:00
             updated_at: 2000-01-23T04:56:07.000+00:00
@@ -866,7 +866,7 @@ components:
           key_prefix: key_prefix
           key_suffix: key_suffix
           remaining_amount: 5
-          status: unused
+          status: active
           created_by: created_by
           created_at: 2000-01-23T04:56:07.000+00:00
           updated_at: 2000-01-23T04:56:07.000+00:00
@@ -889,7 +889,7 @@ components:
     ConsumeResult:
       example:
         remaining_amount: 6
-        status: unused
+        status: active
         exhausted: true
       properties:
         remaining_amount:
@@ -897,8 +897,8 @@ components:
           type: integer
         status:
           enum:
-          - unused
-          - used
+          - active
+          - exhausted
           - disabled
           - expired
           type: string
@@ -917,13 +917,13 @@ components:
         message: message
         data:
           remaining_amount: 6
-          status: unused
+          status: active
           exhausted: true
     KeyStatusResult:
       example:
         alias: alias
         remaining_amount: 6
-        status: unused
+        status: active
         created_at: created_at
         used_at: used_at
       properties:
@@ -934,8 +934,8 @@ components:
           type: integer
         status:
           enum:
-          - unused
-          - used
+          - active
+          - exhausted
           - disabled
           - expired
           type: string
@@ -958,7 +958,7 @@ components:
         data:
           alias: alias
           remaining_amount: 6
-          status: unused
+          status: active
           created_at: created_at
           used_at: used_at
     ExportKeyItem:
@@ -968,7 +968,7 @@ components:
         key_suffix: key_suffix
         alias: alias
         remaining_amount: 5
-        status: unused
+        status: active
         created_at: 2000-01-23T04:56:07.000+00:00
         expire_at: 2000-01-23T04:56:07.000+00:00
         max_usage: 5
@@ -987,8 +987,8 @@ components:
           type: integer
         status:
           enum:
-          - unused
-          - used
+          - active
+          - exhausted
           - disabled
           - expired
           type: string
@@ -1022,7 +1022,7 @@ components:
           key_suffix: key_suffix
           alias: alias
           remaining_amount: 5
-          status: unused
+          status: active
           created_at: 2000-01-23T04:56:07.000+00:00
           expire_at: 2000-01-23T04:56:07.000+00:00
           max_usage: 5
@@ -1031,7 +1031,7 @@ components:
           key_suffix: key_suffix
           alias: alias
           remaining_amount: 5
-          status: unused
+          status: active
           created_at: 2000-01-23T04:56:07.000+00:00
           expire_at: 2000-01-23T04:56:07.000+00:00
           max_usage: 5

@@ -739,7 +739,7 @@ public class Example {
     ServiceKeysApi apiInstance = new ServiceKeysApi(defaultClient);
     Integer page = 1; // Integer | 页码
     Integer pageSize = 20; // Integer | 每页数量
-    String status = "unused"; // String | 状态过滤: unused/used/disabled/expired
+    String status = "active"; // String | 状态过滤: active/exhausted/disabled/expired
     String search = "search_example"; // String | 关键字搜索
     try {
       KeyListResponse result = apiInstance.listKeys(page, pageSize, status, search);
@@ -761,7 +761,7 @@ public class Example {
 |------------- | ------------- | ------------- | -------------|
 | **page** | **Integer**| 页码 | [optional] [default to 1] |
 | **pageSize** | **Integer**| 每页数量 | [optional] [default to 20] |
-| **status** | **String**| 状态过滤: unused/used/disabled/expired | [optional] [enum: unused, used, disabled, expired] |
+| **status** | **String**| 状态过滤: active/exhausted/disabled/expired | [optional] [enum: active, exhausted, disabled, expired] |
 | **search** | **String**| 关键字搜索 | [optional] |
 
 ### Return type

@@ -166,8 +166,8 @@ export default function KeyManagement() {
           <SelectTrigger className="w-32"><SelectValue placeholder="全部状态" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="">全部状态</SelectItem>
-            <SelectItem value="unused">未使用</SelectItem>
-            <SelectItem value="used">已用尽</SelectItem>
+            <SelectItem value="active">可用</SelectItem>
+            <SelectItem value="exhausted">已用尽</SelectItem>
             <SelectItem value="disabled">已禁用</SelectItem>
             <SelectItem value="expired">已过期</SelectItem>
           </SelectContent>
@@ -196,8 +196,8 @@ export default function KeyManagement() {
                       <TableCell className="font-mono text-sm text-muted-foreground">{key.key_prefix}****{key.key_suffix}</TableCell>
                       <TableCell>{key.remaining_amount}</TableCell>
                       <TableCell>
-                        <Badge variant={key.status === 'unused' ? 'secondary' : key.status === 'used' ? 'outline' : key.status === 'disabled' ? 'destructive' : 'warning'}>
-                          {key.status === 'unused' ? '可用' : key.status === 'used' ? '已用尽' : key.status === 'disabled' ? '已禁用' : '已过期'}
+                        <Badge variant={key.status === 'active' ? 'secondary' : key.status === 'exhausted' ? 'outline' : key.status === 'disabled' ? 'destructive' : 'warning'}>
+                          {key.status === 'active' ? '可用' : key.status === 'exhausted' ? '已用尽' : key.status === 'disabled' ? '已禁用' : '已过期'}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{new Date(key.created_at).toLocaleDateString('zh-CN')}</TableCell>
@@ -216,7 +216,7 @@ export default function KeyManagement() {
                             <DropdownMenuItem onClick={() => { setAdjustTarget({ id: key.id, alias: key.alias, remaining: key.remaining_amount }); setAdjustDelta(''); setAdjustRemark(''); setAdjustOpen(true) }}>
                               <TrendingUp className="mr-2 h-4 w-4" />调整额度
                             </DropdownMenuItem>
-                            {key.status === 'unused' && (
+                            {key.status === 'active' && (
                               <DropdownMenuItem onClick={() => toggleDisableMutation.mutate(key.id)}>
                                 <Ban className="mr-2 h-4 w-4" />禁用
                               </DropdownMenuItem>

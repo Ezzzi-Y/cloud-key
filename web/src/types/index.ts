@@ -45,7 +45,7 @@ export interface TenantListItem extends Tenant {
   user_count: number
 }
 
-export type KeyStatus = 'unused' | 'used' | 'disabled' | 'expired'
+export type KeyStatus = 'active' | 'exhausted' | 'disabled' | 'expired'
 
 export interface Key {
   id: number
@@ -154,7 +154,6 @@ export interface KeyOverview {
   total_keys: number
   keys_by_status: Record<string, number>
   total_remaining_amount: number
-  total_initial_amount: number
 }
 
 export interface TrendPoint {

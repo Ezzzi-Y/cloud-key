@@ -39,7 +39,6 @@ func applyDateFilter(db *gorm.DB, dateRange *DateRange) *gorm.DB {
 type KeyOverview struct {
 	KeyCount     int64            `json:"key_count"`
 	StatusCounts map[string]int64 `json:"status_counts"`
-	TotalInitial int64            `json:"total_initial"`
 	TotalRemain  int64            `json:"total_remaining"`
 }
 
@@ -64,11 +63,6 @@ func (s *StatsService) GetKeyOverview(dateRange *DateRange, tenantID uint64) (*K
 		ov.StatusCounts[r.Status] = r.Count
 	}
 
-	if err := applyDateFilter(s.db.Model(&model.Key{}), dateRange).
-		Where("tenant_id = ?", tenantID).
-		Select("COALESCE(SUM(initial_amount), 0)").Scan(&ov.TotalInitial).Error; err != nil {
-		return nil, err
-	}
 	if err := applyDateFilter(s.db.Model(&model.Key{}), dateRange).
 		Where("tenant_id = ?", tenantID).
 		Select("COALESCE(SUM(remaining_amount), 0)").Scan(&ov.TotalRemain).Error; err != nil {

@@ -86,7 +86,7 @@ func (s *KeyService) CreateKey(req CreateKeyRequest, tenantID uint64, keyPrefix 
 		KeySuffix:       suffix,
 		RemainingAmount: req.RemainingAmount,
 		Version:         0,
-		Status:          model.KeyStatusUnused,
+		Status:          model.KeyStatusActive,
 		CreatedBy:       req.CreatedBy,
 		ExpireAt:        req.ExpireAt,
 		MaxUsage:        req.MaxUsage,
@@ -166,7 +166,10 @@ func (s *KeyService) ConsumeKeyByTenant(rawKey string, amount int64, tenantID ui
 		if key.Status == model.KeyStatusDisabled {
 			return nil, errcode.CodeKeyDisabled, nil
 		}
-		if key.Status == model.KeyStatusUsed {
+		if key.Status == model.KeyStatusExpired {
+			return nil, errcode.CodeKeyExpired, nil
+		}
+		if key.Status == model.KeyStatusExhausted {
 			return nil, errcode.CodeKeyExhausted, nil
 		}
 		if !key.CanDeduct(amount) {
@@ -183,7 +186,7 @@ func (s *KeyService) ConsumeKeyByTenant(rawKey string, amount int64, tenantID ui
 
 		result := tx.Model(&model.Key{}).
 			Where("id = ? AND version = ? AND remaining_amount >= ? AND status = ?",
-				key.ID, key.Version, amount, model.KeyStatusUnused).
+				key.ID, key.Version, amount, model.KeyStatusActive).
 			Updates(map[string]interface{}{
 				"remaining_amount": gorm.Expr("remaining_amount - ?", amount),
 				"version":          gorm.Expr("version + 1"),
@@ -203,7 +206,7 @@ func (s *KeyService) ConsumeKeyByTenant(rawKey string, amount int64, tenantID ui
 		if newRemaining <= 0 {
 			if err := tx.Model(&model.Key{}).Where("id = ?", key.ID).
 				Updates(map[string]interface{}{
-					"status": model.KeyStatusUsed,
+					"status": model.KeyStatusExhausted,
 					"used_at": time.Now(),
 				}).Error; err != nil {
 				tx.Rollback()
@@ -217,7 +220,7 @@ func (s *KeyService) ConsumeKeyByTenant(rawKey string, amount int64, tenantID ui
 
 		status := key.Status
 		if newRemaining <= 0 {
-			status = model.KeyStatusUsed
+			status = model.KeyStatusExhausted
 		}
 
 		return &ConsumeResult{
@@ -359,10 +362,10 @@ func (s *KeyService) AdjustBalance(id, tenantID uint64, req AdjustBalanceRequest
 			continue // 乐观锁冲突，重试
 		}
 
-		// 如果是增加额度且 key 之前已耗尽，恢复为 unused
-		if req.Delta > 0 && newAmount > 0 && key.Status == model.KeyStatusUsed {
+		// 如果是增加额度且 key 之前已耗尽，恢复为 active
+		if req.Delta > 0 && newAmount > 0 && key.Status == model.KeyStatusExhausted {
 			if err := tx.Model(&model.Key{}).Where("id = ?", key.ID).
-				Update("status", model.KeyStatusUnused).Error; err != nil {
+				Update("status", model.KeyStatusActive).Error; err != nil {
 				tx.Rollback()
 				return nil, err
 			}
@@ -385,7 +388,17 @@ func (s *KeyService) DisableKey(id, tenantID uint64) error {
 }
 
 func (s *KeyService) EnableKey(id, tenantID uint64) error {
-	return s.db.Model(&model.Key{}).Where("id = ? AND tenant_id = ?", id, tenantID).Update("status", model.KeyStatusUnused).Error
+	var key model.Key
+	if err := s.db.Where("id = ? AND tenant_id = ?", id, tenantID).First(&key).Error; err != nil {
+		return err
+	}
+	newStatus := model.KeyStatusActive
+	if key.RemainingAmount <= 0 {
+		newStatus = model.KeyStatusExhausted
+	}
+	return s.db.Model(&model.Key{}).
+		Where("id = ? AND tenant_id = ?", id, tenantID).
+		Update("status", newStatus).Error
 }
 
 func (s *KeyService) DeleteKey(id, tenantID uint64) error {
@@ -442,4 +455,13 @@ func (s *KeyService) FindKeysByTenant(tenantID uint64) ([]model.Key, error) {
 		return nil, err
 	}
 	return keys, nil
+}
+
+// ExpireKeys 标记已过期的 key 为 expired 状态。
+// 只处理 active 或 exhausted 状态的 key，disabled 优先级更高不会被覆盖。
+func (s *KeyService) ExpireKeys() (int64, error) {
+	result := s.db.Model(&model.Key{}).
+		Where("expire_at IS NOT NULL AND expire_at < NOW() AND status IN ?", []string{string(model.KeyStatusActive), string(model.KeyStatusExhausted)}).
+		Update("status", model.KeyStatusExpired)
+	return result.RowsAffected, result.Error
 }

@@ -10,6 +10,7 @@ import (
 	"CloudKey/internal/service"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -78,6 +79,20 @@ func main() {
 	configSvc := service.NewConfigService(db)
 	loginLogSvc := service.NewLoginLogService(db)
 	tenantSvc := service.NewTenantService(db)
+
+	// 定时标记过期 key（每 5 分钟检查一次）
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			count, err := keySvc.ExpireKeys()
+			if err != nil {
+				log.Error("标记过期 key 失败", zap.Error(err))
+			} else if count > 0 {
+				log.Info("标记过期 key", zap.Int64("count", count))
+			}
+		}
+	}()
 
 	// Init defaults
 	if err := configSvc.InitDefaultConfigs(); err != nil {

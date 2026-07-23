@@ -172,8 +172,8 @@ func TestDisableEnableKey(t *testing.T) {
 	}
 
 	key, _ = svc.GetKeyDetail(result.Key.ID, testTenantID)
-	if key.Status != "unused" {
-		t.Errorf("expected unused, got %s", key.Status)
+	if key.Status != "active" {
+		t.Errorf("expected active, got %s", key.Status)
 	}
 }
 

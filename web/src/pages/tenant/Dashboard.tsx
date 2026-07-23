@@ -39,10 +39,10 @@ export default function TenantDashboard() {
   }
 
   const statusBreakdown = dash?.key_status_breakdown || {}
-  const statusLabels: Record<string, string> = { unused: '未使用', used: '已用尽', disabled: '已禁用', expired: '已过期' }
+  const statusLabels: Record<string, string> = { active: '可用', exhausted: '已用尽', disabled: '已禁用', expired: '已过期' }
   const statusColors: Record<string, string> = {
-    unused: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400',
-    used: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400',
+    active: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400',
+    exhausted: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400',
     disabled: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
     expired: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400',
   }

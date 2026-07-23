@@ -1,8 +1,8 @@
 # openapi-java-client
 
 CloudKey Service Account API
-- API version: 1.4
-  - Build date: 2026-07-22T22:12:40.541788+08:00[Asia/Shanghai]
+- API version: 2.0
+  - Build date: 2026-07-23T19:29:15.518413200+08:00[Asia/Shanghai]
   - Generator version: 7.24.0
 
 卡密管理系统 - 服务账号 SDK
@@ -41,7 +41,7 @@ Add this dependency to your project's POM:
 <dependency>
   <groupId>org.openapitools</groupId>
   <artifactId>openapi-java-client</artifactId>
-  <version>1.4</version>
+  <version>2.0</version>
   <scope>compile</scope>
 </dependency>
 ```
@@ -57,7 +57,7 @@ Add this dependency to your project's build file:
   }
 
   dependencies {
-     implementation "org.openapitools:openapi-java-client:1.4"
+     implementation "org.openapitools:openapi-java-client:2.0"
   }
 ```
 
@@ -71,7 +71,7 @@ mvn clean package
 
 Then manually install the following JARs:
 
-* `target/openapi-java-client-1.4.jar`
+* `target/openapi-java-client-2.0.jar`
 * `target/lib/*.jar`
 
 ## Getting Started

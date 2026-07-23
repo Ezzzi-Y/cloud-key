@@ -63,8 +63,8 @@ export default function KeyVerify() {
               <div><div className="text-sm text-muted-foreground">别名</div><div className="font-medium">{result.alias || '-'}</div></div>
               <div><div className="text-sm text-muted-foreground">剩余额度</div><div className="font-medium">{result.remaining_amount}</div></div>
               <div><div className="text-sm text-muted-foreground">状态</div>
-                <Badge variant={result.status === 'unused' ? 'secondary' : result.status === 'used' ? 'outline' : result.status === 'disabled' ? 'destructive' : 'warning'}>
-                  {result.status === 'unused' ? '可用' : result.status === 'used' ? '已用尽' : result.status === 'disabled' ? '已禁用' : '已过期'}
+                <Badge variant={result.status === 'active' ? 'secondary' : result.status === 'exhausted' ? 'outline' : result.status === 'disabled' ? 'destructive' : 'warning'}>
+                  {result.status === 'active' ? '可用' : result.status === 'exhausted' ? '已用尽' : result.status === 'disabled' ? '已禁用' : '已过期'}
                 </Badge>
               </div>
               <div><div className="text-sm text-muted-foreground">创建时间</div><div className="font-medium">{new Date(result.created_at).toLocaleString('zh-CN')}</div></div>
@@ -74,7 +74,7 @@ export default function KeyVerify() {
         </Card>
       )}
 
-      {result && result.status === 'unused' && (
+      {result && result.status === 'active' && (
         <Card>
           <CardHeader><CardTitle>扣减操作</CardTitle><CardDescription>扣减此 Key 的额度，扣减后立即生效</CardDescription></CardHeader>
           <CardContent>
