@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"CloudKey/internal/errcode"
+	"CloudKey/internal/handler"
 	"context"
 	"fmt"
 	"net/http"
@@ -53,10 +54,9 @@ func RateLimitMiddleware(rdb *redis.Client, window time.Duration, maxRequests in
 		}
 
 		if allowed == 0 {
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"code":    errcode.CodeRateLimit,
-				"message": errcode.GetMessage(errcode.CodeRateLimit),
-				"data":    nil,
+			c.JSON(http.StatusTooManyRequests, handler.Response{
+				Code:    errcode.CodeRateLimit,
+				Message: errcode.GetMessage(errcode.CodeRateLimit),
 			})
 			c.Abort()
 			return

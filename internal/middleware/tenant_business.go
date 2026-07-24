@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"CloudKey/internal/errcode"
+	"CloudKey/internal/handler"
 	"CloudKey/internal/model"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -13,7 +13,7 @@ func TenantBusinessGuard(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenantIDI, exists := c.Get("tenant_id")
 		if !exists {
-			c.JSON(http.StatusForbidden, gin.H{"code": errcode.CodeTenantNotFound, "message": "租户信息缺失，拒绝访问", "data": nil})
+			handler.Forbidden(c, errcode.CodeTenantNotFound, errcode.GetMessage(errcode.CodeTenantNotFound))
 			c.Abort()
 			return
 		}
@@ -21,18 +21,18 @@ func TenantBusinessGuard(db *gorm.DB) gin.HandlerFunc {
 
 		var tenant model.Tenant
 		if err := db.First(&tenant, tenantID).Error; err != nil {
-			c.JSON(http.StatusForbidden, gin.H{"code": errcode.CodeTenantNotFound, "message": errcode.GetMessage(errcode.CodeTenantNotFound), "data": nil})
+			handler.NotFound(c, errcode.CodeTenantNotFound, errcode.GetMessage(errcode.CodeTenantNotFound))
 			c.Abort()
 			return
 		}
 
 		if tenant.Status == model.TenantStatusExpired {
-			c.JSON(http.StatusForbidden, gin.H{"code": errcode.CodeTenantExpired, "message": errcode.GetMessage(errcode.CodeTenantExpired), "data": nil})
+			handler.Forbidden(c, errcode.CodeTenantExpired, errcode.GetMessage(errcode.CodeTenantExpired))
 			c.Abort()
 			return
 		}
 		if tenant.Status == model.TenantStatusDisabled {
-			c.JSON(http.StatusForbidden, gin.H{"code": errcode.CodeTenantDisabled, "message": errcode.GetMessage(errcode.CodeTenantDisabled), "data": nil})
+			handler.Forbidden(c, errcode.CodeTenantDisabled, errcode.GetMessage(errcode.CodeTenantDisabled))
 			c.Abort()
 			return
 		}

@@ -2,50 +2,65 @@ package middleware
 
 import (
 	"CloudKey/internal/errcode"
+	"CloudKey/internal/handler"
 	"CloudKey/internal/model"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
+// RequireTenantAdmin 验证租户管理员权限
 func RequireTenantAdmin(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roleI, exists := c.Get("role")
 		if !exists {
-			c.JSON(http.StatusForbidden, gin.H{"code": errcode.CodeTenantAdminRequired, "message": errcode.GetMessage(errcode.CodeTenantAdminRequired), "data": nil})
+			handler.Forbidden(c, errcode.CodeTenantAdminRequired, errcode.GetMessage(errcode.CodeTenantAdminRequired))
 			c.Abort()
 			return
 		}
 		role, ok := roleI.(model.UserRole)
 		if !ok || role != model.RoleTenantAdmin {
-			c.JSON(http.StatusForbidden, gin.H{"code": errcode.CodeTenantAdminRequired, "message": errcode.GetMessage(errcode.CodeTenantAdminRequired), "data": nil})
+			handler.Forbidden(c, errcode.CodeTenantAdminRequired, errcode.GetMessage(errcode.CodeTenantAdminRequired))
 			c.Abort()
 			return
 		}
 
-		tenantIDI, exists := c.Get("tenant_id")
+		// 从 JWT claims 中获取 tenant_id
+		tenantIDRaw, exists := c.Get("tenant_id")
 		if !exists {
-			c.JSON(http.StatusForbidden, gin.H{"code": errcode.CodeTenantAdminRequired, "message": "租户信息缺失", "data": nil})
+			handler.Forbidden(c, errcode.CodeTenantAdminRequired, errcode.GetMessage(errcode.CodeTenantAdminRequired))
 			c.Abort()
 			return
 		}
-		tenantID := tenantIDI.(uint64)
+		tenantID, ok := tenantIDRaw.(uint64)
+		if !ok || tenantID == 0 {
+			handler.NotFound(c, errcode.CodeTenantNotFound, errcode.GetMessage(errcode.CodeTenantNotFound))
+			c.Abort()
+			return
+		}
 
-		// 检查租户是否 disabled
+		// 查询租户，验证租户存在且未过期/禁用
 		var tenant model.Tenant
 		if err := db.First(&tenant, tenantID).Error; err != nil {
-			c.JSON(http.StatusForbidden, gin.H{"code": errcode.CodeTenantNotFound, "message": errcode.GetMessage(errcode.CodeTenantNotFound), "data": nil})
+			handler.NotFound(c, errcode.CodeTenantNotFound, errcode.GetMessage(errcode.CodeTenantNotFound))
 			c.Abort()
 			return
 		}
-		if tenant.Status == model.TenantStatusDisabled {
-			c.JSON(http.StatusForbidden, gin.H{"code": errcode.CodeTenantDisabled, "message": errcode.GetMessage(errcode.CodeTenantDisabled), "data": nil})
-			c.Abort()
-			return
-		}
-		// expired 仍放行，由 TenantBusinessGuard 控制业务操作
 
+		if tenant.Status == model.TenantStatusExpired {
+			handler.Forbidden(c, errcode.CodeTenantExpired, errcode.GetMessage(errcode.CodeTenantExpired))
+			c.Abort()
+			return
+		}
+
+		if tenant.Status == model.TenantStatusDisabled {
+			handler.Forbidden(c, errcode.CodeTenantDisabled, errcode.GetMessage(errcode.CodeTenantDisabled))
+			c.Abort()
+			return
+		}
+
+		// 将完整的租户信息存入上下文，供后续使用
+		c.Set("tenant", &tenant)
 		c.Next()
 	}
 }

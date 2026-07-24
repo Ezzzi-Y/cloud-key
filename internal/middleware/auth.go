@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"CloudKey/internal/errcode"
+	"CloudKey/internal/handler"
 	"CloudKey/internal/model"
-	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -22,14 +22,14 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"code": errcode.CodeJWTInvalid, "message": errcode.GetMessage(errcode.CodeJWTInvalid), "data": nil})
+			handler.Unauthorized(c, errcode.CodeJWTInvalid, errcode.GetMessage(errcode.CodeJWTInvalid))
 			c.Abort()
 			return
 		}
 
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"code": errcode.CodeJWTInvalid, "message": errcode.GetMessage(errcode.CodeJWTInvalid), "data": nil})
+			handler.Unauthorized(c, errcode.CodeJWTInvalid, errcode.GetMessage(errcode.CodeJWTInvalid))
 			c.Abort()
 			return
 		}
@@ -43,7 +43,7 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"code": errcode.CodeJWTInvalid, "message": errcode.GetMessage(errcode.CodeJWTInvalid), "data": nil})
+			handler.Unauthorized(c, errcode.CodeJWTInvalid, errcode.GetMessage(errcode.CodeJWTInvalid))
 			c.Abort()
 			return
 		}
