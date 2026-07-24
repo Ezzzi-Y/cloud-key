@@ -34,7 +34,8 @@ const (
 	CodeAccountLocked  = 6002
 	CodePreAuthInvalid = 6003
 
-	// 系统 9999
+	// 系统 9001~9999
+	CodeRouteNotFound = 9001
 	CodeInternalError = 9999
 )
 
