@@ -21,7 +21,7 @@ func TestInitLogger_Console(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	Info("test message", zap.String("key", "value"))
+	zap.L().Info("test message", zap.String("key", "value"))
 	Sync()
 }
 
@@ -37,10 +37,10 @@ func TestInitLogger_JSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	Debug("debug message")
-	Info("info message")
-	Warn("warn message")
-	Error("error message")
+	zap.L().Debug("debug message")
+	zap.L().Info("info message")
+	zap.L().Warn("warn message")
+	zap.L().Error("error message")
 	Sync()
 }
 
@@ -66,7 +66,7 @@ func TestInitLogger_File(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	Info("file log test")
+	zap.L().Info("file log test")
 	Sync()
 
 	// 关闭日志文件句柄，确保 TempDir 清理时不报错

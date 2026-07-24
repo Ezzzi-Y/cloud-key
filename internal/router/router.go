@@ -2,6 +2,7 @@ package router
 
 import (
 	_ "CloudKey/docs"
+	"CloudKey/internal/errcode"
 	"CloudKey/internal/handler"
 	"CloudKey/internal/middleware"
 	"CloudKey/internal/service"
@@ -32,7 +33,9 @@ func SetupRouter(
 	rdb *redis.Client,
 	debug bool,
 ) *gin.Engine {
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(middleware.RequestLogger())
 	r.Use(middleware.CORSMiddleware())
 
 	// Swagger UI (仅 debug 模式启用)
@@ -50,7 +53,7 @@ func SetupRouter(
 	r.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
 		if strings.HasPrefix(path, "/api") {
-			c.JSON(404, gin.H{"code": 404, "message": "接口不存在"})
+			handler.NotFound(c, errcode.CodeRouteNotFound, errcode.GetMessage(errcode.CodeRouteNotFound))
 			return
 		}
 		// 尝试提供静态资源，不存在则 fallback 到 index.html（SPA 路由）

@@ -139,9 +139,10 @@ func (s *KeyService) syncCacheOnCreate(key *model.Key) {
 		"tenant_id":  key.TenantID,
 		"alias":      key.Alias,
 		"remaining":  key.RemainingAmount,
-		"status":     key.Status,
+		"status":     string(key.Status),
 		"version":    key.Version,
 		"expire_at":  expireTs,
+		"created_at": key.CreatedAt.UnixMilli(),
 	}).Err(); err != nil {
 		zap.L().Debug("syncCacheOnCreate failed", zap.Error(err))
 	}
@@ -159,6 +160,129 @@ func (s *KeyService) FindByRawKeyTenant(rawKey string, tenantID uint64) (*model.
 	return &key, nil
 }
 
+// LookupKey 统一查询 key：Redis 优先，miss 时回源 MySQL 并回填缓存（singleflight 防击穿）。
+// key 不存在时返回 (nil, nil)。
+func (s *KeyService) LookupKey(rawKey string, tenantID uint64) (*model.Key, error) {
+	keyHash := s.hashKey(rawKey)
+	log := zap.L().With(
+		zap.String("key_hash", keyHash[:16]),
+		zap.Uint64("tenant_id", tenantID),
+	)
+
+	// Redis 不可用时直接查 MySQL
+	if s.rdb == nil {
+		log.Warn("LookupKey: Redis 不可用，降级查 MySQL")
+		return s.FindByRawKeyTenant(rawKey, tenantID)
+	}
+
+	ck := cacheKey(keyHash)
+	ctx := context.Background()
+	// 尝试从 Redis 缓存读取
+	fields, err := s.rdb.HGetAll(ctx, ck).Result()
+	if err != nil {
+		log.Error("LookupKey: Redis HGetAll 失败", zap.Error(err))
+	} else if len(fields) > 0 {
+		key, ok := buildKeyFromHash(fields, tenantID)
+		if ok {
+			log.Debug("LookupKey: Redis 命中",
+				zap.Uint64("key_id", key.ID),
+				zap.String("status", string(key.Status)),
+				zap.Int64("remaining", key.RemainingAmount),
+			)
+			return key, nil
+		}
+		log.Warn("LookupKey: Redis 数据校验失败（tenant 不匹配或 id 为空），忽略缓存",
+			zap.Int("fields_count", len(fields)),
+		)
+	} else {
+		log.Debug("LookupKey: Redis 缓存为空")
+	}
+
+	// 缓存未命中，singleflight 回源 MySQL
+	sfKey := fmt.Sprintf("%s:%d", ck, tenantID)
+	log.Debug("LookupKey: 回源 MySQL（singleflight）")
+	v, err, _ := s.sfGroup.Do(sfKey, func() (interface{}, error) {
+		var key model.Key
+		if err := s.db.Where("key_hash = ? AND tenant_id = ?", keyHash, tenantID).First(&key).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				log.Debug("LookupKey: MySQL 未找到记录")
+				return nil, nil
+			}
+			log.Error("LookupKey: MySQL 查询异常", zap.Error(err))
+			return nil, err
+		}
+
+		log.Debug("LookupKey: MySQL 命中",
+			zap.Uint64("key_id", key.ID),
+			zap.String("status", string(key.Status)),
+			zap.Int64("remaining", key.RemainingAmount),
+			zap.Int64("version", key.Version),
+		)
+
+		// 回填 Redis 缓存
+		expireTs := int64(0)
+		if key.ExpireAt != nil {
+			expireTs = key.ExpireAt.UnixMilli()
+		}
+		if err := s.rdb.HSet(ctx, ck, map[string]interface{}{
+			"id":         key.ID,
+			"tenant_id":  key.TenantID,
+			"alias":      key.Alias,
+			"remaining":  key.RemainingAmount,
+			"status":     string(key.Status),
+			"version":    key.Version,
+			"expire_at":  expireTs,
+			"created_at": key.CreatedAt.UnixMilli(),
+		}).Err(); err != nil {
+			log.Error("LookupKey: Redis HSet 回填失败", zap.Error(err))
+		} else {
+			log.Debug("LookupKey: Redis 缓存回填成功")
+		}
+
+		return &key, nil
+	})
+
+	if err != nil {
+		log.Error("LookupKey: singleflight 执行失败", zap.Error(err))
+		return nil, err
+	}
+	if v == nil {
+		log.Debug("LookupKey: key 不存在")
+		return nil, nil
+	}
+	return v.(*model.Key), nil
+}
+
+// buildKeyFromHash 从 Redis Hash 字段构造 model.Key。
+// tenantID 用于校验归属。返回 (key, true) 表示成功。
+func buildKeyFromHash(fields map[string]string, tenantID uint64) (*model.Key, bool) {
+	id, _ := strconv.ParseUint(fields["id"], 10, 64)
+	tid, _ := strconv.ParseUint(fields["tenant_id"], 10, 64)
+	remaining, _ := strconv.ParseInt(fields["remaining"], 10, 64)
+	version, _ := strconv.ParseInt(fields["version"], 10, 64)
+	expireAtMs, _ := strconv.ParseInt(fields["expire_at"], 10, 64)
+	createdAtMs, _ := strconv.ParseInt(fields["created_at"], 10, 64)
+
+	if id == 0 || tid != tenantID {
+		return nil, false
+	}
+
+	key := &model.Key{
+		ID:              id,
+		TenantID:        tid,
+		Alias:           fields["alias"],
+		RemainingAmount: remaining,
+		Status:          model.KeyStatus(fields["status"]),
+		Version:         version,
+		CreatedAt:       time.UnixMilli(createdAtMs),
+	}
+	if expireAtMs > 0 {
+		t := time.UnixMilli(expireAtMs)
+		key.ExpireAt = &t
+	}
+	return key, true
+}
+
 type KeyStatusResult struct {
 	Alias           string          `json:"alias"`
 	RemainingAmount int64           `json:"remaining_amount"`
@@ -168,7 +292,7 @@ type KeyStatusResult struct {
 }
 
 func (s *KeyService) GetKeyStatusByTenant(rawKey string, tenantID uint64) (*KeyStatusResult, error) {
-	key, err := s.FindByRawKeyTenant(rawKey, tenantID)
+	key, err := s.LookupKey(rawKey, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -207,59 +331,12 @@ type consumeResult struct {
 	Alias     string `json:"alias"`
 }
 
-// loadKeyToCache 从 MySQL 加载 key 到 Redis 缓存（带 singleflight 防击穿）
-// 返回 model.Key 指针和 error。key 不存在时返回 (nil, nil)。
-func (s *KeyService) loadKeyToCache(rawKey string, tenantID uint64) (*model.Key, error) {
-	keyHash := s.hashKey(rawKey)
-	ck := cacheKey(keyHash)
-
-	v, err, _ := s.sfGroup.Do(ck, func() (interface{}, error) {
-		// 查 MySQL
-		var key model.Key
-		if err := s.db.Where("key_hash = ? AND tenant_id = ?", keyHash, tenantID).First(&key).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return nil, nil
-			}
-			return nil, err
-		}
-
-		// 写入 Redis 缓存
-		if s.rdb != nil {
-			ctx := context.Background()
-			expireTs := int64(0)
-			if key.ExpireAt != nil {
-				expireTs = key.ExpireAt.UnixMilli()
-			}
-			s.rdb.HSet(ctx, ck, map[string]interface{}{
-				"id":         key.ID,
-				"tenant_id":  key.TenantID,
-				"alias":      key.Alias,
-				"remaining":  key.RemainingAmount,
-				"status":     key.Status,
-				"version":    key.Version,
-				"expire_at":  expireTs,
-			})
-		}
-
-		return &key, nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-	if v == nil {
-		return nil, nil
-	}
-	return v.(*model.Key), nil
-}
-
-// consumeViaRedis Redis 快速路径：Lua 扣减 + MQ 发布
-func (s *KeyService) consumeViaRedis(rawKey string, amount int64, tenantID uint64) (*ConsumeResult, int, error) {
-	keyHash := s.hashKey(rawKey)
-	ck := cacheKey(keyHash)
+// consumeViaRedis Redis 快速路径：纯 Lua 扣减 + MQ 发布
+// key 存在性由调用方 LookupKey 保证，此处只做扣减。
+func (s *KeyService) consumeViaRedis(key *model.Key, amount int64, tenantID uint64) (*ConsumeResult, int, error) {
+	ck := cacheKey(key.KeyHash)
 	ctx := context.Background()
 
-	// 执行 Lua 脚本
 	raw, err := consumeLuaScript.Run(ctx, s.rdb, []string{ck}, amount, time.Now().UnixMilli()).Result()
 	if err != nil {
 		return nil, 0, fmt.Errorf("lua consume: %w", err)
@@ -270,13 +347,13 @@ func (s *KeyService) consumeViaRedis(rawKey string, amount int64, tenantID uint6
 		return nil, 0, fmt.Errorf("unmarshal lua result: %w", err)
 	}
 
-	// Cache miss → 回源加载后重试
+	// Lua 返回 -1 表示缓存数据丢失（可能被淘汰），重新回填后重试
 	if res.Code == -1 {
-		_, err := s.loadKeyToCache(rawKey, tenantID)
-		if err != nil {
-			return nil, 0, err
-		}
-		// 重试 Lua
+		zap.L().Warn("consumeViaRedis: Lua cache miss，重新回填缓存",
+			zap.Uint64("key_id", key.ID),
+		)
+		s.syncCacheOnCreate(key)
+
 		raw, err = consumeLuaScript.Run(ctx, s.rdb, []string{ck}, amount, time.Now().UnixMilli()).Result()
 		if err != nil {
 			return nil, 0, fmt.Errorf("lua consume retry: %w", err)
@@ -285,12 +362,11 @@ func (s *KeyService) consumeViaRedis(rawKey string, amount int64, tenantID uint6
 			return nil, 0, fmt.Errorf("unmarshal lua result: %w", err)
 		}
 		if res.Code == -1 {
-			// 回源后仍然 miss → key 不存在
-			return nil, errcode.CodeKeyNotFound, nil
+			// 回填后仍然 miss，返回系统错误触发 MySQL 降级
+			return nil, 0, fmt.Errorf("cache miss after backfill")
 		}
 	}
 
-	// 业务错误
 	if res.Code != 0 {
 		return nil, res.Code, nil
 	}
@@ -309,7 +385,6 @@ func (s *KeyService) consumeViaRedis(rawKey string, amount int64, tenantID uint6
 		}
 		if err := s.mqSvc.PublishConsumeEvent(event); err != nil {
 			zap.L().Error("发布 ConsumeEvent 失败", zap.Error(err))
-			// MQ 失败不影响消费结果，Redis 已扣减
 		}
 	}
 
@@ -322,9 +397,11 @@ func (s *KeyService) consumeViaRedis(rawKey string, amount int64, tenantID uint6
 }
 
 // consumeViaMySQL MySQL 降级路径：乐观锁重试
+// 每次重试直接查 MySQL 拿最新 version，保证乐观锁正确。
 func (s *KeyService) consumeViaMySQL(rawKey string, amount int64, tenantID uint64) (*ConsumeResult, int, error) {
 	const maxRetries = 3
 	for retry := 0; retry < maxRetries; retry++ {
+		// 直接查 MySQL 获取最新状态和 version
 		key, err := s.FindByRawKeyTenant(rawKey, tenantID)
 		if err != nil {
 			return nil, 0, err
@@ -375,7 +452,7 @@ func (s *KeyService) consumeViaMySQL(rawKey string, amount int64, tenantID uint6
 		if newRemaining <= 0 {
 			if err := tx.Model(&model.Key{}).Where("id = ?", key.ID).
 				Updates(map[string]interface{}{
-					"status": model.KeyStatusExhausted,
+					"status":  model.KeyStatusExhausted,
 					"used_at": time.Now(),
 				}).Error; err != nil {
 				tx.Rollback()
@@ -397,7 +474,6 @@ func (s *KeyService) consumeViaMySQL(rawKey string, amount int64, tenantID uint6
 			ctx := context.Background()
 			member := strconv.FormatUint(key.ID, 10)
 			if err := s.rdb.ZIncrBy(ctx, topKeysZSetKey(tenantID), 1, member).Err(); err != nil {
-				// Redis 故障不影响主流程，降级到 SQL 查询即可
 				zap.L().Debug("top_keys ZINCRBY failed", zap.Error(err))
 			}
 		}
@@ -416,16 +492,45 @@ func (s *KeyService) ConsumeKeyByTenant(rawKey string, amount int64, tenantID ui
 		return nil, 0, fmt.Errorf("invalid amount: %d", amount)
 	}
 
-	// Redis 可用时走快速路径
-	if s.rdb != nil {
-		result, code, err := s.consumeViaRedis(rawKey, amount, tenantID)
-		if err == nil {
-			return result, code, nil
-		}
-		zap.L().Warn("Redis consume failed, falling back to MySQL", zap.Error(err))
+	// 统一查找 key（Redis 优先 → miss 回源 MySQL → 回填缓存）
+	key, err := s.LookupKey(rawKey, tenantID)
+	if err != nil {
+		return nil, 0, err
+	}
+	if key == nil {
+		return nil, errcode.CodeKeyNotFound, nil
 	}
 
-	// 降级到 MySQL
+	// 业务状态校验（基于 LookupKey 返回的数据）
+	if key.Status == model.KeyStatusDisabled {
+		return nil, errcode.CodeKeyDisabled, nil
+	}
+	if key.Status == model.KeyStatusExpired {
+		return nil, errcode.CodeKeyExpired, nil
+	}
+	if key.Status == model.KeyStatusExhausted {
+		return nil, errcode.CodeKeyExhausted, nil
+	}
+	if !key.CanDeduct(amount) {
+		if key.RemainingAmount <= 0 {
+			return nil, errcode.CodeKeyExhausted, nil
+		}
+		return nil, errcode.CodeKeyInsufficient, nil
+	}
+
+	// Redis Lua 快速路径
+	if s.rdb != nil {
+		result, code, err := s.consumeViaRedis(key, amount, tenantID)
+		if err == nil && code == 0 {
+			return result, 0, nil
+		}
+		if code != 0 {
+			return nil, code, nil
+		}
+		zap.L().Warn("Redis deduct failed, falling back to MySQL", zap.Error(err))
+	}
+
+	// MySQL 乐观锁降级
 	return s.consumeViaMySQL(rawKey, amount, tenantID)
 }
 
@@ -743,15 +848,15 @@ func (s *KeyService) DeleteKey(id, tenantID uint64) error {
 }
 
 type ExportKeyItem struct {
-	ID              uint64         `json:"id"`
-	KeyPrefix       string         `json:"key_prefix"`
-	KeySuffix       string         `json:"key_suffix"`
-	Alias           string         `json:"alias"`
-	RemainingAmount int64          `json:"remaining_amount"`
+	ID              uint64          `json:"id"`
+	KeyPrefix       string          `json:"key_prefix"`
+	KeySuffix       string          `json:"key_suffix"`
+	Alias           string          `json:"alias"`
+	RemainingAmount int64           `json:"remaining_amount"`
 	Status          model.KeyStatus `json:"status"`
-	CreatedAt       time.Time      `json:"created_at"`
-	ExpireAt        *time.Time     `json:"expire_at"`
-	MaxUsage        *int64         `json:"max_usage"`
+	CreatedAt       time.Time       `json:"created_at"`
+	ExpireAt        *time.Time      `json:"expire_at"`
+	MaxUsage        *int64          `json:"max_usage"`
 }
 
 func (s *KeyService) ExportKeysJSON(tenantID uint64) ([]ExportKeyItem, error) {
@@ -792,21 +897,6 @@ func (s *KeyService) FindKeysByTenant(tenantID uint64) ([]model.Key, error) {
 		return nil, err
 	}
 	return keys, nil
-}
-
-// syncCacheOnBalanceChange 更新缓存中的 remaining 和 status（管理员调额后）
-func (s *KeyService) syncCacheOnBalanceChange(keyHash string, remaining int64, status model.KeyStatus) {
-	if s.rdb == nil {
-		return
-	}
-	ctx := context.Background()
-	ck := cacheKey(keyHash)
-	if err := s.rdb.HSet(ctx, ck, map[string]interface{}{
-		"remaining": remaining,
-		"status":    string(status),
-	}).Err(); err != nil {
-		zap.L().Debug("syncCacheOnBalanceChange failed", zap.Error(err))
-	}
 }
 
 // ExpireKeys 标记已过期的 key 为 expired 状态。

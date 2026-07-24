@@ -57,6 +57,7 @@ func InitLogger(cfg config.LogConfig) error {
 
 	core := zapcore.NewCore(encoder, writeSyncer, level)
 	logger = zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
+	zap.ReplaceGlobals(logger)
 
 	return nil
 }
@@ -75,41 +76,4 @@ func Close() error {
 		return lumberjackIO.Close()
 	}
 	return nil
-}
-
-// Debug 记录 DEBUG 级别日志
-func Debug(msg string, fields ...zap.Field) {
-	if logger != nil {
-		logger.Debug(msg, fields...)
-	}
-}
-
-// Info 记录 INFO 级别日志
-func Info(msg string, fields ...zap.Field) {
-	if logger != nil {
-		logger.Info(msg, fields...)
-	}
-}
-
-// Warn 记录 WARN 级别日志
-func Warn(msg string, fields ...zap.Field) {
-	if logger != nil {
-		logger.Warn(msg, fields...)
-	}
-}
-
-// Error 记录 ERROR 级别日志
-func Error(msg string, fields ...zap.Field) {
-	if logger != nil {
-		logger.Error(msg, fields...)
-	}
-}
-
-// Fatal 记录 FATAL 级别日志并退出程序
-func Fatal(msg string, fields ...zap.Field) {
-	if logger != nil {
-		logger.Fatal(msg, fields...)
-	} else {
-		os.Exit(1)
-	}
 }

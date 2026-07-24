@@ -48,29 +48,29 @@ func main() {
 	defer log.Sync()
 	defer log.Close()
 
-	log.Info("CloudKey 启动中...")
+	zap.L().Info("CloudKey 启动中...")
 
 	db, err := database.Connect(cfg.Database)
 	if err != nil {
-		log.Fatal("数据库连接失败", zap.Error(err))
+		zap.L().Fatal("数据库连接失败", zap.Error(err))
 	}
 	defer database.Close(db)
 
 	if err := model.AutoMigrate(db); err != nil {
-		log.Fatal("数据库迁移失败", zap.Error(err))
+		zap.L().Fatal("数据库迁移失败", zap.Error(err))
 	}
-	log.Info("数据库迁移完成")
+	zap.L().Info("数据库迁移完成")
 
 	// Redis
 	rdb, err := database.ConnectRedis(cfg.Redis)
 	if err != nil {
-		log.Fatal("Redis 连接失败", zap.Error(err))
+		zap.L().Fatal("Redis 连接失败", zap.Error(err))
 	}
 	defer database.CloseRedis(rdb)
-	log.Info("Redis 连接成功")
+	zap.L().Info("Redis 连接成功")
 
 	// RabbitMQ
-	log.Info("MQ 配置读取",
+	zap.L().Info("MQ 配置读取",
 		zap.String("host", cfg.MQ.Host),
 		zap.Int("port", cfg.MQ.Port),
 		zap.String("username", cfg.MQ.Username),
@@ -78,10 +78,10 @@ func main() {
 	var mqSvc *service.MQService
 	mqSvc, err = service.NewMQService(cfg.MQ)
 	if err != nil {
-		log.Fatal("RabbitMQ 连接失败", zap.Error(err))
+		zap.L().Fatal("RabbitMQ 连接失败", zap.Error(err))
 	}
 	defer mqSvc.Close()
-	log.Info("RabbitMQ 连接成功")
+	zap.L().Info("RabbitMQ 连接成功")
 
 	// Services
 	authSvc := service.NewAuthService(db, rdb, cfg.Auth.Secret, cfg.Auth.Expiration)
@@ -101,16 +101,16 @@ func main() {
 		for range ticker.C {
 			count, err := keySvc.ExpireKeys()
 			if err != nil {
-				log.Error("标记过期 key 失败", zap.Error(err))
+				zap.L().Error("标记过期 key 失败", zap.Error(err))
 			} else if count > 0 {
-				log.Info("标记过期 key", zap.Int64("count", count))
+				zap.L().Info("标记过期 key", zap.Int64("count", count))
 			}
 		}
 	}()
 
 	// Init defaults
 	if err := configSvc.InitDefaultConfigs(); err != nil {
-		log.Warn("初始化默认配置失败", zap.Error(err))
+		zap.L().Warn("初始化默认配置失败", zap.Error(err))
 	}
 
 	// Seed super admin
@@ -120,10 +120,10 @@ func main() {
 	}
 	superAdminPass := cfg.Auth.SuperAdminPassword
 	if superAdminPass == "" {
-		log.Fatal("请在 config.yaml 的 auth.super_admin_password 中配置超级管理员密码")
+		zap.L().Fatal("请在 config.yaml 的 auth.super_admin_password 中配置超级管理员密码")
 	}
 	if err := authSvc.SeedSuperAdmin(superAdminUser, superAdminPass); err != nil {
-		log.Warn("创建超级管理员失败", zap.Error(err))
+		zap.L().Warn("创建超级管理员失败", zap.Error(err))
 	}
 
 	// 回填 Redis top_keys 缓存
@@ -160,8 +160,8 @@ func main() {
 	)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-	log.Info("服务器启动", zap.String("address", addr))
+	zap.L().Info("服务器启动", zap.String("address", addr))
 	if err := r.Run(addr); err != nil {
-		log.Fatal("服务器启动失败", zap.Error(err))
+		zap.L().Fatal("服务器启动失败", zap.Error(err))
 	}
 }
