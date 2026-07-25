@@ -53,7 +53,7 @@ end
 
 -- 扣减
 local newRemaining = remaining - amount
-redis.call('HSET', key, 'remaining', tostring(newRemaining))
+redis.call('HSET', key, 'remaining', tostring(newRemaining), 'used_at', tostring(now))
 
 local newStatus = 'active'
 if newRemaining <= 0 then

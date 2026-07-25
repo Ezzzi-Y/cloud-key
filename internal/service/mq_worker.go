@@ -152,11 +152,12 @@ func (w *MQWorker) handleConsume(d amqp.Delivery) error {
 		return fmt.Errorf("begin tx: %w", tx.Error)
 	}
 
-	// 更新 key 余额和状态
+	// 更新 key 余额（增量扣减）和状态
 	result := tx.Model(&model.Key{}).Where("id = ?", event.KeyID).
 		Updates(map[string]interface{}{
-			"remaining_amount": event.RemainingAfter,
+			"remaining_amount": gorm.Expr("remaining_amount - ?", event.Amount),
 			"status":           event.StatusAfter,
+			"used_at":          time.UnixMilli(event.UsedAt),
 		})
 	if result.Error != nil {
 		tx.Rollback()
@@ -204,10 +205,10 @@ func (w *MQWorker) handleAdjust(d amqp.Delivery) error {
 		return fmt.Errorf("begin tx: %w", tx.Error)
 	}
 
-	// 更新 key 余额和状态
+	// 更新 key 余额（增量调整）和状态
 	result := tx.Model(&model.Key{}).Where("id = ?", event.KeyID).
 		Updates(map[string]interface{}{
-			"remaining_amount": event.RemainingAfter,
+			"remaining_amount": gorm.Expr("remaining_amount + ?", event.Delta),
 			"status":           event.StatusAfter,
 		})
 	if result.Error != nil {

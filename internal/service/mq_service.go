@@ -32,6 +32,7 @@ type ConsumeEvent struct {
 	UserAgent      string `json:"user_agent"`
 	Path           string `json:"path"`
 	Timestamp      int64  `json:"timestamp"`
+	UsedAt         int64  `json:"used_at"`
 }
 
 // AdjustEvent 额度调整事件
@@ -57,11 +58,16 @@ type MQService struct {
 
 // NewMQService 建立 RabbitMQ 连接，声明 exchange、业务队列、DLQ 队列
 func NewMQService(cfg config.MQConfig) (*MQService, error) {
-	url := fmt.Sprintf("amqp://%s:%s@%s:%d/", cfg.Username, cfg.Password, cfg.Host, cfg.Port)
+	vhost := cfg.VHost
+	if vhost == "" {
+		vhost = "/"
+	}
+	url := fmt.Sprintf("amqp://%s:%s@%s:%d/%s", cfg.Username, cfg.Password, cfg.Host, cfg.Port, vhost)
 	zap.L().Info("连接 RabbitMQ",
 		zap.String("host", cfg.Host),
 		zap.Int("port", cfg.Port),
 		zap.String("username", cfg.Username),
+		zap.String("vhost", vhost),
 		zap.String("url", url),
 	)
 	conn, err := amqp.Dial(url)
