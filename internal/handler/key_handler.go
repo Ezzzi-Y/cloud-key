@@ -96,7 +96,8 @@ func (h *TenantKeyHandler) Consume(c *gin.Context) {
 		return
 	}
 	if req.Amount <= 0 {
-		req.Amount = 1
+		BadRequest(c, errcode.CodeInvalidConsumeAmount, errcode.GetMessage(errcode.CodeInvalidConsumeAmount))
+		return
 	}
 
 	result, code, err := h.keySvc.ConsumeKeyByTenant(req.Key, req.Amount, tenantID)
