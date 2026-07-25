@@ -39,3 +39,4 @@ sdk/java/target/
 sdk/java/.gradle/
 sdk/java/*.class
 sdk/java/out/
+*.exe~

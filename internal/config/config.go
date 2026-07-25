@@ -88,6 +88,7 @@ type MQConfig struct {
 	Port     int    `yaml:"port" mapstructure:"port"`
 	Username string `yaml:"username" mapstructure:"username"`
 	Password string `yaml:"password" mapstructure:"password"`
+	VHost    string `yaml:"vhost" mapstructure:"vhost"`
 }
 
 // setDefaults 设置默认值
