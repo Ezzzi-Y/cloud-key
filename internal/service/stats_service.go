@@ -83,12 +83,100 @@ type TrendPoint struct {
 }
 
 func (s *StatsService) GetTrends(period string, dateRange *DateRange, tenantID uint64) ([]TrendPoint, error) {
+	// 自定义日期范围 → 走 MySQL（无法用固定桶覆盖任意区间）
+	if dateRange != nil && dateRange.StartDate != "" {
+		return s.getTrendsFromDB(period, dateRange, tenantID)
+	}
+
+	// today / week / month → 尝试 Redis
+	if s.rdb != nil {
+		points, err := s.getTrendsFromRedis(period, tenantID)
+		if err == nil && len(points) > 0 {
+			return points, nil
+		}
+		if err != nil {
+			zap.L().Debug("trends Redis read failed, falling back to SQL", zap.Error(err))
+		}
+	}
+
+	// Redis miss 或不可用 → MySQL 降级
+	return s.getTrendsFromDB(period, dateRange, tenantID)
+}
+
+// getTrendsFromRedis 从 Redis Hash 读取趋势计数器。
+func (s *StatsService) getTrendsFromRedis(period string, tenantID uint64) ([]TrendPoint, error) {
+	ctx := context.Background()
+	now := time.Now()
+
+	switch period {
+	case "today":
+		key := trendHourlyKey(tenantID)
+		vals, err := s.rdb.HGetAll(ctx, key).Result()
+		if err != nil {
+			return nil, err
+		}
+		todayPrefix := now.Format("2006-01-02")
+		points := make([]TrendPoint, 0, 24)
+		for h := 0; h < 24; h++ {
+			field := fmt.Sprintf("%02d", h)
+			calls := int64(0)
+			if v, ok := vals[field]; ok {
+				calls, _ = strconv.ParseInt(v, 10, 64)
+			}
+			points = append(points, TrendPoint{
+				Date:  fmt.Sprintf("%s %s", todayPrefix, field),
+				Calls: calls,
+			})
+		}
+		return points, nil
+
+	case "week":
+		key := trendDailyKey(tenantID)
+		vals, err := s.rdb.HGetAll(ctx, key).Result()
+		if err != nil {
+			return nil, err
+		}
+		points := make([]TrendPoint, 0, 7)
+		for i := 6; i >= 0; i-- {
+			d := now.AddDate(0, 0, -i)
+			field := d.Format("2006-01-02")
+			calls := int64(0)
+			if v, ok := vals[field]; ok {
+				calls, _ = strconv.ParseInt(v, 10, 64)
+			}
+			points = append(points, TrendPoint{Date: field, Calls: calls})
+		}
+		return points, nil
+
+	case "month":
+		key := trendDailyKey(tenantID)
+		vals, err := s.rdb.HGetAll(ctx, key).Result()
+		if err != nil {
+			return nil, err
+		}
+		points := make([]TrendPoint, 0, 30)
+		for i := 29; i >= 0; i-- {
+			d := now.AddDate(0, 0, -i)
+			field := d.Format("2006-01-02")
+			calls := int64(0)
+			if v, ok := vals[field]; ok {
+				calls, _ = strconv.ParseInt(v, 10, 64)
+			}
+			points = append(points, TrendPoint{Date: field, Calls: calls})
+		}
+		return points, nil
+	}
+
+	return nil, nil
+}
+
+// getTrendsFromDB 从 MySQL usage_logs 表查询趋势（支持日期过滤和 month 视图）。
+func (s *StatsService) getTrendsFromDB(period string, dateRange *DateRange, tenantID uint64) ([]TrendPoint, error) {
 	var dateFormat string
 	var startTime time.Time
 	var points []TrendPoint
 	now := time.Now()
 
-	// If explicit date range is provided, use it instead of period
 	if dateRange != nil && dateRange.StartDate != "" {
 		dateFormat = "%Y-%m-%d"
 		parsed, err := time.Parse("2006-01-02", dateRange.StartDate)
@@ -125,6 +213,22 @@ func (s *StatsService) GetTrends(period string, dateRange *DateRange, tenantID u
 	}
 
 	return points, nil
+}
+
+// trendHourlyKey returns the Redis Hash key for hourly trend counters.
+func trendHourlyKey(tenantID uint64) string {
+	return fmt.Sprintf("ck:trend:hourly:%d", tenantID)
+}
+
+// trendDailyKey returns the Redis Hash key for daily trend counters.
+func trendDailyKey(tenantID uint64) string {
+	return fmt.Sprintf("ck:trend:daily:%d", tenantID)
+}
+
+// endOfDay returns the end of the given day (23:59:59) for Redis TTL.
+func endOfDay(t time.Time) time.Time {
+	y, m, d := t.Date()
+	return time.Date(y, m, d, 23, 59, 59, 0, t.Location())
 }
 
 type TopItem struct {

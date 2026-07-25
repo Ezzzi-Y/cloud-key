@@ -130,7 +130,7 @@ func main() {
 	keySvc.BackfillTopKeys()
 
 	// MQ 消费者 Worker
-	mqWorker := service.NewMQWorker(mqSvc, db)
+	mqWorker := service.NewMQWorker(mqSvc, db, rdb)
 	mqWorker.Start()
 	defer mqWorker.Stop()
 

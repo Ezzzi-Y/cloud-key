@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -18,15 +19,17 @@ import (
 type MQWorker struct {
 	mq     *MQService
 	db     *gorm.DB
+	rdb    *redis.Client
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 }
 
 // NewMQWorker 创建消费者 Worker
-func NewMQWorker(mq *MQService, db *gorm.DB) *MQWorker {
+func NewMQWorker(mq *MQService, db *gorm.DB, rdb *redis.Client) *MQWorker {
 	return &MQWorker{
-		mq: mq,
-		db: db,
+		mq:  mq,
+		db:  db,
+		rdb: rdb,
 	}
 }
 
@@ -183,6 +186,24 @@ func (w *MQWorker) handleConsume(d amqp.Delivery) error {
 
 	if err := tx.Commit().Error; err != nil {
 		return fmt.Errorf("commit: %w", err)
+	}
+
+	// 异步更新趋势计数器（写入 Redis，失败仅记日志）
+	if w.rdb != nil {
+		now := time.UnixMilli(event.Timestamp)
+		ctx := context.Background()
+		hourKey := trendHourlyKey(event.TenantID)
+		dayKey := trendDailyKey(event.TenantID)
+		if err := w.rdb.HIncrBy(ctx, hourKey, now.Format("15"), 1).Err(); err != nil {
+			zap.L().Debug("trend hourly HINCRBY failed", zap.Error(err))
+		} else {
+			w.rdb.ExpireAt(ctx, hourKey, endOfDay(now))
+		}
+		if err := w.rdb.HIncrBy(ctx, dayKey, now.Format("2006-01-02"), 1).Err(); err != nil {
+			zap.L().Debug("trend daily HINCRBY failed", zap.Error(err))
+		} else {
+			w.rdb.Expire(ctx, dayKey, 30*24*time.Hour)
+		}
 	}
 
 	zap.L().Debug("ConsumeEvent 处理成功",
