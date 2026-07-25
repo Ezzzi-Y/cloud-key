@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { SkeletonTable } from '@/components/SkeletonTable'
 import { TablePagination } from '@/components/TablePagination'
 import { toast } from 'sonner'
-import { Download } from 'lucide-react'
+import { Download, Info, RefreshCw } from 'lucide-react'
 
 export default function BalanceLogs() {
   const [page, setPage] = useState(1)
@@ -18,7 +18,7 @@ export default function BalanceLogs() {
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['tenant-balance-logs', { page, keyId, operator, startTime, endTime }],
     queryFn: () =>
       listBalanceLogs({
@@ -55,29 +55,21 @@ export default function BalanceLogs() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
         <h2 className="text-2xl font-bold tracking-tight">额度调整记录</h2>
-        <Button variant="outline" size="sm" onClick={handleExport}>
-          <Download className="mr-2 h-4 w-4" />导出 JSON
-        </Button>
+        <span className="flex items-center gap-1 text-xs text-muted-foreground"><Info className="h-3 w-3" />数据可能存在一定延迟</span>
       </div>
-
-      <div className="flex flex-wrap gap-4">
-        <Input
-          placeholder="卡密 ID"
-          type="number"
-          value={keyId}
-          onChange={(e) => { setKeyId(e.target.value); setPage(1) }}
-          className="max-w-[120px]"
-        />
-        <Input
-          placeholder="操作人"
-          value={operator}
-          onChange={(e) => { setOperator(e.target.value); setPage(1) }}
-          className="max-w-[160px]"
-        />
+      <div className="flex flex-wrap items-center gap-4">
+        <Input placeholder="卡密 ID" type="number" value={keyId} onChange={(e) => { setKeyId(e.target.value); setPage(1) }} className="max-w-[120px]" />
+        <Input placeholder="操作人" value={operator} onChange={(e) => { setOperator(e.target.value); setPage(1) }} className="max-w-[160px]" />
         <Input type="datetime-local" value={startTime} onChange={(e) => { setStartTime(e.target.value); setPage(1) }} className="max-w-[200px]" />
         <Input type="datetime-local" value={endTime} onChange={(e) => { setEndTime(e.target.value); setPage(1) }} className="max-w-[200px]" />
+        <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="mr-2 h-4 w-4" />刷新</Button>
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Download className="mr-2 h-4 w-4" />导出 JSON
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (

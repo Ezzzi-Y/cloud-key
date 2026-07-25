@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { SkeletonTable } from '@/components/SkeletonTable'
 import { TablePagination } from '@/components/TablePagination'
 import { toast } from 'sonner'
-import { Download } from 'lucide-react'
+import { Download, Info, RefreshCw } from 'lucide-react'
 
 export default function UsageLogs() {
   const [page, setPage] = useState(1)
@@ -18,7 +18,7 @@ export default function UsageLogs() {
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['tenant-usage-logs', { page, keyAlias, ip, startTime, endTime }],
     queryFn: () => listUsageLogs({ page, page_size: 20, key_alias: keyAlias || undefined, ip: ip || undefined, start_time: startTime ? startTime.replace('T', ' ') : undefined, end_time: endTime ? endTime.replace('T', ' ') : undefined })
       .then((r) => (r.code === 0 ? r.data : { list: [], total: 0, page: 1, page_size: 20 })),
@@ -33,15 +33,19 @@ export default function UsageLogs() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
         <h2 className="text-2xl font-bold tracking-tight">使用记录</h2>
-        <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-2 h-4 w-4" />导出 JSON</Button>
+        <span className="flex items-center gap-1 text-xs text-muted-foreground"><Info className="h-3 w-3" />数据可能存在一定延迟</span>
       </div>
-      <div className="flex flex-wrap gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <Input placeholder="Key 别名" value={keyAlias} onChange={(e) => { setKeyAlias(e.target.value); setPage(1) }} className="max-w-[160px]" />
         <Input placeholder="IP 地址" value={ip} onChange={(e) => { setIp(e.target.value); setPage(1) }} className="max-w-[160px]" />
         <Input type="datetime-local" value={startTime} onChange={(e) => { setStartTime(e.target.value); setPage(1) }} className="max-w-[200px]" />
         <Input type="datetime-local" value={endTime} onChange={(e) => { setEndTime(e.target.value); setPage(1) }} className="max-w-[200px]" />
+        <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="mr-2 h-4 w-4" />刷新</Button>
+          <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-2 h-4 w-4" />导出 JSON</Button>
+        </div>
       </div>
 
       {isLoading ? (
