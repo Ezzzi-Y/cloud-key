@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getProfile, changePassword, setupTOTP, confirmTOTP } from '@/api/auth'
 import { listLoginLogs } from '@/api/logs'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { getKeyConfig, updateKeyConfig, type KeyConfig as KeyConfigType, type UpdateKeyConfigRequest } from '@/api/keys'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth'
 export default function TenantProfile() {
   const { username } = useAuth()
   const role = 'tenant'
+  const queryClient = useQueryClient()
 
   const { data: profile } = useQuery({
     queryKey: ['tenant-profile'],
@@ -43,12 +45,67 @@ export default function TenantProfile() {
     queryFn: () => listLoginLogs(role, loginPage).then((r) => r.code === 0 ? r.data : { list: [], total: 0, page: 1, page_size: 20 }),
   })
 
+  // ========== Key 配置 ==========
+  const [keyPrefix, setKeyPrefix] = useState('')
+  const [keyLength, setKeyLength] = useState(32)
+  const [keySuffixLength, setKeySuffixLength] = useState(4)
+  const [prefixError, setPrefixError] = useState('')
+  const [lengthError, setLengthError] = useState('')
+  const [suffixError, setSuffixError] = useState('')
+
+  const { data: keyConfig } = useQuery({
+    queryKey: ['tenant-key-config'],
+    queryFn: () => getKeyConfig().then((r) => (r.code === 0 ? (r.data as KeyConfigType) : null)),
+  })
+
+  useEffect(() => {
+    if (keyConfig) {
+      setKeyPrefix(keyConfig.key_prefix)
+      setKeyLength(keyConfig.key_length)
+      setKeySuffixLength(keyConfig.key_suffix_length)
+    }
+  }, [keyConfig])
+
+  const keyConfigMutation = useMutation({
+    mutationFn: (data: UpdateKeyConfigRequest) => updateKeyConfig(data),
+    onSuccess: (res) => {
+      if (res.code === 0) { toast.success('Key 配置已更新'); queryClient.invalidateQueries({ queryKey: ['tenant-key-config'] }) }
+      else toast.error(res.message)
+    },
+  })
+
+  const validateKeyConfig = (): boolean => {
+    let valid = true
+    setPrefixError(''); setLengthError(''); setSuffixError('')
+
+    if (!keyPrefix || keyPrefix.length < 1 || keyPrefix.length > 10) {
+      setPrefixError('前缀长度需在 1~10 之间'); valid = false
+    } else if (!/^[a-zA-Z0-9_]+-$/.test(keyPrefix)) {
+      setPrefixError('必须以 - 结尾，仅允许字母、数字、下划线'); valid = false
+    }
+    if (keyLength < 8 || keyLength > 32) {
+      setLengthError('Key 长度需在 8~32 之间'); valid = false
+    }
+    if (keySuffixLength < 4) {
+      setSuffixError('后缀显示长度不能小于 4'); valid = false
+    } else if (keySuffixLength > keyLength) {
+      setSuffixError('后缀显示长度不能超过 Key 长度'); valid = false
+    }
+    return valid
+  }
+
+  const handleKeyConfigSave = () => {
+    if (!validateKeyConfig()) return
+    keyConfigMutation.mutate({ key_prefix: keyPrefix, key_length: keyLength, key_suffix_length: keySuffixLength })
+  }
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">个人设置</h2>
       <Tabs defaultValue="profile">
         <TabsList>
           <TabsTrigger value="profile">资料 & 密码</TabsTrigger>
+          <TabsTrigger value="key-config">Key 配置</TabsTrigger>
           <TabsTrigger value="totp">验证器管理</TabsTrigger>
           <TabsTrigger value="history">登录日志</TabsTrigger>
         </TabsList>
@@ -68,6 +125,47 @@ export default function TenantProfile() {
                   <Button onClick={() => passMutation.mutate()} disabled={!oldPass || !newPass}>修改密码</Button>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="key-config">
+          <Card>
+            <CardHeader>
+              <CardTitle>卡密生成规则</CardTitle>
+              <CardDescription>配置新建卡密时的生成格式。平台仅存储末尾几位用于显示和识别卡密，修改仅影响后续创建的卡密。</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Key 前缀</Label>
+                  <Input value={keyPrefix} onChange={(e) => { setKeyPrefix(e.target.value); setPrefixError('') }} placeholder="sk-" maxLength={10} />
+                  <p className="text-xs text-muted-foreground">1~10 字符，必须以 - 结尾</p>
+                  {prefixError && <p className="text-xs text-destructive">{prefixError}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label>Key 长度</Label>
+                  <Input type="number" value={keyLength} onChange={(e) => { setKeyLength(Number(e.target.value)); setLengthError('') }} min={8} max={32} />
+                  <p className="text-xs text-muted-foreground">随机部分长度，范围 8~32</p>
+                  {lengthError && <p className="text-xs text-destructive">{lengthError}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label>后缀显示长度</Label>
+                  <Input type="number" value={keySuffixLength} onChange={(e) => { setKeySuffixLength(Number(e.target.value)); setSuffixError('') }} min={4} />
+                  <p className="text-xs text-muted-foreground">平台存储用于显示的位数，平台不完整存储Key。最少4位</p>
+                  {suffixError && <p className="text-xs text-destructive">{suffixError}</p>}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted p-4">
+                <p className="text-sm text-muted-foreground mb-1">生成示例：</p>
+                <code className="text-sm font-mono">
+                  {keyPrefix}
+                  {'x'.repeat(Math.min(keyLength, 8))}...
+                  <span className="text-primary font-bold"> (末 {keySuffixLength} 位显示)</span>
+                </code>
+              </div>
+              <Button onClick={handleKeyConfigSave} disabled={keyConfigMutation.isPending}>
+                {keyConfigMutation.isPending ? '保存中...' : '保存配置'}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

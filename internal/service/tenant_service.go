@@ -5,6 +5,7 @@ import (
 	cryptorand "crypto/rand"
 	"fmt"
 	mathrand "math/rand"
+	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -39,14 +40,39 @@ func (s *TenantService) CreateTenant(req CreateTenantRequest) (*CreateTenantResu
 
 	password := generateRandomPassword(16)
 
+	// 从 sys_configs 读取默认 Key 配置
+	keyPrefix := "sk-"
+	keyLength := 32
+	keySuffixLength := 4
+
+	var configs []model.SysConfig
+	if err := s.db.Where("`key` IN ?", []string{"key_prefix", "key_length", "key_suffix_length"}).Find(&configs).Error; err == nil {
+		for _, c := range configs {
+			switch c.Key {
+			case "key_prefix":
+				if c.Value != "" {
+					keyPrefix = c.Value
+				}
+			case "key_length":
+				if v, err := strconv.Atoi(c.Value); err == nil && v > 0 {
+					keyLength = v
+				}
+			case "key_suffix_length":
+				if v, err := strconv.Atoi(c.Value); err == nil && v > 0 {
+					keySuffixLength = v
+				}
+			}
+		}
+	}
+
 	tx := s.db.Begin()
 
 	tenant := model.Tenant{
 		Name:            req.Name,
 		Status:          model.TenantStatusActive,
-		KeyPrefix:       "sk-",
-		KeyLength:       32,
-		KeySuffixLength: 4,
+		KeyPrefix:       keyPrefix,
+		KeyLength:       keyLength,
+		KeySuffixLength: keySuffixLength,
 	}
 	if err := tx.Create(&tenant).Error; err != nil {
 		tx.Rollback()
@@ -114,12 +140,9 @@ func (s *TenantService) GetTenant(id uint64) (*TenantListItem, error) {
 }
 
 type UpdateTenantRequest struct {
-	Name            *string             `json:"name"`
-	Status          *model.TenantStatus `json:"status"`
-	ExpireAt        *string             `json:"expire_at"`
-	KeyPrefix       *string             `json:"key_prefix"`
-	KeyLength       *int                `json:"key_length"`
-	KeySuffixLength *int                `json:"key_suffix_length"`
+	Name     *string             `json:"name"`
+	Status   *model.TenantStatus `json:"status"`
+	ExpireAt *string             `json:"expire_at"`
 }
 
 func (s *TenantService) UpdateTenant(id uint64, req UpdateTenantRequest) error {
@@ -129,15 +152,6 @@ func (s *TenantService) UpdateTenant(id uint64, req UpdateTenantRequest) error {
 	}
 	if req.Status != nil {
 		updates["status"] = *req.Status
-	}
-	if req.KeyPrefix != nil {
-		updates["key_prefix"] = *req.KeyPrefix
-	}
-	if req.KeyLength != nil {
-		updates["key_length"] = *req.KeyLength
-	}
-	if req.KeySuffixLength != nil {
-		updates["key_suffix_length"] = *req.KeySuffixLength
 	}
 	if req.ExpireAt != nil {
 		if *req.ExpireAt == "" {

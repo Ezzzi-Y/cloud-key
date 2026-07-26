@@ -11,9 +11,6 @@ export interface UpdateTenantRequest {
   name?: string
   status?: 'active' | 'expired' | 'disabled'
   expire_at?: string
-  key_prefix?: string
-  key_length?: number
-  key_suffix_length?: number
 }
 
 export function listTenants() {

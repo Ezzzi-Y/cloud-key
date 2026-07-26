@@ -6,6 +6,7 @@ import (
 	"CloudKey/internal/service"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -442,6 +443,122 @@ func (h *TenantKeyHandler) ExportKeysJSON(c *gin.Context) {
 		items = make([]service.ExportKeyItem, 0)
 	}
 	Success(c, items)
+}
+
+// ========== Key Config API ==========
+
+// GetKeyConfig 获取当前租户的 Key 配置
+// @Summary     获取 Key 配置
+// @Description 租户管理员获取当前租户的卡密生成配置
+// @Tags        租户-配置
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Success     200 {object} Response "Key 配置信息"
+// @Failure     404 {object} Response "租户不存在"
+// @Router      /tenant/key-config [get]
+func (h *TenantKeyHandler) GetKeyConfig(c *gin.Context) {
+	tenantID := getTenantID(c)
+
+	var tenant model.Tenant
+	if err := h.db.First(&tenant, tenantID).Error; err != nil {
+		NotFound(c, errcode.CodeTenantNotFound, errcode.GetMessage(errcode.CodeTenantNotFound))
+		return
+	}
+
+	Success(c, gin.H{
+		"key_prefix":        tenant.KeyPrefix,
+		"key_length":        tenant.KeyLength,
+		"key_suffix_length": tenant.KeySuffixLength,
+	})
+}
+
+var keyPrefixRegexp = regexp.MustCompile(`^[a-zA-Z0-9_]+-$`)
+
+type UpdateKeyConfigRequest struct {
+	KeyPrefix       *string `json:"key_prefix"`
+	KeyLength       *int    `json:"key_length"`
+	KeySuffixLength *int    `json:"key_suffix_length"`
+}
+
+// UpdateKeyConfig 更新当前租户的 Key 配置
+// @Summary     更新 Key 配置
+// @Description 租户管理员更新当前租户的卡密生成配置
+// @Tags        租户-配置
+// @Accept      json
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       body body UpdateKeyConfigRequest true "配置参数"
+// @Success     200 {object} Response "更新成功"
+// @Failure     400 {object} Response "参数校验失败"
+// @Router      /tenant/key-config [patch]
+func (h *TenantKeyHandler) UpdateKeyConfig(c *gin.Context) {
+	tenantID := getTenantID(c)
+
+	var req UpdateKeyConfigRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		BadRequest(c, errcode.CodeKeyConfigInvalid, "参数错误")
+		return
+	}
+
+	// 读取当前配置作为基础
+	var tenant model.Tenant
+	if err := h.db.First(&tenant, tenantID).Error; err != nil {
+		NotFound(c, errcode.CodeTenantNotFound, errcode.GetMessage(errcode.CodeTenantNotFound))
+		return
+	}
+
+	keyLen := tenant.KeyLength
+	suffixLen := tenant.KeySuffixLength
+	prefix := tenant.KeyPrefix
+
+	if req.KeyPrefix != nil {
+		p := *req.KeyPrefix
+		if len(p) < 1 || len(p) > 10 {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "Key 前缀长度需在 1~10 之间")
+			return
+		}
+		if !keyPrefixRegexp.MatchString(p) {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "Key 前缀必须以 - 结尾，仅允许字母、数字、下划线")
+			return
+		}
+		prefix = p
+	}
+	if req.KeyLength != nil {
+		v := *req.KeyLength
+		if v < 8 || v > 32 {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "Key 长度需在 8~32 之间")
+			return
+		}
+		keyLen = v
+	}
+	if req.KeySuffixLength != nil {
+		v := *req.KeySuffixLength
+		if v < 4 {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "后缀显示长度不能小于 4")
+			return
+		}
+		suffixLen = v
+	}
+	if suffixLen > keyLen {
+		BadRequest(c, errcode.CodeKeyConfigInvalid, "后缀显示长度不能超过 Key 长度")
+		return
+	}
+
+	updates := map[string]interface{}{
+		"key_prefix":        prefix,
+		"key_length":        keyLen,
+		"key_suffix_length": suffixLen,
+	}
+	if err := h.db.Model(&model.Tenant{}).Where("id = ?", tenantID).Updates(updates).Error; err != nil {
+		InternalError(c)
+		return
+	}
+
+	Success(c, gin.H{
+		"key_prefix":        prefix,
+		"key_length":        keyLen,
+		"key_suffix_length": suffixLen,
+	})
 }
 
 // ========== Shared helpers ==========

@@ -25,6 +25,7 @@ const (
 	CodeTenantExpired  = 4001
 	CodeTenantDisabled = 4002
 	CodeTenantNotFound = 4003
+	CodeKeyConfigInvalid = 4004
 
 	// 权限相关 5001~5999
 	CodeSuperAdminRequired  = 5001
@@ -57,6 +58,7 @@ var codeMessages = map[int]string{
 	CodeTenantExpired:         "租户已到期，仅可查看统计数据",
 	CodeTenantDisabled:        "租户已被禁用",
 	CodeTenantNotFound:        "租户不存在",
+	CodeKeyConfigInvalid:        "Key 配置参数无效",
 	CodeSuperAdminRequired:    "需要系统管理员权限",
 	CodeTenantAdminRequired:   "需要租户管理员权限",
 	CodeRateLimit:             "请求过于频繁，请稍后再试",

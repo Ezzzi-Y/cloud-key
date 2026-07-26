@@ -48,3 +48,23 @@ export function adjustKeyBalance(id: number, data: AdjustBalanceRequest) {
 export function exportKeysJSON() {
   return api.get<unknown, ApiResponse<Key[]>>('/tenant/keys/export/json')
 }
+
+export interface KeyConfig {
+  key_prefix: string
+  key_length: number
+  key_suffix_length: number
+}
+
+export interface UpdateKeyConfigRequest {
+  key_prefix?: string
+  key_length?: number
+  key_suffix_length?: number
+}
+
+export function getKeyConfig() {
+  return api.get<unknown, ApiResponse<KeyConfig>>('/tenant/key-config')
+}
+
+export function updateKeyConfig(data: UpdateKeyConfigRequest) {
+  return api.patch<unknown, ApiResponse<KeyConfig>>('/tenant/key-config', data)
+}

@@ -37,23 +37,17 @@ func newBizError(code int) *BizError {
 }
 
 type KeyService struct {
-	db        *gorm.DB
-	rdb       *redis.Client
-	mqSvc     *MQService
-	keyPrefix string
-	keyLength int
-	suffixLen int
-	sfGroup   singleflight.Group
+	db      *gorm.DB
+	rdb     *redis.Client
+	mqSvc   *MQService
+	sfGroup singleflight.Group
 }
 
 func NewKeyService(db *gorm.DB, rdb *redis.Client, mqSvc *MQService) *KeyService {
 	return &KeyService{
-		db:        db,
-		rdb:       rdb,
-		mqSvc:     mqSvc,
-		keyPrefix: "sk-",
-		keyLength: 16,
-		suffixLen: 4,
+		db:    db,
+		rdb:   rdb,
+		mqSvc: mqSvc,
 	}
 }
 
@@ -65,17 +59,6 @@ func topKeysZSetKey(tenantID uint64) string {
 // topAmountZSetKey returns the Redis ZSET key for a tenant's top-amount ranking.
 func topAmountZSetKey(tenantID uint64) string {
 	return "top_amount:" + strconv.FormatUint(tenantID, 10)
-}
-
-func (s *KeyService) WithConfig(prefix string, keyLen, suffixLen int) *KeyService {
-	s.keyPrefix = prefix
-	s.keyLength = keyLen
-	s.suffixLen = suffixLen
-	return s
-}
-
-func (s *KeyService) generateRawKey() (string, error) {
-	return s.generateRawKeyWithConfig(s.keyPrefix, s.keyLength)
 }
 
 func (s *KeyService) generateRawKeyWithConfig(prefix string, keyLen int) (string, error) {

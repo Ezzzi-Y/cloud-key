@@ -20,9 +20,6 @@ export default function TenantDetail() {
   const [name, setName] = useState('')
   const [status, setStatus] = useState('active')
   const [expireAt, setExpireAt] = useState('')
-  const [keyPrefix, setKeyPrefix] = useState('sk-')
-  const [keyLength, setKeyLength] = useState(32)
-  const [keySuffixLength, setKeySuffixLength] = useState(4)
   const [newPassword, setNewPassword] = useState<string | null>(null)
 
   const { data: tenant, isLoading } = useQuery({
@@ -34,7 +31,6 @@ export default function TenantDetail() {
   useEffect(() => {
     if (tenant) {
       setName(tenant.name); setStatus(tenant.status); setExpireAt(tenant.expire_at || '')
-      setKeyPrefix(tenant.key_prefix); setKeyLength(tenant.key_length); setKeySuffixLength(tenant.key_suffix_length)
     }
   }, [tenant])
 
@@ -59,7 +55,7 @@ export default function TenantDetail() {
 
   const handleSave = () => {
     updateMutation.mutate({
-      name, status: status as 'active' | 'expired' | 'disabled', expire_at: expireAt || '', key_prefix: keyPrefix, key_length: keyLength, key_suffix_length: keySuffixLength,
+      name, status: status as 'active' | 'expired' | 'disabled', expire_at: expireAt || '',
     })
   }
 
@@ -103,16 +99,6 @@ export default function TenantDetail() {
             <div className="space-y-2"><Label>到期时间（留空表示永不过期）</Label>
               <Input type="datetime-local" value={expireAt ? expireAt.replace(' ', 'T') : ''} onChange={(e) => setExpireAt(e.target.value.replace('T', ' '))} />
             </div>
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader><CardTitle>Key 配置</CardTitle></CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2"><Label>Key 前缀</Label><Input value={keyPrefix} onChange={(e) => setKeyPrefix(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Key 长度</Label><Input type="number" value={keyLength} onChange={(e) => setKeyLength(Number(e.target.value))} /></div>
-            <div className="space-y-2"><Label>后缀显示长度</Label><Input type="number" value={keySuffixLength} onChange={(e) => setKeySuffixLength(Number(e.target.value))} /></div>
           </div>
         </CardContent>
       </Card>

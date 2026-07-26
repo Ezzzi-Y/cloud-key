@@ -114,6 +114,10 @@ func SetupRouter(
 		guarded := tenant.Group("")
 		guarded.Use(middleware.TenantDisabledGuard())
 		{
+			// Key 配置
+			guarded.GET("/key-config", tenantKeyHandler.GetKeyConfig)
+			guarded.PATCH("/key-config", middleware.TenantBusinessGuard(db), tenantKeyHandler.UpdateKeyConfig)
+
 			// Key 管理（业务操作加 BusinessGuard）
 			tenantKeys := guarded.Group("/keys")
 			tenantKeys.POST("", middleware.TenantBusinessGuard(db), tenantKeyHandler.CreateKey)

@@ -40,7 +40,7 @@ func (h *SuperHandler) ListTenants(c *gin.Context) {
 // @Accept      json
 // @Produce     json
 // @Security    ApiKeyAuth
-// @Param       body body object true "租户参数" Schema({"name":"string","expire_at":"string","key_prefix":"string","key_length":16,"key_suffix_length":4})
+// @Param       body body object true "租户参数" Schema({"name":"string"})
 // @Success     200 {object} Response{data=object{tenant=object,admin_username=string,admin_password=string}} "创建成功"
 // @Failure     400 {object} Response "参数错误"
 // @Router      /super/tenants [post]
