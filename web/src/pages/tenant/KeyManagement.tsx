@@ -21,7 +21,8 @@ import { Plus, Download, RefreshCw, MoreHorizontal, Edit, Ban, CheckCircle, Tras
 export default function KeyManagement() {
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState<KeyStatus | ''>('')
-  const [search, setSearch] = useState('')
+  const [alias, setAlias] = useState('')
+  const [keySuffix, setKeySuffix] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [adjustOpen, setAdjustOpen] = useState(false)
@@ -33,14 +34,13 @@ export default function KeyManagement() {
   const [selectedKey, setSelectedKey] = useState<{ id: number; alias: string } | null>(null)
   const [newAlias, setNewAlias] = useState('')
   const [newAmount, setNewAmount] = useState(100)
-  const [newExpireAt, setNewExpireAt] = useState('')
-  const [newMaxUsage, setNewMaxUsage] = useState('')
   const [saving, setSaving] = useState(false)
   const queryClient = useQueryClient()
 
   const params: KeyListParams = { page, page_size: 20 }
   if (status) params.status = status as KeyStatus
-  if (search) params.search = search
+  if (alias) params.alias = alias
+  if (keySuffix) params.key_suffix = keySuffix
 
   const { data, isLoading } = useQuery({
     queryKey: ['tenant-keys', params],
@@ -80,10 +80,10 @@ export default function KeyManagement() {
   })
 
   const handleCreate = () => {
-    createMutation.mutate({ alias: newAlias, remaining_amount: newAmount, expire_at: newExpireAt || undefined, max_usage: newMaxUsage ? Number(newMaxUsage) : undefined })
+    createMutation.mutate({ alias: newAlias, remaining_amount: newAmount })
   }
 
-  const closeCreate = () => { setRawKey(''); setCreateOpen(false); setNewAlias(''); setNewAmount(100); setNewExpireAt(''); setNewMaxUsage('') }
+  const closeCreate = () => { setRawKey(''); setCreateOpen(false); setNewAlias(''); setNewAmount(100) }
 
   const handleExportCSV = async () => {
     try {
@@ -138,8 +138,6 @@ export default function KeyManagement() {
                   <div className="space-y-4">
                     <div className="space-y-2"><Label>别名</Label><Input value={newAlias} onChange={(e) => setNewAlias(e.target.value)} placeholder="可选" /></div>
                     <div className="space-y-2"><Label>额度</Label><Input type="number" value={newAmount} onChange={(e) => setNewAmount(Number(e.target.value))} /></div>
-                    <div className="space-y-2"><Label>过期时间（可选）</Label><Input type="datetime-local" value={newExpireAt} onChange={(e) => setNewExpireAt(e.target.value.replace('T', ' '))} /></div>
-                    <div className="space-y-2"><Label>最大使用次数（可选）</Label><Input type="number" value={newMaxUsage} onChange={(e) => setNewMaxUsage(e.target.value)} /></div>
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setCreateOpen(false)}>取消</Button>
@@ -161,7 +159,8 @@ export default function KeyManagement() {
       </div>
 
       <div className="flex gap-4">
-        <Input placeholder="搜索别名..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} className="max-w-xs" />
+        <Input placeholder="别名前缀搜索..." value={alias} onChange={(e) => { setAlias(e.target.value); setPage(1) }} className="max-w-xs" />
+        <Input placeholder="后缀精准搜索..." value={keySuffix} onChange={(e) => { setKeySuffix(e.target.value); setPage(1) }} className="max-w-xs" />
         <Select value={status} onValueChange={(v) => { setStatus(v as KeyStatus | ''); setPage(1) }}>
           <SelectTrigger className="w-32"><SelectValue placeholder="全部状态" /></SelectTrigger>
           <SelectContent>

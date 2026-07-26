@@ -319,15 +319,15 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "卡密ID过滤",
-                        "name": "key_id",
+                        "type": "string",
+                        "description": "别名前缀搜索",
+                        "name": "alias",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "操作人过滤",
-                        "name": "operator",
+                        "description": "后缀精准搜索",
+                        "name": "key_suffix",
                         "in": "query"
                     },
                     {
@@ -387,15 +387,15 @@ const docTemplate = `{
                 "summary": "服务账号导出额度流转日志",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "卡密ID过滤",
-                        "name": "key_id",
+                        "type": "string",
+                        "description": "别名前缀搜索",
+                        "name": "alias",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "操作人过滤",
-                        "name": "operator",
+                        "description": "后缀精准搜索",
+                        "name": "key_suffix",
                         "in": "query"
                     },
                     {
@@ -458,14 +458,20 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "状态过滤: unused/used/disabled/expired",
+                        "description": "状态过滤: active/exhausted/disabled/expired",
                         "name": "status",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "关键字搜索",
-                        "name": "search",
+                        "description": "别名前缀搜索",
+                        "name": "alias",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "后缀精准搜索",
+                        "name": "key_suffix",
                         "in": "query"
                     }
                 ],
@@ -1563,15 +1569,15 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "卡密ID过滤",
-                        "name": "key_id",
+                        "type": "string",
+                        "description": "别名前缀搜索",
+                        "name": "alias",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "操作人过滤",
-                        "name": "operator",
+                        "description": "后缀精准搜索",
+                        "name": "key_suffix",
                         "in": "query"
                     },
                     {
@@ -1625,15 +1631,15 @@ const docTemplate = `{
                 "summary": "导出额度流转日志",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "卡密ID过滤",
-                        "name": "key_id",
+                        "type": "string",
+                        "description": "别名前缀搜索",
+                        "name": "alias",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "操作人过滤",
-                        "name": "operator",
+                        "description": "后缀精准搜索",
+                        "name": "key_suffix",
                         "in": "query"
                     },
                     {
@@ -1652,6 +1658,80 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "导出数据",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/tenant/key-config": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "租户管理员获取当前租户的卡密生成配置",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "租户-配置"
+                ],
+                "summary": "获取 Key 配置",
+                "responses": {
+                    "200": {
+                        "description": "Key 配置信息",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "租户不存在",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "租户管理员更新当前租户的卡密生成配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "租户-配置"
+                ],
+                "summary": "更新 Key 配置",
+                "parameters": [
+                    {
+                        "description": "配置参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.UpdateKeyConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "参数校验失败",
                         "schema": {
                             "$ref": "#/definitions/handler.Response"
                         }
@@ -1690,14 +1770,20 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "状态过滤: unused/used/disabled/expired",
+                        "description": "状态过滤: active/exhausted/disabled/expired",
                         "name": "status",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "关键字搜索",
-                        "name": "search",
+                        "description": "别名前缀搜索",
+                        "name": "alias",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "后缀精准搜索",
+                        "name": "key_suffix",
                         "in": "query"
                     }
                 ],
@@ -2545,6 +2631,80 @@ const docTemplate = `{
                 }
             }
         },
+        "/tenant/stats/refresh-top": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "租户-统计"
+                ],
+                "summary": "手动刷新 Top 统计",
+                "responses": {
+                    "200": {
+                        "description": "刷新成功",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "今天已刷新过",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/tenant/stats/top-amount": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "租户-统计"
+                ],
+                "summary": "额度消耗 Top10",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "开始日期 YYYY-MM-DD",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "结束日期 YYYY-MM-DD",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "额度消耗 Top10 列表",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "日期范围错误",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/tenant/stats/top-keys": {
             "get": {
                 "security": [
@@ -2773,14 +2933,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "卡密别名",
-                        "name": "key_alias",
+                        "description": "别名前缀搜索",
+                        "name": "alias",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "IP 地址",
-                        "name": "ip",
+                        "description": "后缀精准搜索",
+                        "name": "key_suffix",
                         "in": "query"
                     },
                     {
@@ -2835,14 +2995,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "卡密别名",
-                        "name": "key_alias",
+                        "description": "别名前缀搜索",
+                        "name": "alias",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "IP 地址",
-                        "name": "ip",
+                        "description": "后缀精准搜索",
+                        "name": "key_suffix",
                         "in": "query"
                     },
                     {
@@ -2913,14 +3073,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "测试卡密"
                 },
-                "expire_at": {
-                    "type": "string",
-                    "example": "2025-12-31 23:59:59"
-                },
-                "max_usage": {
-                    "type": "integer",
-                    "example": 10
-                },
                 "remaining_amount": {
                     "type": "integer",
                     "example": 100
@@ -2968,6 +3120,20 @@ const docTemplate = `{
                 "data": {},
                 "message": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.UpdateKeyConfigRequest": {
+            "type": "object",
+            "properties": {
+                "key_length": {
+                    "type": "integer"
+                },
+                "key_prefix": {
+                    "type": "string"
+                },
+                "key_suffix_length": {
+                    "type": "integer"
                 }
             }
         },

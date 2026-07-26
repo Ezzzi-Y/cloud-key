@@ -10,7 +10,7 @@ All URIs are relative to *http://localhost:8080/api*
 
 <a id="exportBalanceLogs"></a>
 # **exportBalanceLogs**
-> ExportBalanceLogsResponse exportBalanceLogs(keyId, operator, startTime, endTime)
+> ExportBalanceLogsResponse exportBalanceLogs(alias, keySuffix, startTime, endTime)
 
 导出额度流转日志
 
@@ -36,12 +36,12 @@ public class Example {
     //ServiceKeyAuth.setApiKeyPrefix("Token");
 
     BalanceLogsApi apiInstance = new BalanceLogsApi(defaultClient);
-    Long keyId = 56L; // Long | 卡密ID过滤
-    String operator = "operator_example"; // String | 操作人过滤
+    String alias = "alias_example"; // String | 别名前缀搜索
+    String keySuffix = "keySuffix_example"; // String | 后缀精准搜索
     String startTime = "startTime_example"; // String | 开始时间
     String endTime = "endTime_example"; // String | 结束时间
     try {
-      ExportBalanceLogsResponse result = apiInstance.exportBalanceLogs(keyId, operator, startTime, endTime);
+      ExportBalanceLogsResponse result = apiInstance.exportBalanceLogs(alias, keySuffix, startTime, endTime);
       System.out.println(result);
     } catch (CloudKeyException e) {
       System.err.println("Exception when calling BalanceLogsApi#exportBalanceLogs");
@@ -58,8 +58,8 @@ public class Example {
 
 | Name | Type | Description  | Notes |
 |------------- | ------------- | ------------- | -------------|
-| **keyId** | **Long**| 卡密ID过滤 | [optional] |
-| **operator** | **String**| 操作人过滤 | [optional] |
+| **alias** | **String**| 别名前缀搜索 | [optional] |
+| **keySuffix** | **String**| 后缀精准搜索 | [optional] |
 | **startTime** | **String**| 开始时间 | [optional] |
 | **endTime** | **String**| 结束时间 | [optional] |
 
@@ -84,7 +84,7 @@ public class Example {
 
 <a id="listBalanceLogs"></a>
 # **listBalanceLogs**
-> BalanceLogListResponse listBalanceLogs(page, pageSize, keyId, operator, startTime, endTime)
+> BalanceLogListResponse listBalanceLogs(page, pageSize, alias, keySuffix, startTime, endTime)
 
 查询额度流转日志
 
@@ -112,12 +112,12 @@ public class Example {
     BalanceLogsApi apiInstance = new BalanceLogsApi(defaultClient);
     Integer page = 1; // Integer | 页码
     Integer pageSize = 20; // Integer | 每页数量
-    Long keyId = 56L; // Long | 卡密ID过滤
-    String operator = "operator_example"; // String | 操作人过滤
+    String alias = "alias_example"; // String | 别名前缀搜索
+    String keySuffix = "keySuffix_example"; // String | 后缀精准搜索
     String startTime = "startTime_example"; // String | 开始时间
     String endTime = "endTime_example"; // String | 结束时间
     try {
-      BalanceLogListResponse result = apiInstance.listBalanceLogs(page, pageSize, keyId, operator, startTime, endTime);
+      BalanceLogListResponse result = apiInstance.listBalanceLogs(page, pageSize, alias, keySuffix, startTime, endTime);
       System.out.println(result);
     } catch (CloudKeyException e) {
       System.err.println("Exception when calling BalanceLogsApi#listBalanceLogs");
@@ -136,8 +136,8 @@ public class Example {
 |------------- | ------------- | ------------- | -------------|
 | **page** | **Integer**| 页码 | [optional] [default to 1] |
 | **pageSize** | **Integer**| 每页数量 | [optional] [default to 20] |
-| **keyId** | **Long**| 卡密ID过滤 | [optional] |
-| **operator** | **String**| 操作人过滤 | [optional] |
+| **alias** | **String**| 别名前缀搜索 | [optional] |
+| **keySuffix** | **String**| 后缀精准搜索 | [optional] |
 | **startTime** | **String**| 开始时间 | [optional] |
 | **endTime** | **String**| 结束时间 | [optional] |
 

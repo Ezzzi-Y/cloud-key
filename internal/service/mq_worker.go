@@ -252,6 +252,7 @@ func (w *MQWorker) handleAdjust(d amqp.Delivery) error {
 		TenantID:     event.TenantID,
 		KeyID:        event.KeyID,
 		KeyAlias:     event.KeyAlias,
+		KeySuffix:    event.KeySuffix,
 		Delta:        event.Delta,
 		BeforeAmount: event.RemainingAfter - event.Delta, // 反推操作前余额
 		AfterAmount:  event.RemainingAfter,

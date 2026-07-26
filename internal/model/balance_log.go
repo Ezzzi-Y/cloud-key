@@ -7,6 +7,7 @@ type BalanceLog struct {
 	TenantID     uint64    `gorm:"type:bigint;index;not null" json:"tenant_id"`
 	KeyID        uint64    `gorm:"type:bigint;index;not null" json:"key_id"`
 	KeyAlias     string    `gorm:"type:varchar(255);not null" json:"key_alias"`
+	KeySuffix    string    `gorm:"type:varchar(10);not null" json:"key_suffix"`
 	Delta        int64     `gorm:"type:bigint;not null" json:"delta"`
 	BeforeAmount int64     `gorm:"type:bigint;not null" json:"before_amount"`
 	AfterAmount  int64     `gorm:"type:bigint;not null" json:"after_amount"`

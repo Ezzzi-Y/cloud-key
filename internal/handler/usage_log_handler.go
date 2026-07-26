@@ -20,10 +20,10 @@ func NewTenantUsageLogHandler(usageLogSvc *service.UsageLogService, loginLogSvc 
 // @Tags        租户-使用日志
 // @Produce     json
 // @Security    ApiKeyAuth
-// @Param       page      query int    false "页码"       default(1)
-// @Param       page_size query int    false "每页数量"   default(20)
-// @Param       key_alias query string false "卡密别名"
-// @Param       ip        query string false "IP 地址"
+// @Param       page       query int    false "页码"       default(1)
+// @Param       page_size  query int    false "每页数量"   default(20)
+// @Param       alias      query string false "别名前缀搜索"
+// @Param       key_suffix query string false "后缀精准搜索"
 // @Param       start_time query string false "开始时间"
 // @Param       end_time   query string false "结束时间"
 // @Success     200 {object} Response{data=PageData} "分页使用日志"
@@ -34,7 +34,7 @@ func (h *TenantUsageLogHandler) ListLogs(c *gin.Context) {
 
 	logs, total, err := h.usageLogSvc.ListLogs(service.UsageLogQuery{
 		Page: page, PageSize: pageSize,
-		KeyAlias: c.Query("key_alias"), IP: c.Query("ip"),
+		Alias: c.Query("alias"), KeySuffix: c.Query("key_suffix"),
 		StartTime: c.Query("start_time"), EndTime: c.Query("end_time"),
 	}, tenantID)
 	if err != nil {
@@ -49,8 +49,8 @@ func (h *TenantUsageLogHandler) ListLogs(c *gin.Context) {
 // @Tags        租户-使用日志
 // @Produce     json
 // @Security    ApiKeyAuth
-// @Param       key_alias  query string false "卡密别名"
-// @Param       ip         query string false "IP 地址"
+// @Param       alias      query string false "别名前缀搜索"
+// @Param       key_suffix query string false "后缀精准搜索"
 // @Param       start_time query string false "开始时间"
 // @Param       end_time   query string false "结束时间"
 // @Success     200 {object} Response "使用日志列表"
@@ -58,7 +58,7 @@ func (h *TenantUsageLogHandler) ListLogs(c *gin.Context) {
 func (h *TenantUsageLogHandler) ExportLogs(c *gin.Context) {
 	tenantID := getTenantID(c)
 	logs, err := h.usageLogSvc.ExportLogs(service.UsageLogQuery{
-		KeyAlias: c.Query("key_alias"), IP: c.Query("ip"),
+		Alias: c.Query("alias"), KeySuffix: c.Query("key_suffix"),
 		StartTime: c.Query("start_time"), EndTime: c.Query("end_time"),
 	}, tenantID)
 	if err != nil {

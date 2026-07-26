@@ -43,8 +43,8 @@ func (s *UsageLogService) Record(params RecordUsageParams) error {
 type UsageLogQuery struct {
 	Page      int    `form:"page"`
 	PageSize  int    `form:"page_size"`
-	KeyAlias  string `form:"key_alias"`
-	IP        string `form:"ip"`
+	Alias     string `form:"alias"`      // 别名前缀搜索
+	KeySuffix string `form:"key_suffix"` // 后缀精准搜索
 	StartTime string `form:"start_time"`
 	EndTime   string `form:"end_time"`
 }
@@ -54,11 +54,11 @@ func (s *UsageLogService) ListLogs(query UsageLogQuery, tenantID uint64) ([]mode
 	var total int64
 
 	db := s.db.Model(&model.UsageLog{}).Where("tenant_id = ?", tenantID)
-	if query.KeyAlias != "" {
-		db = db.Where("key_alias = ?", query.KeyAlias)
+	if query.Alias != "" {
+		db = db.Where("key_alias LIKE ?", query.Alias+"%")
 	}
-	if query.IP != "" {
-		db = db.Where("ip = ?", query.IP)
+	if query.KeySuffix != "" {
+		db = db.Where("key_suffix = ?", query.KeySuffix)
 	}
 	if query.StartTime != "" {
 		db = db.Where("created_at >= ?", query.StartTime)
@@ -81,11 +81,11 @@ func (s *UsageLogService) ListLogs(query UsageLogQuery, tenantID uint64) ([]mode
 func (s *UsageLogService) ExportLogs(query UsageLogQuery, tenantID uint64) ([]model.UsageLog, error) {
 	var logs []model.UsageLog
 	db := s.db.Model(&model.UsageLog{}).Where("tenant_id = ?", tenantID)
-	if query.KeyAlias != "" {
-		db = db.Where("key_alias = ?", query.KeyAlias)
+	if query.Alias != "" {
+		db = db.Where("key_alias LIKE ?", query.Alias+"%")
 	}
-	if query.IP != "" {
-		db = db.Where("ip = ?", query.IP)
+	if query.KeySuffix != "" {
+		db = db.Where("key_suffix = ?", query.KeySuffix)
 	}
 	if query.StartTime != "" {
 		db = db.Where("created_at >= ?", query.StartTime)

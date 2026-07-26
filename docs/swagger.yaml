@@ -27,12 +27,6 @@ definitions:
       alias:
         example: 测试卡密
         type: string
-      expire_at:
-        example: "2025-12-31 23:59:59"
-        type: string
-      max_usage:
-        example: 10
-        type: integer
       remaining_amount:
         example: 100
         type: integer
@@ -69,6 +63,15 @@ definitions:
       data: {}
       message:
         type: string
+    type: object
+  handler.UpdateKeyConfigRequest:
+    properties:
+      key_length:
+        type: integer
+      key_prefix:
+        type: string
+      key_suffix_length:
+        type: integer
     type: object
   handler.Verify2FARequest:
     properties:
@@ -293,13 +296,13 @@ paths:
         in: query
         name: page_size
         type: integer
-      - description: 卡密ID过滤
+      - description: 别名前缀搜索
         in: query
-        name: key_id
-        type: integer
-      - description: 操作人过滤
+        name: alias
+        type: string
+      - description: 后缀精准搜索
         in: query
-        name: operator
+        name: key_suffix
         type: string
       - description: 开始时间
         in: query
@@ -333,13 +336,13 @@ paths:
   /service/balance-logs/export:
     get:
       parameters:
-      - description: 卡密ID过滤
+      - description: 别名前缀搜索
         in: query
-        name: key_id
-        type: integer
-      - description: 操作人过滤
+        name: alias
+        type: string
+      - description: 后缀精准搜索
         in: query
-        name: operator
+        name: key_suffix
         type: string
       - description: 开始时间
         in: query
@@ -378,13 +381,17 @@ paths:
         in: query
         name: page_size
         type: integer
-      - description: '状态过滤: unused/used/disabled/expired'
+      - description: '状态过滤: active/exhausted/disabled/expired'
         in: query
         name: status
         type: string
-      - description: 关键字搜索
+      - description: 别名前缀搜索
         in: query
-        name: search
+        name: alias
+        type: string
+      - description: 后缀精准搜索
+        in: query
+        name: key_suffix
         type: string
       produces:
       - application/json
@@ -1054,13 +1061,13 @@ paths:
         in: query
         name: page_size
         type: integer
-      - description: 卡密ID过滤
+      - description: 别名前缀搜索
         in: query
-        name: key_id
-        type: integer
-      - description: 操作人过滤
+        name: alias
+        type: string
+      - description: 后缀精准搜索
         in: query
-        name: operator
+        name: key_suffix
         type: string
       - description: 开始时间
         in: query
@@ -1090,13 +1097,13 @@ paths:
   /tenant/balance-logs/export:
     get:
       parameters:
-      - description: 卡密ID过滤
+      - description: 别名前缀搜索
         in: query
-        name: key_id
-        type: integer
-      - description: 操作人过滤
+        name: alias
+        type: string
+      - description: 后缀精准搜索
         in: query
-        name: operator
+        name: key_suffix
         type: string
       - description: 开始时间
         in: query
@@ -1118,6 +1125,52 @@ paths:
       summary: 导出额度流转日志
       tags:
       - 租户-额度流转日志
+  /tenant/key-config:
+    get:
+      description: 租户管理员获取当前租户的卡密生成配置
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Key 配置信息
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "404":
+          description: 租户不存在
+          schema:
+            $ref: '#/definitions/handler.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取 Key 配置
+      tags:
+      - 租户-配置
+    patch:
+      consumes:
+      - application/json
+      description: 租户管理员更新当前租户的卡密生成配置
+      parameters:
+      - description: 配置参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UpdateKeyConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: 参数校验失败
+          schema:
+            $ref: '#/definitions/handler.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新 Key 配置
+      tags:
+      - 租户-配置
   /tenant/keys:
     get:
       parameters:
@@ -1131,13 +1184,17 @@ paths:
         in: query
         name: page_size
         type: integer
-      - description: '状态过滤: unused/used/disabled/expired'
+      - description: '状态过滤: active/exhausted/disabled/expired'
         in: query
         name: status
         type: string
-      - description: 关键字搜索
+      - description: 别名前缀搜索
         in: query
-        name: search
+        name: alias
+        type: string
+      - description: 后缀精准搜索
+        in: query
+        name: key_suffix
         type: string
       produces:
       - application/json
@@ -1659,6 +1716,51 @@ paths:
       summary: 卡密概览统计
       tags:
       - 租户-统计
+  /tenant/stats/refresh-top:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 刷新成功
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "429":
+          description: 今天已刷新过
+          schema:
+            $ref: '#/definitions/handler.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 手动刷新 Top 统计
+      tags:
+      - 租户-统计
+  /tenant/stats/top-amount:
+    get:
+      parameters:
+      - description: 开始日期 YYYY-MM-DD
+        in: query
+        name: start_date
+        type: string
+      - description: 结束日期 YYYY-MM-DD
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 额度消耗 Top10 列表
+          schema:
+            $ref: '#/definitions/handler.Response'
+        "400":
+          description: 日期范围错误
+          schema:
+            $ref: '#/definitions/handler.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 额度消耗 Top10
+      tags:
+      - 租户-统计
   /tenant/stats/top-keys:
     get:
       parameters:
@@ -1792,13 +1894,13 @@ paths:
         in: query
         name: page_size
         type: integer
-      - description: 卡密别名
+      - description: 别名前缀搜索
         in: query
-        name: key_alias
+        name: alias
         type: string
-      - description: IP 地址
+      - description: 后缀精准搜索
         in: query
-        name: ip
+        name: key_suffix
         type: string
       - description: 开始时间
         in: query
@@ -1828,13 +1930,13 @@ paths:
   /tenant/usage-logs/export:
     get:
       parameters:
-      - description: 卡密别名
+      - description: 别名前缀搜索
         in: query
-        name: key_alias
+        name: alias
         type: string
-      - description: IP 地址
+      - description: 后缀精准搜索
         in: query
-        name: ip
+        name: key_suffix
         type: string
       - description: 开始时间
         in: query

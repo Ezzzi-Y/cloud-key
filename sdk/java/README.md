@@ -1,8 +1,8 @@
 # openapi-java-client
 
 CloudKey Service Account API
-- API version: 2.0
-  - Build date: 2026-07-23T19:29:15.518413200+08:00[Asia/Shanghai]
+- API version: 2.2
+  - Build date: 2026-07-26T17:37:36.210402400+08:00[Asia/Shanghai]
   - Generator version: 7.24.0
 
 卡密管理系统 - 服务账号 SDK
@@ -41,7 +41,7 @@ Add this dependency to your project's POM:
 <dependency>
   <groupId>org.openapitools</groupId>
   <artifactId>openapi-java-client</artifactId>
-  <version>2.0</version>
+  <version>2.2</version>
   <scope>compile</scope>
 </dependency>
 ```
@@ -57,7 +57,7 @@ Add this dependency to your project's build file:
   }
 
   dependencies {
-     implementation "org.openapitools:openapi-java-client:2.0"
+     implementation "org.openapitools:openapi-java-client:2.2"
   }
 ```
 
@@ -71,7 +71,7 @@ mvn clean package
 
 Then manually install the following JARs:
 
-* `target/openapi-java-client-2.0.jar`
+* `target/openapi-java-client-2.2.jar`
 * `target/lib/*.jar`
 
 ## Getting Started
@@ -100,12 +100,12 @@ public class Example {
     //ServiceKeyAuth.setApiKeyPrefix("Token");
 
     BalanceLogsApi apiInstance = new BalanceLogsApi(defaultClient);
-    Long keyId = 56L; // Long | 卡密ID过滤
-    String operator = "operator_example"; // String | 操作人过滤
+    String alias = "alias_example"; // String | 别名前缀搜索
+    String keySuffix = "keySuffix_example"; // String | 后缀精准搜索
     String startTime = "startTime_example"; // String | 开始时间
     String endTime = "endTime_example"; // String | 结束时间
     try {
-      ExportBalanceLogsResponse result = apiInstance.exportBalanceLogs(keyId, operator, startTime, endTime);
+      ExportBalanceLogsResponse result = apiInstance.exportBalanceLogs(alias, keySuffix, startTime, endTime);
       System.out.println(result);
     } catch (CloudKeyException e) {
       System.err.println("Exception when calling BalanceLogsApi#exportBalanceLogs");

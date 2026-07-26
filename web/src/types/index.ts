@@ -67,8 +67,6 @@ export interface Key {
 export interface CreateKeyRequest {
   alias: string
   remaining_amount: number
-  expire_at?: string
-  max_usage?: number
 }
 
 export interface UpdateKeyRequest {
@@ -79,7 +77,8 @@ export interface KeyListParams {
   page?: number
   page_size?: number
   status?: KeyStatus
-  search?: string
+  alias?: string
+  key_suffix?: string
 }
 
 export interface KeyStatusResult {
@@ -126,8 +125,8 @@ export interface UsageLog {
 export interface UsageLogQuery {
   page?: number
   page_size?: number
-  key_alias?: string
-  ip?: string
+  alias?: string
+  key_suffix?: string
   start_time?: string
   end_time?: string
 }
@@ -181,6 +180,7 @@ export interface BalanceLog {
   tenant_id: number
   key_id: number
   key_alias: string
+  key_suffix: string
   delta: number
   before_amount: number
   after_amount: number
@@ -192,8 +192,8 @@ export interface BalanceLog {
 export interface BalanceLogQuery {
   page?: number
   page_size?: number
-  key_id?: number
-  operator?: string
+  alias?: string
+  key_suffix?: string
   start_time?: string
   end_time?: string
 }

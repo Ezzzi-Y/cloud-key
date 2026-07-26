@@ -13,20 +13,20 @@ import { Download, Info, RefreshCw } from 'lucide-react'
 
 export default function UsageLogs() {
   const [page, setPage] = useState(1)
-  const [keyAlias, setKeyAlias] = useState('')
-  const [ip, setIp] = useState('')
+  const [alias, setAlias] = useState('')
+  const [keySuffix, setKeySuffix] = useState('')
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['tenant-usage-logs', { page, keyAlias, ip, startTime, endTime }],
-    queryFn: () => listUsageLogs({ page, page_size: 20, key_alias: keyAlias || undefined, ip: ip || undefined, start_time: startTime ? startTime.replace('T', ' ') : undefined, end_time: endTime ? endTime.replace('T', ' ') : undefined })
+    queryKey: ['tenant-usage-logs', { page, alias, keySuffix, startTime, endTime }],
+    queryFn: () => listUsageLogs({ page, page_size: 20, alias: alias || undefined, key_suffix: keySuffix || undefined, start_time: startTime ? startTime.replace('T', ' ') : undefined, end_time: endTime ? endTime.replace('T', ' ') : undefined })
       .then((r) => (r.code === 0 ? r.data : { list: [], total: 0, page: 1, page_size: 20 })),
   })
 
   const handleExport = async () => {
     try {
-      const res = await exportUsageLogs({ key_alias: keyAlias || undefined, ip: ip || undefined, start_time: startTime ? startTime.replace('T', ' ') : undefined, end_time: endTime ? endTime.replace('T', ' ') : undefined })
+      const res = await exportUsageLogs({ alias: alias || undefined, key_suffix: keySuffix || undefined, start_time: startTime ? startTime.replace('T', ' ') : undefined, end_time: endTime ? endTime.replace('T', ' ') : undefined })
       if (res.code === 0) { const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'usage-logs.json'; a.click(); URL.revokeObjectURL(url) }
     } catch { toast.error('导出失败') }
   }
@@ -38,8 +38,8 @@ export default function UsageLogs() {
         <span className="flex items-center gap-1 text-xs text-muted-foreground"><Info className="h-3 w-3" />数据可能存在一定延迟</span>
       </div>
       <div className="flex flex-wrap items-center gap-4">
-        <Input placeholder="Key 别名" value={keyAlias} onChange={(e) => { setKeyAlias(e.target.value); setPage(1) }} className="max-w-[160px]" />
-        <Input placeholder="IP 地址" value={ip} onChange={(e) => { setIp(e.target.value); setPage(1) }} className="max-w-[160px]" />
+        <Input placeholder="别名前缀搜索..." value={alias} onChange={(e) => { setAlias(e.target.value); setPage(1) }} className="max-w-[160px]" />
+        <Input placeholder="后缀精准搜索..." value={keySuffix} onChange={(e) => { setKeySuffix(e.target.value); setPage(1) }} className="max-w-[160px]" />
         <Input type="datetime-local" value={startTime} onChange={(e) => { setStartTime(e.target.value); setPage(1) }} className="max-w-[200px]" />
         <Input type="datetime-local" value={endTime} onChange={(e) => { setEndTime(e.target.value); setPage(1) }} className="max-w-[200px]" />
         <div className="ml-auto flex gap-2">

@@ -38,7 +38,7 @@ func (h *TenantServiceAccountHandler) getTenantKeyConfig(tenantID uint64) (strin
 // @Accept      json
 // @Produce     json
 // @Security    ServiceKeyAuth
-// @Param       body body object true "卡密参数" Schema({"alias":"string","remaining_amount":100,"expire_at":"string","max_usage":10})
+// @Param       body body object true "卡密参数" Schema({"alias":"string","remaining_amount":100})
 // @Success     200 {object} Response "创建成功"
 // @Failure     401 {object} Response "服务账号密钥无效"
 // @Router      /service/keys [post]
@@ -55,10 +55,8 @@ func (h *TenantServiceAccountHandler) ServiceCreateKey(c *gin.Context) {
 	}
 
 	var req struct {
-		Alias           string  `json:"alias" binding:"required"`
-		RemainingAmount int64   `json:"remaining_amount" binding:"required"`
-		ExpireAt        *string `json:"expire_at"`
-		MaxUsage        *int64  `json:"max_usage"`
+		Alias           string `json:"alias" binding:"required"`
+		RemainingAmount int64  `json:"remaining_amount" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		BadRequest(c, errcode.CodeServiceKeyInvalid, "参数错误")
@@ -66,12 +64,6 @@ func (h *TenantServiceAccountHandler) ServiceCreateKey(c *gin.Context) {
 	}
 
 	createdBy := "sa:" + sa.Name
-
-	expireAt, err := parseExpireAt(req.ExpireAt)
-	if err != nil {
-		BadRequest(c, errcode.CodeServiceKeyInvalid, err.Error())
-		return
-	}
 
 	prefix, keyLen, suffixLen, err := h.getTenantKeyConfig(sa.TenantID)
 	if err != nil {
@@ -81,7 +73,6 @@ func (h *TenantServiceAccountHandler) ServiceCreateKey(c *gin.Context) {
 
 	result, err := h.keySvc.CreateKey(service.CreateKeyRequest{
 		Alias: req.Alias, RemainingAmount: req.RemainingAmount, CreatedBy: createdBy,
-		ExpireAt: expireAt, MaxUsage: req.MaxUsage,
 	}, sa.TenantID, prefix, keyLen, suffixLen)
 	if err != nil {
 		InternalError(c)
@@ -94,6 +85,7 @@ func (h *TenantServiceAccountHandler) ServiceCreateKey(c *gin.Context) {
 			TenantID:     sa.TenantID,
 			KeyID:        result.Key.ID,
 			KeyAlias:     result.Key.Alias,
+			KeySuffix:    result.Key.KeySuffix,
 			Delta:        result.Key.RemainingAmount,
 			BeforeAmount: 0,
 			AfterAmount:  result.Key.RemainingAmount,
@@ -106,7 +98,6 @@ func (h *TenantServiceAccountHandler) ServiceCreateKey(c *gin.Context) {
 		"id": result.Key.ID, "raw_key": result.RawKey, "alias": result.Key.Alias,
 		"key_suffix": result.Key.KeySuffix,
 		"remaining_amount": result.Key.RemainingAmount, "status": result.Key.Status,
-		"expire_at": result.Key.ExpireAt, "max_usage": result.Key.MaxUsage,
 	})
 }
 
@@ -115,10 +106,11 @@ func (h *TenantServiceAccountHandler) ServiceCreateKey(c *gin.Context) {
 // @Tags        服务账号API
 // @Produce     json
 // @Security    ServiceKeyAuth
-// @Param       page      query int    false "页码"     default(1)
-// @Param       page_size query int    false "每页数量" default(20)
-// @Param       status    query string false "状态过滤: unused/used/disabled/expired"
-// @Param       search    query string false "关键字搜索"
+// @Param       page       query int    false "页码"     default(1)
+// @Param       page_size  query int    false "每页数量" default(20)
+// @Param       status     query string false "状态过滤: active/exhausted/disabled/expired"
+// @Param       alias      query string false "别名前缀搜索"
+// @Param       key_suffix query string false "后缀精准搜索"
 // @Success     200 {object} Response{data=PageData} "分页卡密列表"
 // @Failure     401 {object} Response "服务账号密钥无效"
 // @Router      /service/keys [get]
@@ -137,7 +129,7 @@ func (h *TenantServiceAccountHandler) ServiceListKeys(c *gin.Context) {
 
 	keys, total, err := h.keySvc.ListKeys(service.KeyListQuery{
 		Page: page, PageSize: pageSize,
-		Status: c.Query("status"), Search: c.Query("search"),
+		Status: c.Query("status"), Alias: c.Query("alias"), KeySuffix: c.Query("key_suffix"),
 	}, sa.TenantID)
 	if err != nil {
 		InternalError(c)
@@ -378,13 +370,16 @@ func (h *TenantServiceAccountHandler) ServiceAdjustBalance(c *gin.Context) {
 	// 记录流转日志
 	key, _ := h.keySvc.GetKeyDetail(id, sa.TenantID)
 	keyAlias := ""
+	keySuffix := ""
 	if key != nil {
 		keyAlias = key.Alias
+		keySuffix = key.KeySuffix
 	}
 	_ = h.balanceLogSvc.Record(service.RecordBalanceParams{
 		TenantID:     sa.TenantID,
 		KeyID:        id,
 		KeyAlias:     keyAlias,
+		KeySuffix:    keySuffix,
 		Delta:        req.Delta,
 		BeforeAmount: result.BeforeAmount,
 		AfterAmount:  result.AfterAmount,

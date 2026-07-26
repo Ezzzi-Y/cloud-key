@@ -9,8 +9,6 @@
 |------------ | ------------- | ------------- | -------------|
 |**alias** | **String** |  |  |
 |**remainingAmount** | **Long** |  |  |
-|**expireAt** | **OffsetDateTime** |  |  [optional] |
-|**maxUsage** | **Long** |  |  [optional] |
 
 
 

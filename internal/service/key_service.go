@@ -573,10 +573,11 @@ func (s *KeyService) ConsumeKeyByTenant(rawKey string, amount int64, tenantID ui
 }
 
 type KeyListQuery struct {
-	Page     int    `form:"page"`
-	PageSize int    `form:"page_size"`
-	Status   string `form:"status"`
-	Search   string `form:"search"`
+	Page      int    `form:"page"`
+	PageSize  int    `form:"page_size"`
+	Status    string `form:"status"`
+	Alias     string `form:"alias"`      // 别名前缀搜索
+	KeySuffix string `form:"key_suffix"` // 后缀精准搜索
 }
 
 func (s *KeyService) GetKeyDetail(id, tenantID uint64) (*model.Key, error) {
@@ -595,8 +596,11 @@ func (s *KeyService) ListKeys(query KeyListQuery, tenantID uint64) ([]model.Key,
 	if query.Status != "" {
 		db = db.Where("status = ?", query.Status)
 	}
-	if query.Search != "" {
-		db = db.Where("alias LIKE ? OR key_suffix LIKE ?", "%"+query.Search+"%", "%"+query.Search+"%")
+	if query.Alias != "" {
+		db = db.Where("alias LIKE ?", query.Alias+"%")
+	}
+	if query.KeySuffix != "" {
+		db = db.Where("key_suffix = ?", query.KeySuffix)
 	}
 
 	if err := db.Count(&total).Error; err != nil {
@@ -742,6 +746,7 @@ func (s *KeyService) adjustViaRedis(keyHash string, id, tenantID uint64, req Adj
 			EventID:        uuid.New().String(),
 			KeyID:          id,
 			KeyAlias:       key.Alias,
+			KeySuffix:      key.KeySuffix,
 			TenantID:       tenantID,
 			Delta:          req.Delta,
 			RemainingAfter: res.After,

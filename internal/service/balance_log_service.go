@@ -19,6 +19,7 @@ type RecordBalanceParams struct {
 	TenantID     uint64
 	KeyID        uint64
 	KeyAlias     string
+	KeySuffix    string
 	Delta        int64
 	BeforeAmount int64
 	AfterAmount  int64
@@ -31,6 +32,7 @@ func (s *BalanceLogService) Record(params RecordBalanceParams) error {
 		TenantID:     params.TenantID,
 		KeyID:        params.KeyID,
 		KeyAlias:     params.KeyAlias,
+		KeySuffix:    params.KeySuffix,
 		Delta:        params.Delta,
 		BeforeAmount: params.BeforeAmount,
 		AfterAmount:  params.AfterAmount,
@@ -43,8 +45,8 @@ func (s *BalanceLogService) Record(params RecordBalanceParams) error {
 type BalanceLogQuery struct {
 	Page      int    `form:"page"`
 	PageSize  int    `form:"page_size"`
-	KeyID     uint64 `form:"key_id"`
-	Operator  string `form:"operator"`
+	Alias     string `form:"alias"`      // 别名前缀搜索
+	KeySuffix string `form:"key_suffix"` // 后缀精准搜索
 	StartTime string `form:"start_time"`
 	EndTime   string `form:"end_time"`
 }
@@ -54,11 +56,11 @@ func (s *BalanceLogService) ListLogs(query BalanceLogQuery, tenantID uint64) ([]
 	var total int64
 
 	db := s.db.Model(&model.BalanceLog{}).Where("tenant_id = ?", tenantID)
-	if query.KeyID > 0 {
-		db = db.Where("key_id = ?", query.KeyID)
+	if query.Alias != "" {
+		db = db.Where("key_alias LIKE ?", query.Alias+"%")
 	}
-	if query.Operator != "" {
-		db = db.Where("operator = ?", query.Operator)
+	if query.KeySuffix != "" {
+		db = db.Where("key_suffix = ?", query.KeySuffix)
 	}
 	if query.StartTime != "" {
 		db = db.Where("created_at >= ?", query.StartTime)
@@ -81,11 +83,11 @@ func (s *BalanceLogService) ListLogs(query BalanceLogQuery, tenantID uint64) ([]
 func (s *BalanceLogService) ExportLogs(query BalanceLogQuery, tenantID uint64) ([]model.BalanceLog, error) {
 	var logs []model.BalanceLog
 	db := s.db.Model(&model.BalanceLog{}).Where("tenant_id = ?", tenantID)
-	if query.KeyID > 0 {
-		db = db.Where("key_id = ?", query.KeyID)
+	if query.Alias != "" {
+		db = db.Where("key_alias LIKE ?", query.Alias+"%")
 	}
-	if query.Operator != "" {
-		db = db.Where("operator = ?", query.Operator)
+	if query.KeySuffix != "" {
+		db = db.Where("key_suffix = ?", query.KeySuffix)
 	}
 	if query.StartTime != "" {
 		db = db.Where("created_at >= ?", query.StartTime)

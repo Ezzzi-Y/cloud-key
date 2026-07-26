@@ -25,8 +25,8 @@ func NewTenantBalanceLogHandler(svc *service.BalanceLogService) *TenantBalanceLo
 // @Security    ApiKeyAuth
 // @Param       page       query int    false "页码"     default(1)
 // @Param       page_size  query int    false "每页数量" default(20)
-// @Param       key_id     query int    false "卡密ID过滤"
-// @Param       operator   query string false "操作人过滤"
+// @Param       alias      query string false "别名前缀搜索"
+// @Param       key_suffix query string false "后缀精准搜索"
 // @Param       start_time query string false "开始时间"
 // @Param       end_time   query string false "结束时间"
 // @Success     200 {object} Response{data=PageData} "分页流转日志"
@@ -38,8 +38,8 @@ func (h *TenantBalanceLogHandler) ListLogs(c *gin.Context) {
 	var query service.BalanceLogQuery
 	query.Page = page
 	query.PageSize = pageSize
-	query.KeyID, _ = parseUint64(c.Query("key_id"))
-	query.Operator = c.Query("operator")
+	query.Alias = c.Query("alias")
+	query.KeySuffix = c.Query("key_suffix")
 	query.StartTime = c.Query("start_time")
 	query.EndTime = c.Query("end_time")
 
@@ -56,8 +56,8 @@ func (h *TenantBalanceLogHandler) ListLogs(c *gin.Context) {
 // @Tags        租户-额度流转日志
 // @Produce     json
 // @Security    ApiKeyAuth
-// @Param       key_id     query int    false "卡密ID过滤"
-// @Param       operator   query string false "操作人过滤"
+// @Param       alias      query string false "别名前缀搜索"
+// @Param       key_suffix query string false "后缀精准搜索"
 // @Param       start_time query string false "开始时间"
 // @Param       end_time   query string false "结束时间"
 // @Success     200 {object} Response "导出数据"
@@ -66,8 +66,8 @@ func (h *TenantBalanceLogHandler) ExportLogs(c *gin.Context) {
 	tenantID := getTenantID(c)
 
 	var query service.BalanceLogQuery
-	query.KeyID, _ = parseUint64(c.Query("key_id"))
-	query.Operator = c.Query("operator")
+	query.Alias = c.Query("alias")
+	query.KeySuffix = c.Query("key_suffix")
 	query.StartTime = c.Query("start_time")
 	query.EndTime = c.Query("end_time")
 
@@ -96,8 +96,8 @@ func NewServiceBalanceLogHandler(svc *service.BalanceLogService) *ServiceBalance
 // @Security    ServiceKeyAuth
 // @Param       page       query int    false "页码"     default(1)
 // @Param       page_size  query int    false "每页数量" default(20)
-// @Param       key_id     query int    false "卡密ID过滤"
-// @Param       operator   query string false "操作人过滤"
+// @Param       alias      query string false "别名前缀搜索"
+// @Param       key_suffix query string false "后缀精准搜索"
 // @Param       start_time query string false "开始时间"
 // @Param       end_time   query string false "结束时间"
 // @Success     200 {object} Response{data=PageData} "分页流转日志"
@@ -113,8 +113,8 @@ func (h *ServiceBalanceLogHandler) ServiceListLogs(c *gin.Context) {
 	var query service.BalanceLogQuery
 	query.Page = page
 	query.PageSize = pageSize
-	query.KeyID, _ = parseUint64(c.Query("key_id"))
-	query.Operator = c.Query("operator")
+	query.Alias = c.Query("alias")
+	query.KeySuffix = c.Query("key_suffix")
 	query.StartTime = c.Query("start_time")
 	query.EndTime = c.Query("end_time")
 
@@ -131,8 +131,8 @@ func (h *ServiceBalanceLogHandler) ServiceListLogs(c *gin.Context) {
 // @Tags        服务账号API
 // @Produce     json
 // @Security    ServiceKeyAuth
-// @Param       key_id     query int    false "卡密ID过滤"
-// @Param       operator   query string false "操作人过滤"
+// @Param       alias      query string false "别名前缀搜索"
+// @Param       key_suffix query string false "后缀精准搜索"
 // @Param       start_time query string false "开始时间"
 // @Param       end_time   query string false "结束时间"
 // @Success     200 {object} Response "导出数据"
@@ -145,8 +145,8 @@ func (h *ServiceBalanceLogHandler) ServiceExportLogs(c *gin.Context) {
 	}
 
 	var query service.BalanceLogQuery
-	query.KeyID, _ = parseUint64(c.Query("key_id"))
-	query.Operator = c.Query("operator")
+	query.Alias = c.Query("alias")
+	query.KeySuffix = c.Query("key_suffix")
 	query.StartTime = c.Query("start_time")
 	query.EndTime = c.Query("end_time")
 

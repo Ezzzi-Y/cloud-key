@@ -40,6 +40,7 @@ type AdjustEvent struct {
 	EventID        string `json:"event_id"`
 	KeyID          uint64 `json:"key_id"`
 	KeyAlias       string `json:"key_alias"`
+	KeySuffix      string `json:"key_suffix"`
 	TenantID       uint64 `json:"tenant_id"`
 	Delta          int64  `json:"delta"`
 	RemainingAfter int64  `json:"remaining_after"`

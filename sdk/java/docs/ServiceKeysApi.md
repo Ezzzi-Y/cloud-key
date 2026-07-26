@@ -90,6 +90,7 @@ public class Example {
 | **200** | 调整结果 |  -  |
 | **400** | 参数错误 |  -  |
 | **401** | 服务账号密钥无效 |  -  |
+| **403** | 租户已到期或已被禁用（code 4001&#x3D;到期, 4002&#x3D;禁用） |  -  |
 
 <a id="consumeKey"></a>
 # **consumeKey**
@@ -161,6 +162,7 @@ public class Example {
 | **200** | 扣减结果 |  -  |
 | **400** | 参数错误或卡密无效 |  -  |
 | **401** | 服务账号密钥无效 |  -  |
+| **403** | 租户已到期或已被禁用（code 4001&#x3D;到期, 4002&#x3D;禁用） |  -  |
 
 <a id="createKey"></a>
 # **createKey**
@@ -231,6 +233,7 @@ public class Example {
 |-------------|-------------|------------------|
 | **200** | 创建成功 |  -  |
 | **401** | 服务账号密钥无效 |  -  |
+| **403** | 租户已到期或已被禁用（code 4001&#x3D;到期, 4002&#x3D;禁用） |  -  |
 
 <a id="deleteKey"></a>
 # **deleteKey**
@@ -300,6 +303,7 @@ public class Example {
 | **200** | 删除成功 |  -  |
 | **400** | 无效的卡密 ID |  -  |
 | **401** | 服务账号密钥无效 |  -  |
+| **403** | 租户已到期或已被禁用（code 4001&#x3D;到期, 4002&#x3D;禁用） |  -  |
 
 <a id="disableKey"></a>
 # **disableKey**
@@ -369,6 +373,7 @@ public class Example {
 | **200** | 禁用成功 |  -  |
 | **400** | 无效的卡密 ID |  -  |
 | **401** | 服务账号密钥无效 |  -  |
+| **403** | 租户已到期或已被禁用（code 4001&#x3D;到期, 4002&#x3D;禁用） |  -  |
 
 <a id="enableKey"></a>
 # **enableKey**
@@ -438,6 +443,7 @@ public class Example {
 | **200** | 启用成功 |  -  |
 | **400** | 无效的卡密 ID |  -  |
 | **401** | 服务账号密钥无效 |  -  |
+| **403** | 租户已到期或已被禁用（code 4001&#x3D;到期, 4002&#x3D;禁用） |  -  |
 
 <a id="exportKeys"></a>
 # **exportKeys**
@@ -711,7 +717,7 @@ public class Example {
 
 <a id="listKeys"></a>
 # **listKeys**
-> KeyListResponse listKeys(page, pageSize, status, search)
+> KeyListResponse listKeys(page, pageSize, status, alias, keySuffix)
 
 服务账号查询卡密列表
 
@@ -740,9 +746,10 @@ public class Example {
     Integer page = 1; // Integer | 页码
     Integer pageSize = 20; // Integer | 每页数量
     String status = "active"; // String | 状态过滤: active/exhausted/disabled/expired
-    String search = "search_example"; // String | 关键字搜索
+    String alias = "alias_example"; // String | 别名前缀搜索
+    String keySuffix = "keySuffix_example"; // String | 后缀精准搜索
     try {
-      KeyListResponse result = apiInstance.listKeys(page, pageSize, status, search);
+      KeyListResponse result = apiInstance.listKeys(page, pageSize, status, alias, keySuffix);
       System.out.println(result);
     } catch (CloudKeyException e) {
       System.err.println("Exception when calling ServiceKeysApi#listKeys");
@@ -762,7 +769,8 @@ public class Example {
 | **page** | **Integer**| 页码 | [optional] [default to 1] |
 | **pageSize** | **Integer**| 每页数量 | [optional] [default to 20] |
 | **status** | **String**| 状态过滤: active/exhausted/disabled/expired | [optional] [enum: active, exhausted, disabled, expired] |
-| **search** | **String**| 关键字搜索 | [optional] |
+| **alias** | **String**| 别名前缀搜索 | [optional] |
+| **keySuffix** | **String**| 后缀精准搜索 | [optional] |
 
 ### Return type
 
@@ -853,4 +861,5 @@ public class Example {
 | **200** | 更新成功 |  -  |
 | **400** | 参数错误 |  -  |
 | **401** | 服务账号密钥无效 |  -  |
+| **403** | 租户已到期或已被禁用（code 4001&#x3D;到期, 4002&#x3D;禁用） |  -  |
 

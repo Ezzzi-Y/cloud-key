@@ -13,19 +13,19 @@ import { Download, Info, RefreshCw } from 'lucide-react'
 
 export default function BalanceLogs() {
   const [page, setPage] = useState(1)
-  const [keyId, setKeyId] = useState('')
-  const [operator, setOperator] = useState('')
+  const [alias, setAlias] = useState('')
+  const [keySuffix, setKeySuffix] = useState('')
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['tenant-balance-logs', { page, keyId, operator, startTime, endTime }],
+    queryKey: ['tenant-balance-logs', { page, alias, keySuffix, startTime, endTime }],
     queryFn: () =>
       listBalanceLogs({
         page,
         page_size: 20,
-        key_id: keyId ? Number(keyId) : undefined,
-        operator: operator || undefined,
+        alias: alias || undefined,
+        key_suffix: keySuffix || undefined,
         start_time: startTime ? startTime.replace('T', ' ') : undefined,
         end_time: endTime ? endTime.replace('T', ' ') : undefined,
       }).then((r) => (r.code === 0 ? r.data : { list: [], total: 0, page: 1, page_size: 20 })),
@@ -34,8 +34,8 @@ export default function BalanceLogs() {
   const handleExport = async () => {
     try {
       const res = await exportBalanceLogs({
-        key_id: keyId ? Number(keyId) : undefined,
-        operator: operator || undefined,
+        alias: alias || undefined,
+        key_suffix: keySuffix || undefined,
         start_time: startTime ? startTime.replace('T', ' ') : undefined,
         end_time: endTime ? endTime.replace('T', ' ') : undefined,
       })
@@ -60,8 +60,8 @@ export default function BalanceLogs() {
         <span className="flex items-center gap-1 text-xs text-muted-foreground"><Info className="h-3 w-3" />数据可能存在一定延迟</span>
       </div>
       <div className="flex flex-wrap items-center gap-4">
-        <Input placeholder="卡密 ID" type="number" value={keyId} onChange={(e) => { setKeyId(e.target.value); setPage(1) }} className="max-w-[120px]" />
-        <Input placeholder="操作人" value={operator} onChange={(e) => { setOperator(e.target.value); setPage(1) }} className="max-w-[160px]" />
+        <Input placeholder="别名前缀搜索..." value={alias} onChange={(e) => { setAlias(e.target.value); setPage(1) }} className="max-w-[160px]" />
+        <Input placeholder="后缀精准搜索..." value={keySuffix} onChange={(e) => { setKeySuffix(e.target.value); setPage(1) }} className="max-w-[160px]" />
         <Input type="datetime-local" value={startTime} onChange={(e) => { setStartTime(e.target.value); setPage(1) }} className="max-w-[200px]" />
         <Input type="datetime-local" value={endTime} onChange={(e) => { setEndTime(e.target.value); setPage(1) }} className="max-w-[200px]" />
         <div className="ml-auto flex gap-2">
@@ -81,6 +81,7 @@ export default function BalanceLogs() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Key 别名</TableHead>
+                  <TableHead>卡密后缀</TableHead>
                   <TableHead>变动量</TableHead>
                   <TableHead>调整前</TableHead>
                   <TableHead>调整后</TableHead>
@@ -91,11 +92,12 @@ export default function BalanceLogs() {
               </TableHeader>
               <TableBody>
                 {data?.list.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">暂无记录</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">暂无记录</TableCell></TableRow>
                 ) : (
                   data?.list.map((log) => (
                     <TableRow key={log.id}>
                       <TableCell className="font-medium">{log.key_alias}</TableCell>
+                      <TableCell className="font-mono text-sm text-muted-foreground">{log.key_suffix}</TableCell>
                       <TableCell>
                         <Badge variant={log.delta > 0 ? 'success' : 'destructive'}>
                           {log.delta > 0 ? `+${log.delta}` : log.delta}
