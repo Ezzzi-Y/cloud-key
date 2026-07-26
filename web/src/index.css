@@ -1,6 +1,25 @@
+/* ── Noto Sans SC (思源黑体, variable, 按 unicode-range 分包按需加载) ── */
+@import '@fontsource-variable/noto-sans-sc';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Geist Sans (variable) ── */
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* ── Geist Mono (variable) ── */
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
 
 @layer base {
   :root {
