@@ -70,11 +70,6 @@ func main() {
 	zap.L().Info("Redis 连接成功")
 
 	// RabbitMQ
-	zap.L().Info("MQ 配置读取",
-		zap.String("host", cfg.MQ.Host),
-		zap.Int("port", cfg.MQ.Port),
-		zap.String("username", cfg.MQ.Username),
-	)
 	var mqSvc *service.MQService
 	mqSvc, err = service.NewMQService(cfg.MQ)
 	if err != nil {

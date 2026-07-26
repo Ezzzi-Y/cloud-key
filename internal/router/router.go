@@ -7,9 +7,11 @@ import (
 	"CloudKey/internal/middleware"
 	"CloudKey/internal/service"
 	"CloudKey/internal/web"
+	"io"
 	"io/fs"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -17,6 +19,22 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
 )
+
+// serveIndexHTML 从嵌入 FS 读取 index.html 并直接写入响应，绕过 http.FileServer。
+// http.FileServer 会把 "/index.html" 重定向到 "./"（301），导致循环。
+var indexModTime = time.Now()
+
+func serveIndexHTML(c *gin.Context, fsys fs.FS) {
+	f, err := fsys.Open("index.html")
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.Status(http.StatusOK)
+	http.ServeContent(c.Writer, c.Request, "index.html", indexModTime, f.(io.ReadSeeker))
+}
 
 func SetupRouter(
 	authHandler *handler.AuthHandler,
@@ -38,6 +56,9 @@ func SetupRouter(
 	r.Use(middleware.RequestLogger())
 	r.Use(middleware.CORSMiddleware())
 
+	// 禁用 Gin 自动尾斜杠重定向，避免根路径 301 循环
+	r.RedirectTrailingSlash = false
+
 	// Swagger UI (仅 debug 模式启用)
 	if debug {
 		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -49,6 +70,11 @@ func SetupRouter(
 		panic("failed to open embedded dist: " + distErr.Error())
 	}
 	fileServer := http.FileServer(http.FS(distFS))
+
+	// 首页：直接返回 index.html，绕过 http.FileServer 的 "/index.html" → "./" 重定向
+	r.GET("/", func(c *gin.Context) {
+		serveIndexHTML(c, distFS)
+	})
 
 	r.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
@@ -62,7 +88,7 @@ func SetupRouter(
 			f.Close()
 			fileServer.ServeHTTP(c.Writer, c.Request)
 		} else {
-			c.FileFromFS("index.html", http.FS(distFS))
+			serveIndexHTML(c, distFS)
 		}
 	})
 
