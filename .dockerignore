@@ -1,0 +1,15 @@
+.git
+.github
+.idea
+.vscode
+sdk/
+docs/
+web/node_modules
+web/dist
+logs/
+*.md
+.gitignore
+config.yaml
+.dockerignore
+.superpowers
+.mcp.json

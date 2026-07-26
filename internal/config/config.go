@@ -1,6 +1,10 @@
 package config
 
-import "github.com/spf13/viper"
+import (
+	"strings"
+
+	"github.com/spf13/viper"
+)
 
 // AppConfig 定义应用程序配置结构
 // 字段名与 YAML tag 保持一致
@@ -100,8 +104,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("app.debug", false)
 }
 
-// LoadConfig 加载配置文件
-// path: 配置文件路径（支持 JSON、YAML、TOML 格式）
+// LoadConfig 加载配置文件，支持环境变量覆盖。
+// 优先级：环境变量（CLOUDKEY_ 前缀）> 配置文件 > 默认值
+// 环境变量命名规则：CLOUDKEY_ + 配置路径（"." 替换为 "_"），例如：
+//
+//	database.password → CLOUDKEY_DATABASE_PASSWORD
+//	rabbitmq.host     → CLOUDKEY_RABBITMQ_HOST
 func LoadConfig(path string) (*AppConfig, error) {
 	v := viper.New()
 	v.SetConfigFile(path)
@@ -110,6 +118,11 @@ func LoadConfig(path string) (*AppConfig, error) {
 	if err := v.ReadInConfig(); err != nil {
 		return nil, err
 	}
+
+	// 环境变量覆盖：读取 CLOUDKEY_ 前缀的环境变量
+	v.SetEnvPrefix("CLOUDKEY")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
 
 	var config AppConfig
 	if err := v.Unmarshal(&config); err != nil {
