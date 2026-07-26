@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import { getKeyStatus, consumeKey } from '@/api/keys'
-import type { KeyStatusResult, ConsumeKeyResult } from '@/types'
+import { getKeyStatus, consumeKey, getConsumeResult } from '@/api/keys'
+import type { KeyStatusResult, ConsumeKeyResult, ConsumeResultQuery } from '@/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Search, Minus } from 'lucide-react'
+import { Search, Minus, FileSearch } from 'lucide-react'
 
 export default function KeyVerify() {
   const [rawKey, setRawKey] = useState('')
@@ -16,6 +16,11 @@ export default function KeyVerify() {
   const [consumeAmount, setConsumeAmount] = useState(1)
   const [consuming, setConsuming] = useState(false)
   const [consumeResult, setConsumeResult] = useState<ConsumeKeyResult | null>(null)
+
+  // Request ID 查询
+  const [requestId, setRequestId] = useState('')
+  const [querying, setQuerying] = useState(false)
+  const [queryResult, setQueryResult] = useState<ConsumeResultQuery | null>(null)
 
   const handleCheck = async () => {
     if (!rawKey.trim()) { toast.error('请输入卡密'); return }
@@ -40,6 +45,17 @@ export default function KeyVerify() {
       } else { toast.error(res.message) }
     } catch { toast.error('请求失败') }
     finally { setConsuming(false) }
+  }
+
+  const handleQuery = async () => {
+    if (!requestId.trim()) { toast.error('请输入 Request ID'); return }
+    setQuerying(true); setQueryResult(null)
+    try {
+      const res = await getConsumeResult(requestId.trim())
+      if (res.code === 0) { setQueryResult(res.data as ConsumeResultQuery) }
+      else { toast.error(res.message) }
+    } catch { toast.error('未找到该 Request ID 对应的记录') }
+    finally { setQuerying(false) }
   }
 
   return (
@@ -93,6 +109,38 @@ export default function KeyVerify() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader><CardTitle>根据 Request ID 查询</CardTitle><CardDescription>输入客户端传递的 X-Request-Id，查询对应的消费或调额结果</CardDescription></CardHeader>
+        <CardContent>
+          <div className="flex gap-4">
+            <Input value={requestId} onChange={(e) => setRequestId(e.target.value)} placeholder="输入 Request ID（UUID）" className="flex-1 font-mono" onKeyDown={(e) => e.key === 'Enter' && handleQuery()} />
+            <Button onClick={handleQuery} disabled={querying} variant="outline"><FileSearch className="mr-2 h-4 w-4" />{querying ? '查询中...' : '查询'}</Button>
+          </div>
+          {queryResult && (
+            <div className="mt-4 rounded border p-4 space-y-3">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div><div className="text-sm text-muted-foreground">数据来源</div><Badge variant="outline">{queryResult.source}</Badge></div>
+                {queryResult.key_alias && <div><div className="text-sm text-muted-foreground">卡密别名</div><div className="font-medium">{queryResult.key_alias}</div></div>}
+                {queryResult.key_suffix && <div><div className="text-sm text-muted-foreground">卡密后缀</div><div className="font-mono">{queryResult.key_suffix}</div></div>}
+                {queryResult.amount != null && <div><div className="text-sm text-muted-foreground">消费量</div><div className="font-medium">{queryResult.amount}</div></div>}
+                {queryResult.delta != null && <div><div className="text-sm text-muted-foreground">调整量</div><div className="font-medium">{queryResult.delta > 0 ? '+' : ''}{queryResult.delta}</div></div>}
+                {queryResult.before_amount != null && <div><div className="text-sm text-muted-foreground">调整前余额</div><div className="font-medium">{queryResult.before_amount}</div></div>}
+                {queryResult.after_amount != null && <div><div className="text-sm text-muted-foreground">调整后余额</div><div className="font-medium">{queryResult.after_amount}</div></div>}
+                {queryResult.ip && <div><div className="text-sm text-muted-foreground">IP</div><div className="font-mono">{queryResult.ip}</div></div>}
+                {queryResult.operator && <div><div className="text-sm text-muted-foreground">操作人</div><div className="font-medium">{queryResult.operator}</div></div>}
+                {queryResult.created_at && <div><div className="text-sm text-muted-foreground">时间</div><div className="font-medium">{new Date(queryResult.created_at).toLocaleString('zh-CN')}</div></div>}
+              </div>
+              {queryResult.data && (
+                <div className="grid gap-4 md:grid-cols-3 border-t pt-3">
+                  <div><div className="text-sm text-muted-foreground">剩余额度（缓存）</div><div className="text-lg font-bold">{queryResult.data.remaining_amount}</div></div>
+                  <div><div className="text-sm text-muted-foreground">状态</div><Badge variant={queryResult.data.exhausted ? 'outline' : 'secondary'}>{queryResult.data.exhausted ? '已用尽' : queryResult.data.status}</Badge></div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

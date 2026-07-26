@@ -98,6 +98,7 @@ export interface ConsumeKeyResult {
   remaining_amount: number
   status: KeyStatus
   used_up: boolean
+  exhausted?: boolean
 }
 
 export interface ServiceAccount {
@@ -206,6 +207,25 @@ export interface AdjustBalanceRequest {
 export interface AdjustBalanceResult {
   before_amount: number
   after_amount: number
+}
+
+export interface ConsumeResultQuery {
+  source: string
+  request_id: string
+  key_id?: number
+  key_alias?: string
+  key_suffix?: string
+  amount?: number
+  delta?: number
+  before_amount?: number
+  after_amount?: number
+  ip?: string
+  operator?: string
+  remark?: string
+  created_at?: string
+  http_status?: number
+  code?: number
+  data?: ConsumeKeyResult
 }
 
 export interface SysConfig {

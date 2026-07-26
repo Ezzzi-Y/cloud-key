@@ -1,5 +1,5 @@
 import api from './client'
-import type { ApiResponse, PaginatedData, Key, CreateKeyRequest, UpdateKeyRequest, KeyListParams, KeyStatusResult, ConsumeKeyRequest, ConsumeKeyResult, AdjustBalanceRequest, AdjustBalanceResult } from '@/types'
+import type { ApiResponse, PaginatedData, Key, CreateKeyRequest, UpdateKeyRequest, KeyListParams, KeyStatusResult, ConsumeKeyRequest, ConsumeKeyResult, AdjustBalanceRequest, AdjustBalanceResult, ConsumeResultQuery } from '@/types'
 
 export function getKeyStatus(sk: string) {
   return api.get<unknown, ApiResponse<KeyStatusResult>>('/tenant/keys/status', { params: { sk } })
@@ -67,4 +67,8 @@ export function getKeyConfig() {
 
 export function updateKeyConfig(data: UpdateKeyConfigRequest) {
   return api.patch<unknown, ApiResponse<KeyConfig>>('/tenant/key-config', data)
+}
+
+export function getConsumeResult(requestId: string) {
+  return api.get<unknown, ApiResponse<ConsumeResultQuery>>('/tenant/keys/consume-result', { params: { request_id: requestId } })
 }

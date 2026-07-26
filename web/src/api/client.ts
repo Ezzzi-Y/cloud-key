@@ -11,6 +11,8 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  // 每个请求自动生成 request_id（用于幂等 + 追踪）
+  config.headers['X-Request-Id'] = crypto.randomUUID()
   return config
 })
 
