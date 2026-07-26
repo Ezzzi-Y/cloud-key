@@ -142,7 +142,7 @@ tr:hover { background: #f9f9f9; }
           <input id="logIP" placeholder="IP">
           <button class="btn-primary" onclick="loadLogs()">搜索</button>
         </div>
-        <table><thead><tr><th>ID</th><th>卡密别名</th><th>扣减量</th><th>IP</th><th>请求路径</th><th>状态码</th><th>时间</th></tr></thead><tbody id="logTable"></tbody></table>
+        <table><thead><tr><th>ID</th><th>卡密别名</th><th>卡密后缀</th><th>扣减量</th><th>IP</th><th>状态码</th><th>时间</th></tr></thead><tbody id="logTable"></tbody></table>
         <div class="pagination" id="logPagi"></div>
       </div>
     </div>
@@ -471,8 +471,8 @@ async function loadLogs() {
   const logs = data.list || [];
   document.getElementById('logTable').innerHTML = logs.map(l => `
     <tr>
-      <td>${l.id}</td><td>${esc(l.key_alias||'-')}</td><td>${l.amount}</td><td>${esc(l.ip)}</td>
-      <td>${esc(l.request_path)}</td><td>${l.response_status}</td><td>${fmtTime(l.created_at)}</td>
+      <td>${l.id}</td><td>${esc(l.key_alias||'-')}</td><td>${esc(l.key_suffix||'')}</td><td>${l.amount}</td><td>${esc(l.ip)}</td>
+      <td>${l.response_status}</td><td>${fmtTime(l.created_at)}</td>
     </tr>
   `).join('');
   renderPag('logPagi', data.total, data.page, data.page_size, p => { logPage = p; loadLogs(); });

@@ -115,10 +115,10 @@ export interface UsageLog {
   tenant_id: number
   key_id: number
   key_alias: string
+  key_suffix: string
   amount: number
   ip: string
   user_agent: string
-  request_path: string
   response_status: number
   created_at: string
 }

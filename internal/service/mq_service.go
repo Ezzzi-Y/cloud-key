@@ -24,13 +24,13 @@ type ConsumeEvent struct {
 	EventID        string `json:"event_id"`
 	KeyID          uint64 `json:"key_id"`
 	KeyAlias       string `json:"key_alias"`
+	KeySuffix      string `json:"key_suffix"`
 	TenantID       uint64 `json:"tenant_id"`
 	Amount         int64  `json:"amount"`
 	RemainingAfter int64  `json:"remaining_after"`
 	StatusAfter    string `json:"status_after"`
 	IP             string `json:"ip"`
 	UserAgent      string `json:"user_agent"`
-	Path           string `json:"path"`
 	Timestamp      int64  `json:"timestamp"`
 	UsedAt         int64  `json:"used_at"`
 }

@@ -173,10 +173,10 @@ func (w *MQWorker) handleConsume(d amqp.Delivery) error {
 		TenantID:       event.TenantID,
 		KeyID:          event.KeyID,
 		KeyAlias:       event.KeyAlias,
+		KeySuffix:      event.KeySuffix,
 		Amount:         event.Amount,
 		IP:             event.IP,
 		UserAgent:      event.UserAgent,
-		RequestPath:    event.Path,
 		ResponseStatus: http.StatusOK, // 消费成功才发 MQ
 		CreatedAt:      time.UnixMilli(event.Timestamp),
 	}

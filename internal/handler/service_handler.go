@@ -231,7 +231,10 @@ func (h *TenantServiceAccountHandler) ServiceConsumeKey(c *gin.Context) {
 		return
 	}
 
-	result, code, err := h.keySvc.ConsumeKeyByTenant(req.Key, req.Amount, tenantID)
+	result, code, err := h.keySvc.ConsumeKeyByTenant(req.Key, req.Amount, tenantID, &service.ConsumeMeta{
+		IP:        c.ClientIP(),
+		UserAgent: c.Request.UserAgent(),
+	})
 	if err != nil {
 		InternalError(c)
 		return

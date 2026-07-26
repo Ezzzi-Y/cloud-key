@@ -55,17 +55,17 @@ export default function UsageLogs() {
           <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow><TableHead>Key 别名</TableHead><TableHead>扣减数量</TableHead><TableHead>IP</TableHead><TableHead>User-Agent</TableHead><TableHead>请求路径</TableHead><TableHead>时间</TableHead></TableRow>
+                <TableRow><TableHead>Key 别名</TableHead><TableHead>卡密后缀</TableHead><TableHead>扣减数量</TableHead><TableHead>IP</TableHead><TableHead>User-Agent</TableHead><TableHead>时间</TableHead></TableRow>
               </TableHeader>
               <TableBody>
                 {data?.list.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">暂无记录</TableCell></TableRow> : null}
                 {data?.list.map((log) => (
                   <TableRow key={log.id}>
                     <TableCell className="font-medium">{log.key_alias}</TableCell>
+                    <TableCell className="font-mono text-sm text-muted-foreground">{log.key_suffix}</TableCell>
                     <TableCell><Badge variant="outline">{log.amount}</Badge></TableCell>
                     <TableCell className="font-mono text-sm text-muted-foreground">{log.ip}</TableCell>
                     <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{log.user_agent}</TableCell>
-                    <TableCell className="font-mono text-sm text-muted-foreground">{log.request_path}</TableCell>
                     <TableCell className="text-muted-foreground">{new Date(log.created_at).toLocaleString('zh-CN')}</TableCell>
                   </TableRow>
                 ))}

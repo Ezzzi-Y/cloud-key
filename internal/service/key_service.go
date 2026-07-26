@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -138,6 +139,7 @@ func (s *KeyService) syncCacheOnCreate(key *model.Key) {
 		"id":         key.ID,
 		"tenant_id":  key.TenantID,
 		"alias":      key.Alias,
+		"key_suffix": key.KeySuffix,
 		"remaining":  key.RemainingAmount,
 		"status":     string(key.Status),
 		"version":    key.Version,
@@ -234,6 +236,7 @@ func (s *KeyService) LookupKey(rawKey string, tenantID uint64) (*model.Key, erro
 			"id":         key.ID,
 			"tenant_id":  key.TenantID,
 			"alias":      key.Alias,
+			"key_suffix": key.KeySuffix,
 			"remaining":  key.RemainingAmount,
 			"status":     string(key.Status),
 			"version":    key.Version,
@@ -278,6 +281,7 @@ func buildKeyFromHash(fields map[string]string, tenantID uint64) (*model.Key, bo
 		ID:              id,
 		TenantID:        tid,
 		Alias:           fields["alias"],
+		KeySuffix:       fields["key_suffix"],
 		RemainingAmount: remaining,
 		Status:          model.KeyStatus(fields["status"]),
 		Version:         version,
@@ -332,6 +336,12 @@ type ConsumeResult struct {
 	Exhausted       bool            `json:"exhausted"`
 }
 
+// ConsumeMeta 请求上下文，由 handler 层注入
+type ConsumeMeta struct {
+	IP        string
+	UserAgent string
+}
+
 // consumeResult 从 Lua 脚本返回的 JSON 解析
 type consumeResult struct {
 	Code      int    `json:"code"`
@@ -344,7 +354,7 @@ type consumeResult struct {
 
 // consumeViaRedis Redis 原子路径：LookupKey + Lua 扣减 + MQ 发布。
 // LookupKey 在此函数内部调用，Lua 脚本保证「读 + 校验 + 扣减」原子性。
-func (s *KeyService) consumeViaRedis(rawKey string, amount int64, tenantID uint64) (*ConsumeResult, error) {
+func (s *KeyService) consumeViaRedis(rawKey string, amount int64, tenantID uint64, meta *ConsumeMeta) (*ConsumeResult, error) {
 	key, err := s.LookupKey(rawKey, tenantID)
 	if err != nil {
 		return nil, err
@@ -403,12 +413,17 @@ func (s *KeyService) consumeViaRedis(rawKey string, amount int64, tenantID uint6
 			EventID:        uuid.New().String(),
 			KeyID:          res.KeyID,
 			KeyAlias:       res.Alias,
+			KeySuffix:      key.KeySuffix,
 			TenantID:       res.TenantID,
 			Amount:         amount,
 			RemainingAfter: res.Remaining,
 			StatusAfter:    res.Status,
 			Timestamp:      now,
 			UsedAt:         now,
+		}
+		if meta != nil {
+			event.IP = meta.IP
+			event.UserAgent = meta.UserAgent
 		}
 		if err := s.mqSvc.PublishConsumeEvent(event); err != nil {
 			zap.L().Error("发布 ConsumeEvent 失败", zap.Error(err))
@@ -425,7 +440,7 @@ func (s *KeyService) consumeViaRedis(rawKey string, amount int64, tenantID uint6
 
 // consumeViaMySQL MySQL 降级路径：乐观锁重试
 // 每次重试直接查 MySQL 拿最新 version，保证乐观锁正确。
-func (s *KeyService) consumeViaMySQL(rawKey string, amount int64, tenantID uint64) (*ConsumeResult, int, error) {
+func (s *KeyService) consumeViaMySQL(rawKey string, amount int64, tenantID uint64, meta *ConsumeMeta) (*ConsumeResult, int, error) {
 	const maxRetries = 3
 	for retry := 0; retry < maxRetries; retry++ {
 		// 直接查 MySQL 获取最新状态和 version
@@ -508,6 +523,23 @@ func (s *KeyService) consumeViaMySQL(rawKey string, amount int64, tenantID uint6
 			}
 		}
 
+		// MySQL 降级路径直接写入使用日志（正常路径由 MQ Worker 写入）
+		usageLog := model.UsageLog{
+			TenantID:       tenantID,
+			KeyID:          key.ID,
+			KeyAlias:       key.Alias,
+			KeySuffix:      key.KeySuffix,
+			Amount:         amount,
+			ResponseStatus: http.StatusOK,
+		}
+		if meta != nil {
+			usageLog.IP = meta.IP
+			usageLog.UserAgent = meta.UserAgent
+		}
+		if err := s.db.Create(&usageLog).Error; err != nil {
+			zap.L().Error("MySQL 降级路径写入使用日志失败", zap.Error(err))
+		}
+
 		return &ConsumeResult{
 			RemainingAmount: newRemaining,
 			Status:          status,
@@ -517,14 +549,14 @@ func (s *KeyService) consumeViaMySQL(rawKey string, amount int64, tenantID uint6
 	return nil, 0, fmt.Errorf("concurrency conflict after %d retries", maxRetries)
 }
 
-func (s *KeyService) ConsumeKeyByTenant(rawKey string, amount int64, tenantID uint64) (*ConsumeResult, int, error) {
+func (s *KeyService) ConsumeKeyByTenant(rawKey string, amount int64, tenantID uint64, meta *ConsumeMeta) (*ConsumeResult, int, error) {
 	if amount <= 0 {
 		return nil, 0, fmt.Errorf("invalid amount: %d", amount)
 	}
 
 	// Redis Lua 原子路径：LookupKey + 校验 + 扣减在 Lua 内一次完成
 	if s.rdb != nil {
-		result, err := s.consumeViaRedis(rawKey, amount, tenantID)
+		result, err := s.consumeViaRedis(rawKey, amount, tenantID, meta)
 		if err == nil {
 			return result, 0, nil
 		}
@@ -537,7 +569,7 @@ func (s *KeyService) ConsumeKeyByTenant(rawKey string, amount int64, tenantID ui
 	}
 
 	// MySQL 乐观锁降级
-	return s.consumeViaMySQL(rawKey, amount, tenantID)
+	return s.consumeViaMySQL(rawKey, amount, tenantID, meta)
 }
 
 type KeyListQuery struct {

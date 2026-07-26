@@ -185,7 +185,7 @@ func TestConsumeKeyByTenant(t *testing.T) {
 		Alias: "consume-test", RemainingAmount: 100, CreatedBy: "admin",
 	}, testTenantID, "sk-", 32, 4)
 
-	consumeResult, code, err := svc.ConsumeKeyByTenant(result.RawKey, 30, testTenantID)
+	consumeResult, code, err := svc.ConsumeKeyByTenant(result.RawKey, 30, testTenantID, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +205,7 @@ func TestConsumeKeyByTenant_WrongTenant(t *testing.T) {
 		Alias: "isolation-consume", RemainingAmount: 100, CreatedBy: "admin",
 	}, testTenantID, "sk-", 32, 4)
 
-	_, code, err := svc.ConsumeKeyByTenant(result.RawKey, 10, 999)
+	_, code, err := svc.ConsumeKeyByTenant(result.RawKey, 10, 999, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

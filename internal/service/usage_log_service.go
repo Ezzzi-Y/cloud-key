@@ -22,7 +22,6 @@ type RecordUsageParams struct {
 	Amount         int64
 	IP             string
 	UserAgent      string
-	RequestPath    string
 	RequestParams  string
 	ResponseStatus int
 }
@@ -35,7 +34,6 @@ func (s *UsageLogService) Record(params RecordUsageParams) error {
 		Amount:         params.Amount,
 		IP:             params.IP,
 		UserAgent:      params.UserAgent,
-		RequestPath:    params.RequestPath,
 		RequestParams:  params.RequestParams,
 		ResponseStatus: params.ResponseStatus,
 		CreatedAt:      time.Now(),
