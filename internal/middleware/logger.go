@@ -74,6 +74,9 @@ func RequestLogger() gin.HandlerFunc {
 		if tid, exists := c.Get("tenant_id"); exists {
 			fields = append(fields, zap.Any("tenant_id", tid))
 		}
+		if rid := c.GetString("request_id"); rid != "" {
+			fields = append(fields, zap.String("request_id", rid))
+		}
 
 		if status >= 400 {
 			// 错误请求：记录请求体和响应体，便于排查
