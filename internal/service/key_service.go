@@ -338,6 +338,7 @@ type ConsumeResult struct {
 
 // ConsumeMeta 请求上下文，由 handler 层注入
 type ConsumeMeta struct {
+	RequestID string
 	IP        string
 	UserAgent string
 }
@@ -411,6 +412,7 @@ func (s *KeyService) consumeViaRedis(rawKey string, amount int64, tenantID uint6
 		now := time.Now().UnixMilli()
 		event := ConsumeEvent{
 			EventID:        uuid.New().String(),
+			RequestID:      meta.RequestID,
 			KeyID:          res.KeyID,
 			KeyAlias:       res.Alias,
 			KeySuffix:      key.KeySuffix,
@@ -535,6 +537,7 @@ func (s *KeyService) consumeViaMySQL(rawKey string, amount int64, tenantID uint6
 		if meta != nil {
 			usageLog.IP = meta.IP
 			usageLog.UserAgent = meta.UserAgent
+			usageLog.RequestID = meta.RequestID
 		}
 		if err := s.db.Create(&usageLog).Error; err != nil {
 			zap.L().Error("MySQL 降级路径写入使用日志失败", zap.Error(err))
@@ -658,9 +661,10 @@ func (s *KeyService) UpdateKey(id, tenantID uint64, req UpdateKeyRequest) error 
 }
 
 type AdjustBalanceRequest struct {
-	Delta    int64  `json:"delta"`    // 正=增加, 负=减少
-	Operator string `json:"operator"` // 操作人标识
-	Remark   string `json:"remark"`   // 可选备注
+	Delta     int64  `json:"delta"`     // 正=增加, 负=减少
+	Operator  string `json:"operator"`  // 操作人标识
+	Remark    string `json:"remark"`    // 可选备注
+	RequestID string `json:"request_id"` // 请求 ID（幂等 + 可追溯）
 }
 
 type AdjustBalanceResult struct {
@@ -744,6 +748,7 @@ func (s *KeyService) adjustViaRedis(keyHash string, id, tenantID uint64, req Adj
 	if s.mqSvc != nil {
 		event := AdjustEvent{
 			EventID:        uuid.New().String(),
+			RequestID:      req.RequestID,
 			KeyID:          id,
 			KeyAlias:       key.Alias,
 			KeySuffix:      key.KeySuffix,

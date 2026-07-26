@@ -22,6 +22,7 @@ const (
 // ConsumeEvent 消费扣减事件
 type ConsumeEvent struct {
 	EventID        string `json:"event_id"`
+	RequestID      string `json:"request_id"`
 	KeyID          uint64 `json:"key_id"`
 	KeyAlias       string `json:"key_alias"`
 	KeySuffix      string `json:"key_suffix"`
@@ -38,6 +39,7 @@ type ConsumeEvent struct {
 // AdjustEvent 额度调整事件
 type AdjustEvent struct {
 	EventID        string `json:"event_id"`
+	RequestID      string `json:"request_id"`
 	KeyID          uint64 `json:"key_id"`
 	KeyAlias       string `json:"key_alias"`
 	KeySuffix      string `json:"key_suffix"`

@@ -129,8 +129,8 @@ func main() {
 	// Handlers
 	authHandler := handler.NewAuthHandler(authSvc, loginLogSvc)
 	superHandler := handler.NewSuperHandler(tenantSvc, configSvc, loginLogSvc)
-	tenantKeyHandler := handler.NewTenantKeyHandler(keySvc, balanceLogSvc, db)
-	tenantSAHandler := handler.NewTenantServiceAccountHandler(keySvc, serviceAccountSvc, balanceLogSvc, db)
+	tenantKeyHandler := handler.NewTenantKeyHandler(keySvc, balanceLogSvc, db, rdb)
+	tenantSAHandler := handler.NewTenantServiceAccountHandler(keySvc, serviceAccountSvc, balanceLogSvc, db, rdb)
 	tenantStatsHandler := handler.NewTenantStatsHandler(statsSvc, keySvc)
 	tenantUsageLogHandler := handler.NewTenantUsageLogHandler(usageLogSvc, loginLogSvc)
 	tenantBalanceLogHandler := handler.NewTenantBalanceLogHandler(balanceLogSvc)

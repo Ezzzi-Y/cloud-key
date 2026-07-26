@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -17,10 +18,11 @@ type TenantServiceAccountHandler struct {
 	serviceAccountSvc *service.ServiceAccountService
 	balanceLogSvc     *service.BalanceLogService
 	db                *gorm.DB
+	rdb               *redis.Client
 }
 
-func NewTenantServiceAccountHandler(keySvc *service.KeyService, saSvc *service.ServiceAccountService, balanceLogSvc *service.BalanceLogService, db *gorm.DB) *TenantServiceAccountHandler {
-	return &TenantServiceAccountHandler{keySvc: keySvc, serviceAccountSvc: saSvc, balanceLogSvc: balanceLogSvc, db: db}
+func NewTenantServiceAccountHandler(keySvc *service.KeyService, saSvc *service.ServiceAccountService, balanceLogSvc *service.BalanceLogService, db *gorm.DB, rdb *redis.Client) *TenantServiceAccountHandler {
+	return &TenantServiceAccountHandler{keySvc: keySvc, serviceAccountSvc: saSvc, balanceLogSvc: balanceLogSvc, db: db, rdb: rdb}
 }
 
 func (h *TenantServiceAccountHandler) getTenantKeyConfig(tenantID uint64) (string, int, int, error) {
@@ -223,18 +225,29 @@ func (h *TenantServiceAccountHandler) ServiceConsumeKey(c *gin.Context) {
 		return
 	}
 
+	// 幂等检查
+	requestID := c.GetString("request_id")
+	if claimed, _ := IdempotentCheck(c, h.rdb, requestID); !claimed {
+		return
+	}
+
 	result, code, err := h.keySvc.ConsumeKeyByTenant(req.Key, req.Amount, tenantID, &service.ConsumeMeta{
+		RequestID: requestID,
 		IP:        c.ClientIP(),
 		UserAgent: c.Request.UserAgent(),
 	})
 	if err != nil {
+		CacheIdempotentError(h.rdb, requestID, http.StatusInternalServerError, errcode.CodeInternalError)
 		InternalError(c)
 		return
 	}
 	if code != 0 {
+		CacheIdempotentError(h.rdb, requestID, http.StatusBadRequest, code)
 		BadRequest(c, code, errcode.GetMessage(code))
 		return
 	}
+
+	CacheIdempotentResult(h.rdb, requestID, http.StatusOK, errcode.CodeSuccess, result)
 	Success(c, result)
 }
 
@@ -355,14 +368,22 @@ func (h *TenantServiceAccountHandler) ServiceAdjustBalance(c *gin.Context) {
 		return
 	}
 
+	// 幂等检查
+	requestID := c.GetString("request_id")
+	if claimed, _ := IdempotentCheck(c, h.rdb, requestID); !claimed {
+		return
+	}
+
 	operator := "sa:" + sa.Name
 
 	result, err := h.keySvc.AdjustBalance(id, sa.TenantID, service.AdjustBalanceRequest{
-		Delta:    req.Delta,
-		Operator: operator,
-		Remark:   req.Remark,
+		Delta:     req.Delta,
+		Operator:  operator,
+		Remark:    req.Remark,
+		RequestID: requestID,
 	})
 	if err != nil {
+		CacheIdempotentError(h.rdb, requestID, http.StatusBadRequest, errcode.CodeInvalidAdjustment)
 		BadRequest(c, errcode.CodeInvalidAdjustment, err.Error())
 		return
 	}
@@ -385,8 +406,10 @@ func (h *TenantServiceAccountHandler) ServiceAdjustBalance(c *gin.Context) {
 		AfterAmount:  result.AfterAmount,
 		Operator:     operator,
 		Remark:       req.Remark,
+		RequestID:    requestID,
 	})
 
+	CacheIdempotentResult(h.rdb, requestID, http.StatusOK, errcode.CodeSuccess, result)
 	Success(c, result)
 }
 
@@ -623,4 +646,81 @@ func (h *TenantServiceAccountHandler) DeleteServiceAccount(c *gin.Context) {
 		return
 	}
 	Success(c, nil)
+}
+
+// ServiceGetConsumeResult 根据 request_id 查询消费/调额结果
+// @Summary     根据请求ID查询操作结果
+// @Description 通过 X-Service-Key 认证，根据 request_id 查询消费或调额的结果
+// @Tags        服务账号API
+// @Produce     json
+// @Security    ServiceKeyAuth
+// @Param       request_id query string true "请求ID"
+// @Success     200 {object} Response "操作结果"
+// @Failure     400 {object} Response "缺少 request_id 参数"
+// @Failure     401 {object} Response "服务账号密钥无效"
+// @Failure     404 {object} Response "未找到对应的操作记录"
+// @Router      /service/consume-result [get]
+func (h *TenantServiceAccountHandler) ServiceGetConsumeResult(c *gin.Context) {
+	tenantID, ok := getServiceTenantID(c)
+	if !ok {
+		return
+	}
+
+	requestID := c.Query("request_id")
+	if requestID == "" {
+		BadRequest(c, http.StatusBadRequest, "缺少 request_id 参数")
+		return
+	}
+
+	// 先查 Redis 缓存（24h 内有结果直接返回）
+	cached, err := LookupIdempotentResult(h.rdb, requestID)
+	if err == nil && cached != nil {
+		Success(c, gin.H{
+			"source":      "cache",
+			"request_id":  requestID,
+			"http_status": cached.HTTPStatus,
+			"code":        cached.Code,
+			"data":        cached.Data,
+		})
+		return
+	}
+
+	// Redis 缓存过期，fallback 查询 usage_logs
+	var usageLog model.UsageLog
+	if err := h.db.Where("request_id = ? AND tenant_id = ?", requestID, tenantID).
+		Order("created_at DESC").First(&usageLog).Error; err == nil {
+		Success(c, gin.H{
+			"source":       "usage_log",
+			"request_id":   requestID,
+			"key_id":       usageLog.KeyID,
+			"key_alias":    usageLog.KeyAlias,
+			"key_suffix":   usageLog.KeySuffix,
+			"amount":       usageLog.Amount,
+			"ip":           usageLog.IP,
+			"created_at":   usageLog.CreatedAt,
+		})
+		return
+	}
+
+	// fallback 查询 balance_logs
+	var balanceLog model.BalanceLog
+	if err := h.db.Where("request_id = ? AND tenant_id = ?", requestID, tenantID).
+		Order("created_at DESC").First(&balanceLog).Error; err == nil {
+		Success(c, gin.H{
+			"source":        "balance_log",
+			"request_id":    requestID,
+			"key_id":        balanceLog.KeyID,
+			"key_alias":     balanceLog.KeyAlias,
+			"key_suffix":    balanceLog.KeySuffix,
+			"delta":         balanceLog.Delta,
+			"before_amount": balanceLog.BeforeAmount,
+			"after_amount":  balanceLog.AfterAmount,
+			"operator":      balanceLog.Operator,
+			"remark":        balanceLog.Remark,
+			"created_at":    balanceLog.CreatedAt,
+		})
+		return
+	}
+
+	NotFound(c, http.StatusNotFound, "未找到该 request_id 对应的操作记录")
 }

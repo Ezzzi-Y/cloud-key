@@ -151,6 +151,19 @@ func (w *MQWorker) handleConsume(d amqp.Delivery) error {
 		return nil // 格式错误不重试，直接丢弃
 	}
 
+	// MQ Worker 层幂等去重：SETNX processed:{event_id}，TTL 7 天
+	if w.rdb != nil {
+		ctx := context.Background()
+		ok, err := w.rdb.SetNX(ctx, "processed:"+event.EventID, 1, 7*24*time.Hour).Result()
+		if err != nil {
+			zap.L().Error("MQ dedup SETNX failed", zap.String("event_id", event.EventID), zap.Error(err))
+			// Redis 异常时放行，不阻塞消息处理
+		} else if !ok {
+			zap.L().Debug("MQ 消息已处理过，跳过", zap.String("event_id", event.EventID))
+			return nil // 已处理过，直接 ACK
+		}
+	}
+
 	tx := w.db.Begin()
 	if tx.Error != nil {
 		return fmt.Errorf("begin tx: %w", tx.Error)
@@ -177,6 +190,7 @@ func (w *MQWorker) handleConsume(d amqp.Delivery) error {
 		Amount:         event.Amount,
 		IP:             event.IP,
 		UserAgent:      event.UserAgent,
+		RequestID:      event.RequestID,
 		ResponseStatus: http.StatusOK, // 消费成功才发 MQ
 		CreatedAt:      time.UnixMilli(event.Timestamp),
 	}
@@ -231,6 +245,18 @@ func (w *MQWorker) handleAdjust(d amqp.Delivery) error {
 		return nil // 格式错误不重试
 	}
 
+	// MQ Worker 层幂等去重：SETNX processed:{event_id}，TTL 7 天
+	if w.rdb != nil {
+		ctx := context.Background()
+		ok, err := w.rdb.SetNX(ctx, "processed:"+event.EventID, 1, 7*24*time.Hour).Result()
+		if err != nil {
+			zap.L().Error("MQ dedup SETNX failed", zap.String("event_id", event.EventID), zap.Error(err))
+		} else if !ok {
+			zap.L().Debug("MQ 消息已处理过，跳过", zap.String("event_id", event.EventID))
+			return nil
+		}
+	}
+
 	tx := w.db.Begin()
 	if tx.Error != nil {
 		return fmt.Errorf("begin tx: %w", tx.Error)
@@ -258,6 +284,7 @@ func (w *MQWorker) handleAdjust(d amqp.Delivery) error {
 		AfterAmount:  event.RemainingAfter,
 		Operator:     event.Operator,
 		Remark:       event.Remark,
+		RequestID:    event.RequestID,
 		CreatedAt:    time.UnixMilli(event.Timestamp),
 	}
 	if err := tx.Create(&log).Error; err != nil {

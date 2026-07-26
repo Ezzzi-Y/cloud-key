@@ -421,6 +421,58 @@
                 }
             }
         },
+        "/service/consume-result": {
+            "get": {
+                "security": [
+                    {
+                        "ServiceKeyAuth": []
+                    }
+                ],
+                "description": "通过 X-Service-Key 认证，根据 request_id 查询消费或调额的结果",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "服务账号API"
+                ],
+                "summary": "根据请求ID查询操作结果",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "请求ID",
+                        "name": "request_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "操作结果",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "缺少 request_id 参数",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "服务账号密钥无效",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "未找到对应的操作记录",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/service/keys": {
             "get": {
                 "security": [
@@ -1884,6 +1936,52 @@
                     },
                     "400": {
                         "description": "参数错误或卡密无效",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/tenant/keys/consume-result": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "租户管理员根据 request_id 查询消费或调额的结果",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "租户-卡密管理"
+                ],
+                "summary": "根据请求ID查询操作结果",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "请求ID",
+                        "name": "request_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "操作结果",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "缺少 request_id 参数",
+                        "schema": {
+                            "$ref": "#/definitions/handler.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "未找到对应的操作记录",
                         "schema": {
                             "$ref": "#/definitions/handler.Response"
                         }

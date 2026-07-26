@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -21,10 +22,11 @@ type TenantKeyHandler struct {
 	keySvc        *service.KeyService
 	balanceLogSvc *service.BalanceLogService
 	db            *gorm.DB
+	rdb           *redis.Client
 }
 
-func NewTenantKeyHandler(keySvc *service.KeyService, balanceLogSvc *service.BalanceLogService, db *gorm.DB) *TenantKeyHandler {
-	return &TenantKeyHandler{keySvc: keySvc, balanceLogSvc: balanceLogSvc, db: db}
+func NewTenantKeyHandler(keySvc *service.KeyService, balanceLogSvc *service.BalanceLogService, db *gorm.DB, rdb *redis.Client) *TenantKeyHandler {
+	return &TenantKeyHandler{keySvc: keySvc, balanceLogSvc: balanceLogSvc, db: db, rdb: rdb}
 }
 
 // parseExpireAt converts an optional expiry string pointer into *time.Time.
@@ -101,19 +103,32 @@ func (h *TenantKeyHandler) Consume(c *gin.Context) {
 		return
 	}
 
+	// 幂等检查
+	requestID := c.GetString("request_id")
+	if claimed, _ := IdempotentCheck(c, h.rdb, requestID); !claimed {
+		return // 重复请求，已返回缓存
+	}
+
 	result, code, err := h.keySvc.ConsumeKeyByTenant(req.Key, req.Amount, tenantID, &service.ConsumeMeta{
+		RequestID: requestID,
 		IP:        c.ClientIP(),
 		UserAgent: c.Request.UserAgent(),
 	})
 	if err != nil {
+		// 系统错误不缓存（可重试）
+		CacheIdempotentError(h.rdb, requestID, http.StatusInternalServerError, errcode.CodeInternalError)
 		InternalError(c)
 		return
 	}
 	if code != 0 {
+		// 业务错误也缓存（防止重试时重复执行）
+		CacheIdempotentError(h.rdb, requestID, http.StatusBadRequest, code)
 		BadRequest(c, code, errcode.GetMessage(code))
 		return
 	}
 
+	// 缓存成功结果
+	CacheIdempotentResult(h.rdb, requestID, http.StatusOK, errcode.CodeSuccess, result)
 	Success(c, result)
 }
 
@@ -316,16 +331,25 @@ func (h *TenantKeyHandler) AdjustBalance(c *gin.Context) {
 		return
 	}
 
+	// 幂等检查
+	requestID := c.GetString("request_id")
+	if claimed, _ := IdempotentCheck(c, h.rdb, requestID); !claimed {
+		return
+	}
+
 	result, err := h.keySvc.AdjustBalance(id, tenantID, service.AdjustBalanceRequest{
-		Delta:    req.Delta,
-		Operator: "tenant_admin",
-		Remark:   req.Remark,
+		Delta:     req.Delta,
+		Operator:  "tenant_admin",
+		Remark:    req.Remark,
+		RequestID: requestID,
 	})
 	if err != nil {
+		CacheIdempotentError(h.rdb, requestID, http.StatusBadRequest, errcode.CodeInvalidAdjustment)
 		BadRequest(c, errcode.CodeInvalidAdjustment, err.Error())
 		return
 	}
 
+	CacheIdempotentResult(h.rdb, requestID, http.StatusOK, errcode.CodeSuccess, result)
 	Success(c, result)
 }
 
@@ -554,6 +578,79 @@ func (h *TenantKeyHandler) UpdateKeyConfig(c *gin.Context) {
 		"key_length":        keyLen,
 		"key_suffix_length": suffixLen,
 	})
+}
+
+// GetConsumeResult 根据 request_id 查询消费/调额结果
+// @Summary     根据请求ID查询操作结果
+// @Description 租户管理员根据 request_id 查询消费或调额的结果
+// @Tags        租户-卡密管理
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       request_id query string true "请求ID"
+// @Success     200 {object} Response "操作结果"
+// @Failure     400 {object} Response "缺少 request_id 参数"
+// @Failure     404 {object} Response "未找到对应的操作记录"
+// @Router      /tenant/keys/consume-result [get]
+func (h *TenantKeyHandler) GetConsumeResult(c *gin.Context) {
+	tenantID := getTenantID(c)
+
+	requestID := c.Query("request_id")
+	if requestID == "" {
+		BadRequest(c, http.StatusBadRequest, "缺少 request_id 参数")
+		return
+	}
+
+	// 先查 Redis 缓存
+	cached, err := LookupIdempotentResult(h.rdb, requestID)
+	if err == nil && cached != nil {
+		Success(c, gin.H{
+			"source":      "cache",
+			"request_id":  requestID,
+			"http_status": cached.HTTPStatus,
+			"code":        cached.Code,
+			"data":        cached.Data,
+		})
+		return
+	}
+
+	// fallback 查询 usage_logs
+	var usageLog model.UsageLog
+	if err := h.db.Where("request_id = ? AND tenant_id = ?", requestID, tenantID).
+		Order("created_at DESC").First(&usageLog).Error; err == nil {
+		Success(c, gin.H{
+			"source":     "usage_log",
+			"request_id": requestID,
+			"key_id":     usageLog.KeyID,
+			"key_alias":  usageLog.KeyAlias,
+			"key_suffix": usageLog.KeySuffix,
+			"amount":     usageLog.Amount,
+			"ip":         usageLog.IP,
+			"created_at": usageLog.CreatedAt,
+		})
+		return
+	}
+
+	// fallback 查询 balance_logs
+	var balanceLog model.BalanceLog
+	if err := h.db.Where("request_id = ? AND tenant_id = ?", requestID, tenantID).
+		Order("created_at DESC").First(&balanceLog).Error; err == nil {
+		Success(c, gin.H{
+			"source":        "balance_log",
+			"request_id":    requestID,
+			"key_id":        balanceLog.KeyID,
+			"key_alias":     balanceLog.KeyAlias,
+			"key_suffix":    balanceLog.KeySuffix,
+			"delta":         balanceLog.Delta,
+			"before_amount": balanceLog.BeforeAmount,
+			"after_amount":  balanceLog.AfterAmount,
+			"operator":      balanceLog.Operator,
+			"remark":        balanceLog.Remark,
+			"created_at":    balanceLog.CreatedAt,
+		})
+		return
+	}
+
+	NotFound(c, http.StatusNotFound, "未找到该 request_id 对应的操作记录")
 }
 
 // ========== Shared helpers ==========

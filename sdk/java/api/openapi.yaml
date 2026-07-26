@@ -3,7 +3,7 @@ info:
   contact: {}
   description: 卡密管理系统 - 服务账号 SDK
   title: CloudKey Service Account API
-  version: "2.2"
+  version: "2.3"
 servers:
 - url: //localhost:8080/api
 paths:
@@ -118,8 +118,17 @@ paths:
       - application/json
   /service/keys/consume:
     post:
-      description: 通过 X-Service-Key 认证，扣减指定卡密的剩余额度
+      description: 通过 X-Service-Key 认证，扣减指定卡密的剩余额度。支持幂等：相同 X-Request-Id 不会重复扣减。
       operationId: consumeKey
+      parameters:
+      - description: 请求唯一标识（UUID），用于幂等性保护和结果查询
+        explode: false
+        in: header
+        name: X-Request-Id
+        required: false
+        schema:
+          type: string
+        style: simple
       requestBody:
         content:
           application/json:
@@ -481,7 +490,8 @@ paths:
       - application/json
   /service/keys/{id}/adjust-balance:
     post:
-      description: 通过 X-Service-Key 认证，增加或减少卡密额度（管理员行为），仅支持增量操作
+      description: 通过 X-Service-Key 认证，增加或减少卡密额度（管理员行为），仅支持增量操作。支持幂等：相同 X-Request-Id
+        不会重复调整。
       operationId: adjustBalance
       parameters:
       - description: 卡密ID
@@ -491,6 +501,14 @@ paths:
         required: true
         schema:
           type: integer
+        style: simple
+      - description: 请求唯一标识（UUID），用于幂等性保护和结果查询
+        explode: false
+        in: header
+        name: X-Request-Id
+        required: false
+        schema:
+          type: string
         style: simple
       requestBody:
         content:
@@ -661,6 +679,51 @@ paths:
       summary: 导出额度流转日志
       tags:
       - BalanceLogs
+      x-accepts:
+      - application/json
+  /service/consume-result:
+    get:
+      description: 根据 request_id 查询消费或调额结果。优先查 Redis 缓存（24h 内），过期则查 usage_logs / balance_logs。
+      operationId: getConsumeResult
+      parameters:
+      - description: 请求ID（X-Request-Id）
+        explode: true
+        in: query
+        name: request_id
+        required: true
+        schema:
+          type: string
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsumeResultQueryResponse"
+          description: 操作结果
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+          description: 缺少 request_id 参数
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+          description: 服务账号密钥无效
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+          description: 未找到对应的操作记录
+      security:
+      - ServiceKeyAuth: []
+      summary: 根据请求ID查询操作结果
+      tags:
+      - ServiceKeys
       x-accepts:
       - application/json
 components:
@@ -1273,6 +1336,83 @@ components:
           after_amount: 150
           operator: tenant_admin
           remark: 管理员充值
+          created_at: 2000-01-23T04:56:07.000+00:00
+    ConsumeResultQueryData:
+      description: 根据 request_id 查询到的操作结果（cache/usage_log/balance_log）
+      example:
+        source: source
+        request_id: request_id
+        key_id: 6
+        key_alias: key_alias
+        key_suffix: key_suffix
+        amount: 1
+        delta: 5
+        before_amount: 5
+        after_amount: 2
+        ip: ip
+        operator: operator
+        remark: remark
+        created_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        source:
+          description: 数据来源（cache/usage_log/balance_log）
+          type: string
+        request_id:
+          type: string
+        key_id:
+          format: int64
+          type: integer
+        key_alias:
+          type: string
+        key_suffix:
+          type: string
+        amount:
+          description: 消费量（usage_log 来源时有值）
+          format: int64
+          type: integer
+        delta:
+          description: 调整量（balance_log 来源时有值）
+          format: int64
+          type: integer
+        before_amount:
+          format: int64
+          type: integer
+        after_amount:
+          format: int64
+          type: integer
+        ip:
+          type: string
+        operator:
+          type: string
+        remark:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+      type: object
+    ConsumeResultQueryResponse:
+      allOf:
+      - $ref: "#/components/schemas/Result"
+      - properties:
+          data:
+            $ref: "#/components/schemas/ConsumeResultQueryData"
+        type: object
+      example:
+        code: 0
+        message: message
+        data:
+          source: source
+          request_id: request_id
+          key_id: 6
+          key_alias: key_alias
+          key_suffix: key_suffix
+          amount: 1
+          delta: 5
+          before_amount: 5
+          after_amount: 2
+          ip: ip
+          operator: operator
+          remark: remark
           created_at: 2000-01-23T04:56:07.000+00:00
   securitySchemes:
     ServiceKeyAuth:

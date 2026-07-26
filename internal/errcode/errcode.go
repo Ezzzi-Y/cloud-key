@@ -36,6 +36,9 @@ const (
 	CodeAccountLocked  = 6002
 	CodePreAuthInvalid = 6003
 
+	// 幂等性相关 7001~7099
+	CodeIdempotentReplay = 7001 // 幂等重放，返回缓存结果
+
 	// 系统 9001~9999
 	CodeRouteNotFound = 9001
 	CodeInternalError = 9999
@@ -64,6 +67,7 @@ var codeMessages = map[int]string{
 	CodeRateLimit:             "请求过于频繁，请稍后再试",
 	CodeAccountLocked:         "账号已被锁定，请稍后再试",
 	CodePreAuthInvalid:        "认证凭证无效或已过期，请重新登录",
+	CodeIdempotentReplay:      "重复请求，返回缓存结果",
 	CodeInternalError:         "系统内部错误",
 }
 

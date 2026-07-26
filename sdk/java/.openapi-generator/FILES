@@ -12,6 +12,8 @@ docs/BalanceLogsApi.md
 docs/ConsumeRequest.md
 docs/ConsumeResponse.md
 docs/ConsumeResult.md
+docs/ConsumeResultQueryData.md
+docs/ConsumeResultQueryResponse.md
 docs/CreateKeyData.md
 docs/CreateKeyRequest.md
 docs/CreateKeyResponse.md
@@ -62,6 +64,8 @@ src/main/java/org/openapitools/client/model/BalanceLogPageData.java
 src/main/java/org/openapitools/client/model/ConsumeRequest.java
 src/main/java/org/openapitools/client/model/ConsumeResponse.java
 src/main/java/org/openapitools/client/model/ConsumeResult.java
+src/main/java/org/openapitools/client/model/ConsumeResultQueryData.java
+src/main/java/org/openapitools/client/model/ConsumeResultQueryResponse.java
 src/main/java/org/openapitools/client/model/CreateKeyData.java
 src/main/java/org/openapitools/client/model/CreateKeyRequest.java
 src/main/java/org/openapitools/client/model/CreateKeyResponse.java
@@ -86,6 +90,8 @@ src/test/java/org/openapitools/client/model/BalanceLogPageDataTest.java
 src/test/java/org/openapitools/client/model/BalanceLogTest.java
 src/test/java/org/openapitools/client/model/ConsumeRequestTest.java
 src/test/java/org/openapitools/client/model/ConsumeResponseTest.java
+src/test/java/org/openapitools/client/model/ConsumeResultQueryDataTest.java
+src/test/java/org/openapitools/client/model/ConsumeResultQueryResponseTest.java
 src/test/java/org/openapitools/client/model/ConsumeResultTest.java
 src/test/java/org/openapitools/client/model/CreateKeyDataTest.java
 src/test/java/org/openapitools/client/model/CreateKeyRequestTest.java

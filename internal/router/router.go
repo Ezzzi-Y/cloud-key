@@ -53,6 +53,7 @@ func SetupRouter(
 ) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
+	r.Use(middleware.RequestID())
 	r.Use(middleware.RequestLogger())
 	r.Use(middleware.CORSMiddleware())
 
@@ -149,6 +150,7 @@ func SetupRouter(
 			tenantKeys.POST("", middleware.TenantBusinessGuard(db), tenantKeyHandler.CreateKey)
 			tenantKeys.GET("", tenantKeyHandler.ListKeys)
 			tenantKeys.GET("/status", tenantKeyHandler.Status)
+			tenantKeys.GET("/consume-result", tenantKeyHandler.GetConsumeResult)
 			tenantKeys.POST("/consume", middleware.TenantBusinessGuard(db), tenantKeyHandler.Consume)
 			tenantKeys.GET("/export", tenantKeyHandler.ExportKeys)
 			tenantKeys.GET("/export/json", tenantKeyHandler.ExportKeysJSON)
@@ -200,7 +202,8 @@ func SetupRouter(
 	serviceAPI := api.Group("/service")
 	serviceAPI.Use(middleware.ServiceAuthMiddleware(saSvc, db))
 	{
-		serviceAPI.POST("/keys", middleware.TenantBusinessGuard(db), tenantSAHandler.ServiceCreateKey)
+		serviceAPI.GET("/consume-result", tenantSAHandler.ServiceGetConsumeResult)
+	serviceAPI.POST("/keys", middleware.TenantBusinessGuard(db), tenantSAHandler.ServiceCreateKey)
 		serviceAPI.GET("/keys", tenantSAHandler.ServiceListKeys)
 		serviceAPI.GET("/keys/status", tenantSAHandler.ServiceGetKeyStatus)
 		serviceAPI.POST("/keys/consume", tenantSAHandler.ServiceConsumeKey)

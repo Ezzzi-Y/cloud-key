@@ -1,8 +1,8 @@
 # openapi-java-client
 
 CloudKey Service Account API
-- API version: 2.2
-  - Build date: 2026-07-26T17:37:36.210402400+08:00[Asia/Shanghai]
+- API version: 2.3
+  - Build date: 2026-07-26T23:02:03.953008400+08:00[Asia/Shanghai]
   - Generator version: 7.24.0
 
 卡密管理系统 - 服务账号 SDK
@@ -41,7 +41,7 @@ Add this dependency to your project's POM:
 <dependency>
   <groupId>org.openapitools</groupId>
   <artifactId>openapi-java-client</artifactId>
-  <version>2.2</version>
+  <version>2.3</version>
   <scope>compile</scope>
 </dependency>
 ```
@@ -57,7 +57,7 @@ Add this dependency to your project's build file:
   }
 
   dependencies {
-     implementation "org.openapitools:openapi-java-client:2.2"
+     implementation "org.openapitools:openapi-java-client:2.3"
   }
 ```
 
@@ -71,7 +71,7 @@ mvn clean package
 
 Then manually install the following JARs:
 
-* `target/openapi-java-client-2.2.jar`
+* `target/openapi-java-client-2.3.jar`
 * `target/lib/*.jar`
 
 ## Getting Started
@@ -135,6 +135,7 @@ Class | Method | HTTP request | Description
 *ServiceKeysApi* | [**enableKey**](docs/ServiceKeysApi.md#enableKey) | **PATCH** /service/keys/{id}/enable | 服务账号启用卡密
 *ServiceKeysApi* | [**exportKeys**](docs/ServiceKeysApi.md#exportKeys) | **GET** /service/keys/export | 服务账号导出卡密（文本格式）
 *ServiceKeysApi* | [**exportKeysJson**](docs/ServiceKeysApi.md#exportKeysJson) | **GET** /service/keys/export/json | 服务账号导出卡密（JSON 格式）
+*ServiceKeysApi* | [**getConsumeResult**](docs/ServiceKeysApi.md#getConsumeResult) | **GET** /service/consume-result | 根据请求ID查询操作结果
 *ServiceKeysApi* | [**getKey**](docs/ServiceKeysApi.md#getKey) | **GET** /service/keys/{id} | 服务账号查询卡密详情
 *ServiceKeysApi* | [**getKeyStatus**](docs/ServiceKeysApi.md#getKeyStatus) | **GET** /service/keys/status | 服务账号查询卡密状态
 *ServiceKeysApi* | [**listKeys**](docs/ServiceKeysApi.md#listKeys) | **GET** /service/keys | 服务账号查询卡密列表
@@ -152,6 +153,8 @@ Class | Method | HTTP request | Description
  - [ConsumeRequest](docs/ConsumeRequest.md)
  - [ConsumeResponse](docs/ConsumeResponse.md)
  - [ConsumeResult](docs/ConsumeResult.md)
+ - [ConsumeResultQueryData](docs/ConsumeResultQueryData.md)
+ - [ConsumeResultQueryResponse](docs/ConsumeResultQueryResponse.md)
  - [CreateKeyData](docs/CreateKeyData.md)
  - [CreateKeyRequest](docs/CreateKeyRequest.md)
  - [CreateKeyResponse](docs/CreateKeyResponse.md)

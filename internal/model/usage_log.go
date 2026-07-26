@@ -11,6 +11,7 @@ type UsageLog struct {
 	Amount         int64     `gorm:"type:bigint;not null" json:"amount"`
 	IP             string    `gorm:"type:varchar(50);not null" json:"ip"`
 	UserAgent      string    `gorm:"type:varchar(500)" json:"user_agent"`
+	RequestID      string    `gorm:"type:varchar(36);index;default:''" json:"request_id"`
 	RequestParams  string    `gorm:"type:text" json:"request_params"`
 	ResponseStatus int       `gorm:"type:int;not null" json:"response_status"`
 	CreatedAt      time.Time `gorm:"autoCreateTime;index" json:"created_at"`

@@ -12,6 +12,7 @@ All URIs are relative to *http://localhost:8080/api*
 | [**enableKey**](ServiceKeysApi.md#enableKey) | **PATCH** /service/keys/{id}/enable | 服务账号启用卡密 |
 | [**exportKeys**](ServiceKeysApi.md#exportKeys) | **GET** /service/keys/export | 服务账号导出卡密（文本格式） |
 | [**exportKeysJson**](ServiceKeysApi.md#exportKeysJson) | **GET** /service/keys/export/json | 服务账号导出卡密（JSON 格式） |
+| [**getConsumeResult**](ServiceKeysApi.md#getConsumeResult) | **GET** /service/consume-result | 根据请求ID查询操作结果 |
 | [**getKey**](ServiceKeysApi.md#getKey) | **GET** /service/keys/{id} | 服务账号查询卡密详情 |
 | [**getKeyStatus**](ServiceKeysApi.md#getKeyStatus) | **GET** /service/keys/status | 服务账号查询卡密状态 |
 | [**listKeys**](ServiceKeysApi.md#listKeys) | **GET** /service/keys | 服务账号查询卡密列表 |
@@ -20,11 +21,11 @@ All URIs are relative to *http://localhost:8080/api*
 
 <a id="adjustBalance"></a>
 # **adjustBalance**
-> AdjustBalanceResponse adjustBalance(id, body)
+> AdjustBalanceResponse adjustBalance(id, body, xRequestId)
 
 服务账号调整卡密额度
 
-通过 X-Service-Key 认证，增加或减少卡密额度（管理员行为），仅支持增量操作
+通过 X-Service-Key 认证，增加或减少卡密额度（管理员行为），仅支持增量操作。支持幂等：相同 X-Request-Id 不会重复调整。
 
 ### Example
 ```java
@@ -50,8 +51,9 @@ public class Example {
     ServiceKeysApi apiInstance = new ServiceKeysApi(defaultClient);
     Integer id = 56; // Integer | 卡密ID
     AdjustBalanceRequest body = new AdjustBalanceRequest(); // AdjustBalanceRequest | 调整参数
+    String xRequestId = "xRequestId_example"; // String | 请求唯一标识（UUID），用于幂等性保护和结果查询
     try {
-      AdjustBalanceResponse result = apiInstance.adjustBalance(id, body);
+      AdjustBalanceResponse result = apiInstance.adjustBalance(id, body, xRequestId);
       System.out.println(result);
     } catch (CloudKeyException e) {
       System.err.println("Exception when calling ServiceKeysApi#adjustBalance");
@@ -70,6 +72,7 @@ public class Example {
 |------------- | ------------- | ------------- | -------------|
 | **id** | **Integer**| 卡密ID | |
 | **body** | [**AdjustBalanceRequest**](AdjustBalanceRequest.md)| 调整参数 | |
+| **xRequestId** | **String**| 请求唯一标识（UUID），用于幂等性保护和结果查询 | [optional] |
 
 ### Return type
 
@@ -94,11 +97,11 @@ public class Example {
 
 <a id="consumeKey"></a>
 # **consumeKey**
-> ConsumeResponse consumeKey(body)
+> ConsumeResponse consumeKey(body, xRequestId)
 
 服务账号扣减卡密额度
 
-通过 X-Service-Key 认证，扣减指定卡密的剩余额度
+通过 X-Service-Key 认证，扣减指定卡密的剩余额度。支持幂等：相同 X-Request-Id 不会重复扣减。
 
 ### Example
 ```java
@@ -123,8 +126,9 @@ public class Example {
 
     ServiceKeysApi apiInstance = new ServiceKeysApi(defaultClient);
     ConsumeRequest body = new ConsumeRequest(); // ConsumeRequest | 扣减参数
+    String xRequestId = "xRequestId_example"; // String | 请求唯一标识（UUID），用于幂等性保护和结果查询
     try {
-      ConsumeResponse result = apiInstance.consumeKey(body);
+      ConsumeResponse result = apiInstance.consumeKey(body, xRequestId);
       System.out.println(result);
     } catch (CloudKeyException e) {
       System.err.println("Exception when calling ServiceKeysApi#consumeKey");
@@ -142,6 +146,7 @@ public class Example {
 | Name | Type | Description  | Notes |
 |------------- | ------------- | ------------- | -------------|
 | **body** | [**ConsumeRequest**](ConsumeRequest.md)| 扣减参数 | |
+| **xRequestId** | **String**| 请求唯一标识（UUID），用于幂等性保护和结果查询 | [optional] |
 
 ### Return type
 
@@ -572,6 +577,78 @@ This endpoint does not need any parameter.
 |-------------|-------------|------------------|
 | **200** | 导出数据 JSON 数组 |  -  |
 | **401** | 服务账号密钥无效 |  -  |
+
+<a id="getConsumeResult"></a>
+# **getConsumeResult**
+> ConsumeResultQueryResponse getConsumeResult(requestId)
+
+根据请求ID查询操作结果
+
+根据 request_id 查询消费或调额结果。优先查 Redis 缓存（24h 内），过期则查 usage_logs / balance_logs。
+
+### Example
+```java
+// Import classes:
+import org.openapitools.client.CloudKeyClient;
+import org.openapitools.client.CloudKeyException;
+import org.openapitools.client.Configuration;
+import org.openapitools.client.auth.*;
+import org.openapitools.client.models.*;
+import org.openapitools.client.api.ServiceKeysApi;
+
+public class Example {
+  public static void main(String[] args) {
+    CloudKeyClient defaultClient = CloudKeyCloudKeyConfiguration.getDefaultCloudKeyClient();
+    defaultClient.setBasePath("http://localhost:8080/api");
+    
+    // Configure API key authorization: ServiceKeyAuth
+    ApiKeyAuth ServiceKeyAuth = (ApiKeyAuth) defaultClient.getAuthentication("ServiceKeyAuth");
+    ServiceKeyAuth.setApiKey("YOUR API KEY");
+    // Uncomment the following line to set a prefix for the API key, e.g. "Token" (defaults to null)
+    //ServiceKeyAuth.setApiKeyPrefix("Token");
+
+    ServiceKeysApi apiInstance = new ServiceKeysApi(defaultClient);
+    String requestId = "requestId_example"; // String | 请求ID（X-Request-Id）
+    try {
+      ConsumeResultQueryResponse result = apiInstance.getConsumeResult(requestId);
+      System.out.println(result);
+    } catch (CloudKeyException e) {
+      System.err.println("Exception when calling ServiceKeysApi#getConsumeResult");
+      System.err.println("Status code: " + e.getCode());
+      System.err.println("Reason: " + e.getResponseBody());
+      System.err.println("Response headers: " + e.getResponseHeaders());
+      e.printStackTrace();
+    }
+  }
+}
+```
+
+### Parameters
+
+| Name | Type | Description  | Notes |
+|------------- | ------------- | ------------- | -------------|
+| **requestId** | **String**| 请求ID（X-Request-Id） | |
+
+### Return type
+
+[**ConsumeResultQueryResponse**](ConsumeResultQueryResponse.md)
+
+### Authorization
+
+[ServiceKeyAuth](../README.md#ServiceKeyAuth)
+
+### HTTP request headers
+
+ - **Content-Type**: Not defined
+ - **Accept**: application/json
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **200** | 操作结果 |  -  |
+| **400** | 缺少 request_id 参数 |  -  |
+| **401** | 服务账号密钥无效 |  -  |
+| **404** | 未找到对应的操作记录 |  -  |
 
 <a id="getKey"></a>
 # **getKey**

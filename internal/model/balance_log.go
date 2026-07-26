@@ -13,6 +13,7 @@ type BalanceLog struct {
 	AfterAmount  int64     `gorm:"type:bigint;not null" json:"after_amount"`
 	Operator     string    `gorm:"type:varchar(100);not null" json:"operator"`
 	Remark       string    `gorm:"type:varchar(500);not null;default:''" json:"remark"`
+	RequestID    string    `gorm:"type:varchar(36);index;default:''" json:"request_id"`
 	CreatedAt    time.Time `gorm:"autoCreateTime;index" json:"created_at"`
 }
 

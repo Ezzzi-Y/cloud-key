@@ -25,6 +25,7 @@ type RecordBalanceParams struct {
 	AfterAmount  int64
 	Operator     string
 	Remark       string
+	RequestID    string
 }
 
 func (s *BalanceLogService) Record(params RecordBalanceParams) error {
@@ -38,6 +39,7 @@ func (s *BalanceLogService) Record(params RecordBalanceParams) error {
 		AfterAmount:  params.AfterAmount,
 		Operator:     params.Operator,
 		Remark:       params.Remark,
+		RequestID:    params.RequestID,
 		CreatedAt:    time.Now(),
 	}).Error
 }
