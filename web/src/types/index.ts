@@ -149,6 +149,8 @@ export interface DashboardData {
   month_calls: number
   recent_logs: UsageLog[]
   key_status_breakdown: Record<string, number>
+  can_refresh: boolean
+  next_refresh_at: string | null
 }
 
 export interface KeyOverview {

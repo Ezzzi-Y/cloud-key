@@ -62,6 +62,11 @@ func topKeysZSetKey(tenantID uint64) string {
 	return "top_keys:" + strconv.FormatUint(tenantID, 10)
 }
 
+// topAmountZSetKey returns the Redis ZSET key for a tenant's top-amount ranking.
+func topAmountZSetKey(tenantID uint64) string {
+	return "top_amount:" + strconv.FormatUint(tenantID, 10)
+}
+
 func (s *KeyService) WithConfig(prefix string, keyLen, suffixLen int) *KeyService {
 	s.keyPrefix = prefix
 	s.keyLength = keyLen
@@ -508,12 +513,15 @@ func (s *KeyService) consumeViaMySQL(rawKey string, amount int64, tenantID uint6
 			status = model.KeyStatusExhausted
 		}
 
-		// 原子递增 Redis ZSET 中该 key 的消费计数
+		// 原子递增 Redis ZSET 中该 key 的消费计数和额度消耗
 		if s.rdb != nil {
 			ctx := context.Background()
 			member := strconv.FormatUint(key.ID, 10)
 			if err := s.rdb.ZIncrBy(ctx, topKeysZSetKey(tenantID), 1, member).Err(); err != nil {
 				zap.L().Debug("top_keys ZINCRBY failed", zap.Error(err))
+			}
+			if err := s.rdb.ZIncrBy(ctx, topAmountZSetKey(tenantID), float64(amount), member).Err(); err != nil {
+				zap.L().Debug("top_amount ZINCRBY failed", zap.Error(err))
 			}
 		}
 
@@ -859,6 +867,7 @@ func (s *KeyService) DeleteKey(id, tenantID uint64) error {
 	s.syncCacheOnDelete(key.KeyHash)
 	// 从 Redis ZSET 中移除该 key
 	s.RemoveFromTopKeys(tenantID, id)
+	s.RemoveFromTopAmount(tenantID, id)
 	return nil
 }
 
@@ -948,6 +957,18 @@ func (s *KeyService) RemoveFromTopKeys(tenantID, keyID uint64) {
 	}
 }
 
+// RemoveFromTopAmount 从 Redis ZSET 中移除指定 key（用于卡密删除时清理）。
+func (s *KeyService) RemoveFromTopAmount(tenantID, keyID uint64) {
+	if s.rdb == nil {
+		return
+	}
+	ctx := context.Background()
+	member := strconv.FormatUint(keyID, 10)
+	if err := s.rdb.ZRem(ctx, topAmountZSetKey(tenantID), member).Err(); err != nil {
+		zap.L().Debug("top_amount ZREM failed", zap.Error(err))
+	}
+}
+
 // BackfillTopKeys 从 usage_logs 聚合历史消费数据，回填 Redis ZSET。
 // 应在服务启动时调用一次，确保 Redis 与数据库一致。
 func (s *KeyService) BackfillTopKeys() {
@@ -994,4 +1015,152 @@ func (s *KeyService) BackfillTopKeys() {
 	zap.L().Info("top_keys 回填完成",
 		zap.Int("tenants", len(grouped)),
 		zap.Int("total_keys", total))
+}
+
+// BackfillTopAmount 从 usage_logs 聚合历史额度消耗，回填 Redis ZSET。
+// 应在服务启动时调用一次，确保 Redis 与数据库一致。
+func (s *KeyService) BackfillTopAmount() {
+	if s.rdb == nil {
+		return
+	}
+
+	type keyAmount struct {
+		TenantID uint64
+		KeyID    uint64
+		Amount   int64
+	}
+	var rows []keyAmount
+
+	if err := s.db.Model(&model.UsageLog{}).
+		Select("tenant_id, key_id, SUM(amount) as amount").
+		Where("key_id > 0").
+		Group("tenant_id, key_id").
+		Scan(&rows).Error; err != nil {
+		zap.L().Error("top_amount backfill query failed", zap.Error(err))
+		return
+	}
+
+	// 按 tenantID 分组，批量 ZADD
+	grouped := make(map[uint64][]redis.Z)
+	for _, r := range rows {
+		grouped[r.TenantID] = append(grouped[r.TenantID], redis.Z{
+			Score:  float64(r.Amount),
+			Member: strconv.FormatUint(r.KeyID, 10),
+		})
+	}
+
+	ctx := context.Background()
+	var total int
+	for tenantID, members := range grouped {
+		if err := s.rdb.ZAdd(ctx, topAmountZSetKey(tenantID), members...).Err(); err != nil {
+			zap.L().Error("top_amount ZADD failed",
+				zap.Uint64("tenant_id", tenantID), zap.Error(err))
+			continue
+		}
+		total += len(members)
+	}
+
+	zap.L().Info("top_amount 回填完成",
+		zap.Int("tenants", len(grouped)),
+		zap.Int("total_keys", total))
+}
+
+// refreshTopLockKey 返回限制刷新频率的 Redis key。
+func refreshTopLockKey(tenantID uint64) string {
+	return "top_refresh_lock:" + strconv.FormatUint(tenantID, 10)
+}
+
+// CanRefreshTop 检查该租户今天是否还能刷新 Top 统计。
+func (s *KeyService) CanRefreshTop(tenantID uint64) (bool, error) {
+	if s.rdb == nil {
+		return true, nil
+	}
+	ctx := context.Background()
+	exists, err := s.rdb.Exists(ctx, refreshTopLockKey(tenantID)).Result()
+	if err != nil {
+		return false, err
+	}
+	return exists == 0, nil
+}
+
+// RefreshTopStats 重新统计指定租户的 top_keys 和 top_amount Redis ZSET。
+// 限频：同一天只能调用一次。
+func (s *KeyService) RefreshTopStats(tenantID uint64) error {
+	if s.rdb == nil {
+		return fmt.Errorf("redis not available")
+	}
+
+	ctx := context.Background()
+	lockKey := refreshTopLockKey(tenantID)
+
+	// 尝试获取锁（SETNX + 24h TTL）
+	ok, err := s.rdb.SetNX(ctx, lockKey, 1, 24*time.Hour).Result()
+	if err != nil {
+		return fmt.Errorf("setnx lock: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("already refreshed")
+	}
+
+	// 统计调用次数 top_keys
+	type keyCount struct {
+		KeyID uint64
+		Count int64
+	}
+	var callRows []keyCount
+	if err := s.db.Model(&model.UsageLog{}).
+		Select("key_id, COUNT(*) as count").
+		Where("tenant_id = ? AND key_id > 0", tenantID).
+		Group("key_id").Scan(&callRows).Error; err != nil {
+		return fmt.Errorf("query top_keys: %w", err)
+	}
+
+	// 统计额度消耗 top_amount
+	type keyAmount struct {
+		KeyID  uint64
+		Amount int64
+	}
+	var amountRows []keyAmount
+	if err := s.db.Model(&model.UsageLog{}).
+		Select("key_id, SUM(amount) as amount").
+		Where("tenant_id = ? AND key_id > 0", tenantID).
+		Group("key_id").Scan(&amountRows).Error; err != nil {
+		return fmt.Errorf("query top_amount: %w", err)
+	}
+
+	// 构建 ZSET members
+	callMembers := make([]redis.Z, 0, len(callRows))
+	for _, r := range callRows {
+		callMembers = append(callMembers, redis.Z{
+			Score:  float64(r.Count),
+			Member: strconv.FormatUint(r.KeyID, 10),
+		})
+	}
+	amountMembers := make([]redis.Z, 0, len(amountRows))
+	for _, r := range amountRows {
+		amountMembers = append(amountMembers, redis.Z{
+			Score:  float64(r.Amount),
+			Member: strconv.FormatUint(r.KeyID, 10),
+		})
+	}
+
+	// 原子替换：先删除旧数据，再写入新数据
+	pipe := s.rdb.Pipeline()
+	pipe.Del(ctx, topKeysZSetKey(tenantID))
+	pipe.Del(ctx, topAmountZSetKey(tenantID))
+	if len(callMembers) > 0 {
+		pipe.ZAdd(ctx, topKeysZSetKey(tenantID), callMembers...)
+	}
+	if len(amountMembers) > 0 {
+		pipe.ZAdd(ctx, topAmountZSetKey(tenantID), amountMembers...)
+	}
+	if _, err := pipe.Exec(ctx); err != nil {
+		return fmt.Errorf("pipeline exec: %w", err)
+	}
+
+	zap.L().Info("top 统计刷新完成",
+		zap.Uint64("tenant_id", tenantID),
+		zap.Int("top_keys", len(callMembers)),
+		zap.Int("top_amount", len(amountMembers)))
+	return nil
 }

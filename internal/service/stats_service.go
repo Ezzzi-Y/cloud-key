@@ -321,12 +321,104 @@ func (s *StatsService) getTopKeysFromDB(dateRange *DateRange, tenantID uint64) (
 	return items, nil
 }
 
+type TopAmountItem struct {
+	KeyAlias string `json:"key_alias"`
+	Amount   int64  `json:"total_amount"`
+}
+
+func (s *StatsService) GetTopAmount(dateRange *DateRange, tenantID uint64) ([]TopAmountItem, error) {
+	// 无日期过滤时优先走 Redis 缓存
+	if dateRange == nil {
+		items, err := s.getTopAmountFromRedis(tenantID)
+		if err == nil && len(items) > 0 {
+			return items, nil
+		}
+		if err != nil {
+			zap.L().Debug("top_amount Redis read failed, falling back to SQL", zap.Error(err))
+		}
+	}
+
+	// SQL fallback（支持日期过滤 或 Redis miss）
+	return s.getTopAmountFromDB(dateRange, tenantID)
+}
+
+// getTopAmountFromRedis 从 Redis ZSET 读取 top 10 额度消耗卡密，批量解析 alias。
+func (s *StatsService) getTopAmountFromRedis(tenantID uint64) ([]TopAmountItem, error) {
+	ctx := context.Background()
+	zsetKey := topAmountZSetKey(tenantID)
+
+	// ZREVRANGE key 0 9 WITHSCORES — O(log N + 10)
+	zs, err := s.rdb.ZRevRangeWithScores(ctx, zsetKey, 0, 9).Result()
+	if err != nil {
+		return nil, err
+	}
+	if len(zs) == 0 {
+		return nil, nil
+	}
+
+	// 收集 key ID，批量查询 alias
+	ids := make([]uint64, 0, len(zs))
+	for _, z := range zs {
+		id, err := strconv.ParseUint(z.Member.(string), 10, 64)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, id)
+	}
+
+	type keyInfo struct {
+		ID    uint64
+		Alias string
+	}
+	var keys []keyInfo
+	if err := s.db.Model(&model.Key{}).
+		Where("id IN ?", ids).
+		Select("id, alias").
+		Scan(&keys).Error; err != nil {
+		return nil, err
+	}
+
+	aliasMap := make(map[uint64]string, len(keys))
+	for _, k := range keys {
+		aliasMap[k.ID] = k.Alias
+	}
+
+	items := make([]TopAmountItem, 0, len(zs))
+	for _, z := range zs {
+		id, _ := strconv.ParseUint(z.Member.(string), 10, 64)
+		alias, ok := aliasMap[id]
+		if !ok {
+			continue // key 已被删除，跳过
+		}
+		items = append(items, TopAmountItem{
+			KeyAlias: alias,
+			Amount:   int64(z.Score),
+		})
+	}
+
+	return items, nil
+}
+
+// getTopAmountFromDB 从 usage_logs 表查询 top 10 额度消耗（支持日期过滤）。
+func (s *StatsService) getTopAmountFromDB(dateRange *DateRange, tenantID uint64) ([]TopAmountItem, error) {
+	items := make([]TopAmountItem, 0)
+	db := applyDateFilter(s.db.Model(&model.UsageLog{}), dateRange).Where("tenant_id = ?", tenantID)
+	if err := db.
+		Select("key_alias, SUM(amount) as total_amount").
+		Group("key_alias").Order("total_amount DESC").Limit(10).Scan(&items).Error; err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 type DashboardStats struct {
 	KeyCount        int64            `json:"key_count"`
 	StatusBreakdown map[string]int64 `json:"key_status_breakdown"`
 	TodayCalls      int64            `json:"today_calls"`
 	WeekCalls       int64            `json:"week_calls"`
 	MonthCalls      int64            `json:"month_calls"`
+	CanRefresh      bool             `json:"can_refresh"`
+	NextRefreshAt   *time.Time       `json:"next_refresh_at"`
 	RecentLogs      []model.UsageLog `json:"recent_logs"`
 }
 
@@ -363,6 +455,33 @@ func (s *StatsService) GetDashboard(tenantID uint64) (*DashboardStats, error) {
 		TodayCalls:      todayCalls,
 		WeekCalls:       weekCalls,
 		MonthCalls:      monthCalls,
+		CanRefresh:      s.canRefreshTop(tenantID),
+		NextRefreshAt:   s.nextRefreshAt(tenantID),
 		RecentLogs:      recentLogs,
 	}, nil
+}
+
+func (s *StatsService) canRefreshTop(tenantID uint64) bool {
+	if s.rdb == nil {
+		return true
+	}
+	ctx := context.Background()
+	exists, err := s.rdb.Exists(ctx, refreshTopLockKey(tenantID)).Result()
+	if err != nil {
+		return true // 出错时允许操作
+	}
+	return exists == 0
+}
+
+func (s *StatsService) nextRefreshAt(tenantID uint64) *time.Time {
+	if s.rdb == nil {
+		return nil
+	}
+	ctx := context.Background()
+	ttl, err := s.rdb.TTL(ctx, refreshTopLockKey(tenantID)).Result()
+	if err != nil || ttl <= 0 {
+		return nil
+	}
+	next := time.Now().Add(ttl)
+	return &next
 }

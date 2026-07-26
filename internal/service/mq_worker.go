@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -203,6 +204,15 @@ func (w *MQWorker) handleConsume(d amqp.Delivery) error {
 			zap.L().Debug("trend daily HINCRBY failed", zap.Error(err))
 		} else {
 			w.rdb.Expire(ctx, dayKey, 30*24*time.Hour)
+		}
+
+		// 更新 top_keys 和 top_amount ZSET
+		member := strconv.FormatUint(event.KeyID, 10)
+		if err := w.rdb.ZIncrBy(ctx, topKeysZSetKey(event.TenantID), 1, member).Err(); err != nil {
+			zap.L().Debug("top_keys ZINCRBY failed", zap.Error(err))
+		}
+		if err := w.rdb.ZIncrBy(ctx, topAmountZSetKey(event.TenantID), float64(event.Amount), member).Err(); err != nil {
+			zap.L().Debug("top_amount ZINCRBY failed", zap.Error(err))
 		}
 	}
 

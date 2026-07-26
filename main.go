@@ -126,9 +126,6 @@ func main() {
 		zap.L().Warn("创建超级管理员失败", zap.Error(err))
 	}
 
-	// 回填 Redis top_keys 缓存
-	keySvc.BackfillTopKeys()
-
 	// MQ 消费者 Worker
 	mqWorker := service.NewMQWorker(mqSvc, db, rdb)
 	mqWorker.Start()
@@ -139,7 +136,7 @@ func main() {
 	superHandler := handler.NewSuperHandler(tenantSvc, configSvc, loginLogSvc)
 	tenantKeyHandler := handler.NewTenantKeyHandler(keySvc, balanceLogSvc, db)
 	tenantSAHandler := handler.NewTenantServiceAccountHandler(keySvc, serviceAccountSvc, balanceLogSvc, db)
-	tenantStatsHandler := handler.NewTenantStatsHandler(statsSvc)
+	tenantStatsHandler := handler.NewTenantStatsHandler(statsSvc, keySvc)
 	tenantUsageLogHandler := handler.NewTenantUsageLogHandler(usageLogSvc, loginLogSvc)
 	tenantBalanceLogHandler := handler.NewTenantBalanceLogHandler(balanceLogSvc)
 	serviceBalanceLogHandler := handler.NewServiceBalanceLogHandler(balanceLogSvc)

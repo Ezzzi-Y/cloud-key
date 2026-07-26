@@ -146,6 +146,8 @@ func SetupRouter(
 				tenantStats.GET("/overview", tenantStatsHandler.Overview)
 				tenantStats.GET("/trends", tenantStatsHandler.Trends)
 				tenantStats.GET("/top-keys", tenantStatsHandler.TopKeys)
+				tenantStats.GET("/top-amount", tenantStatsHandler.TopAmount)
+				tenantStats.POST("/refresh-top", tenantStatsHandler.RefreshTopStats)
 			}
 
 			// 使用日志（不 guard）

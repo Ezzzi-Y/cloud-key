@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { getDashboard, getTrends, getTopKeys } from '@/api/stats'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getDashboard, getTrends, getTopKeys, getTopAmount, refreshTopStats } from '@/api/stats'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SkeletonCards } from '@/components/SkeletonCard'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { Key, Calendar, TrendingUp, BarChart3, Plus } from 'lucide-react'
+import { Key, Calendar, TrendingUp, BarChart3, Plus, RefreshCw } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export default function TenantDashboard() {
@@ -26,6 +26,23 @@ export default function TenantDashboard() {
     queryKey: ['tenant-top-keys'],
     queryFn: () => getTopKeys().then((r) => (r.code === 0 ? r.data : [])),
   })
+  const { data: topAmount } = useQuery({
+    queryKey: ['tenant-top-amount'],
+    queryFn: () => getTopAmount().then((r) => (r.code === 0 ? r.data : [])),
+  })
+
+  const queryClient = useQueryClient()
+  const refreshMutation = useMutation({
+    mutationFn: refreshTopStats,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tenant-top-keys'] })
+      queryClient.invalidateQueries({ queryKey: ['tenant-top-amount'] })
+      queryClient.invalidateQueries({ queryKey: ['tenant-dashboard'] })
+    },
+  })
+
+  const canRefresh = dash?.can_refresh ?? true
+  const nextRefreshAt = dash?.next_refresh_at
 
   if (isLoading) {
     return (
@@ -156,44 +173,98 @@ export default function TenantDashboard() {
         </CardContent>
       </Card>
 
-      {/* Top 10 Keys */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Top 10 卡密</CardTitle></CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-16">排名</TableHead>
-                <TableHead>别名</TableHead>
-                <TableHead className="text-right">调用数</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {topKeys?.slice(0, 10).map((item, i) => (
-                <TableRow key={i} className="group">
-                  <TableCell>
-                    <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
-                      i === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400' :
-                      i === 1 ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' :
-                      i === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400' :
-                      'bg-muted text-muted-foreground'
-                    }`}>
-                      {i + 1}
-                    </span>
-                  </TableCell>
-                  <TableCell className="font-medium">{item.key_alias || '-'}</TableCell>
-                  <TableCell className="text-right font-mono">{item.count.toLocaleString()}</TableCell>
+      {/* Top 10 Keys & Amount */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">Top 10 卡密</h3>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!canRefresh || refreshMutation.isPending}
+          onClick={() => refreshMutation.mutate()}
+        >
+          <RefreshCw className={`mr-2 h-4 w-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
+          {refreshMutation.isPending
+            ? '刷新中...'
+            : !canRefresh && nextRefreshAt
+              ? `已刷新 · 明天 ${new Date(nextRefreshAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} 可再次统计`
+              : '重新统计'}
+        </Button>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Top 10 by Calls */}
+        <Card>
+          <CardHeader><CardTitle className="text-base">调用次数</CardTitle></CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-16">排名</TableHead>
+                  <TableHead>别名</TableHead>
+                  <TableHead className="text-right">调用数</TableHead>
                 </TableRow>
-              ))}
-              {(!topKeys || topKeys.length === 0) && (
-                <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-8">暂无数据</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {topKeys?.slice(0, 10).map((item, i) => (
+                  <TableRow key={i} className="group">
+                    <TableCell>
+                      <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                        i === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400' :
+                        i === 1 ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' :
+                        i === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400' :
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        {i + 1}
+                      </span>
+                    </TableCell>
+                    <TableCell className="font-medium">{item.key_alias || '-'}</TableCell>
+                    <TableCell className="text-right font-mono">{item.count.toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+                {(!topKeys || topKeys.length === 0) && (
+                  <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-8">暂无数据</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
 
-      {/* Recent Logs */}
+        {/* Top 10 by Amount */}
+        <Card>
+          <CardHeader><CardTitle className="text-base">额度消耗</CardTitle></CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-16">排名</TableHead>
+                  <TableHead>别名</TableHead>
+                  <TableHead className="text-right">额度消耗</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {topAmount?.slice(0, 10).map((item, i) => (
+                  <TableRow key={i} className="group">
+                    <TableCell>
+                      <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                        i === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400' :
+                        i === 1 ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' :
+                        i === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400' :
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        {i + 1}
+                      </span>
+                    </TableCell>
+                    <TableCell className="font-medium">{item.key_alias || '-'}</TableCell>
+                    <TableCell className="text-right font-mono">{item.total_amount.toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+                {(!topAmount || topAmount.length === 0) && (
+                  <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-8">暂无数据</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
       <Card>
         <CardHeader><CardTitle className="text-base">最近使用记录</CardTitle></CardHeader>
         <CardContent>

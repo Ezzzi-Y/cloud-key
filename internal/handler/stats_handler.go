@@ -23,10 +23,11 @@ func extractDateRange(c *gin.Context) *service.DateRange {
 
 type TenantStatsHandler struct {
 	statsSvc *service.StatsService
+	keySvc   *service.KeyService
 }
 
-func NewTenantStatsHandler(svc *service.StatsService) *TenantStatsHandler {
-	return &TenantStatsHandler{statsSvc: svc}
+func NewTenantStatsHandler(svc *service.StatsService, keySvc *service.KeyService) *TenantStatsHandler {
+	return &TenantStatsHandler{statsSvc: svc, keySvc: keySvc}
 }
 
 // Dashboard 租户仪表盘数据
@@ -118,4 +119,60 @@ func (h *TenantStatsHandler) TopKeys(c *gin.Context) {
 		return
 	}
 	Success(c, items)
+}
+
+// TopAmount 额度消耗 Top10
+// @Summary     额度消耗 Top10
+// @Tags        租户-统计
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       start_date query string false "开始日期 YYYY-MM-DD"
+// @Param       end_date   query string false "结束日期 YYYY-MM-DD"
+// @Success     200 {object} Response "额度消耗 Top10 列表"
+// @Failure     400 {object} Response "日期范围错误"
+// @Router      /tenant/stats/top-amount [get]
+func (h *TenantStatsHandler) TopAmount(c *gin.Context) {
+	tenantID := getTenantID(c)
+	dr := extractDateRange(c)
+	if c.IsAborted() {
+		return
+	}
+	items, err := h.statsSvc.GetTopAmount(dr, tenantID)
+	if err != nil {
+		InternalError(c)
+		return
+	}
+	Success(c, items)
+}
+
+// RefreshTopStats 手动刷新 Top 统计
+// @Summary     手动刷新 Top 统计
+// @Tags        租户-统计
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Success     200 {object} Response "刷新成功"
+// @Failure     429 {object} Response "今天已刷新过"
+// @Router      /tenant/stats/refresh-top [post]
+func (h *TenantStatsHandler) RefreshTopStats(c *gin.Context) {
+	tenantID := getTenantID(c)
+
+	canRefresh, err := h.keySvc.CanRefreshTop(tenantID)
+	if err != nil {
+		InternalError(c)
+		return
+	}
+	if !canRefresh {
+		BadRequest(c, errcode.CodeForbidden, "24小时内已刷新过，请稍后再试")
+		return
+	}
+
+	if err := h.keySvc.RefreshTopStats(tenantID); err != nil {
+		if err.Error() == "already refreshed" {
+			BadRequest(c, errcode.CodeForbidden, "24小时内已刷新过，请稍后再试")
+			return
+		}
+		InternalError(c)
+		return
+	}
+	Success(c, nil)
 }

@@ -18,3 +18,11 @@ export function getTrends(period: 'today' | 'week' | 'month' = 'today') {
 export function getTopKeys() {
   return api.get<unknown, ApiResponse<TopItem[]>>('/tenant/stats/top-keys')
 }
+
+export function getTopAmount() {
+  return api.get<unknown, ApiResponse<TopItem[]>>('/tenant/stats/top-amount')
+}
+
+export function refreshTopStats() {
+  return api.post<unknown, ApiResponse<null>>('/tenant/stats/refresh-top')
+}
