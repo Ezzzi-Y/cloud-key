@@ -16,15 +16,18 @@ export interface NavItem {
   icon: LucideIcon
   label: string
   end?: boolean
+  writeOp?: boolean
 }
 
 interface AdminLayoutProps {
   navItems: NavItem[]
   roleLabel: string
   roleColor: string
+  disableWriteOps?: boolean
+  alertSlot?: React.ReactNode
 }
 
-export default function AdminLayout({ navItems, roleLabel, roleColor }: AdminLayoutProps) {
+export default function AdminLayout({ navItems, roleLabel, roleColor, disableWriteOps, alertSlot }: AdminLayoutProps) {
   const { username, logout } = useAuth()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -43,18 +46,20 @@ export default function AdminLayout({ navItems, roleLabel, roleColor }: AdminLay
 
   const NavLinks = ({ compact = false }: { compact?: boolean }) => (
     <nav className="flex flex-col gap-1 px-2">
-      {navItems.map(({ to, icon: Icon, label, end }) => {
+      {navItems.map(({ to, icon: Icon, label, end, writeOp }) => {
+        const disabled = disableWriteOps && writeOp
         const link = (
           <NavLink
             key={to}
             to={to}
             end={end}
-            onClick={() => setMobileOpen(false)}
+            onClick={(e) => { if (disabled) { e.preventDefault(); return } setMobileOpen(false) }}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                 compact && 'justify-center px-0',
-                isActive
+                disabled && 'pointer-events-none opacity-40',
+                isActive && !disabled
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
               )
@@ -69,7 +74,7 @@ export default function AdminLayout({ navItems, roleLabel, roleColor }: AdminLay
           return (
             <Tooltip key={to} delayDuration={0}>
               <TooltipTrigger asChild>{link}</TooltipTrigger>
-              <TooltipContent side="right">{label}</TooltipContent>
+              <TooltipContent side="right">{disabled ? '当前租户状态不可操作' : label}</TooltipContent>
             </Tooltip>
           )
         }
@@ -187,6 +192,7 @@ export default function AdminLayout({ navItems, roleLabel, roleColor }: AdminLay
             </div>
           </div>
           <div className="mx-auto max-w-7xl p-6">
+            {alertSlot}
             <Outlet />
           </div>
         </main>

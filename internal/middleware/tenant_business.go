@@ -9,21 +9,32 @@ import (
 	"gorm.io/gorm"
 )
 
+// TenantBusinessGuard 拦截 expired / disabled 租户的写操作
+// 优先从 context 读取 RequireTenantAdmin 已加载的 tenant，避免重复查 DB
 func TenantBusinessGuard(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tenantIDI, exists := c.Get("tenant_id")
-		if !exists {
-			handler.Forbidden(c, errcode.CodeTenantNotFound, errcode.GetMessage(errcode.CodeTenantNotFound))
-			c.Abort()
-			return
-		}
-		tenantID := tenantIDI.(uint64)
+		var tenant *model.Tenant
 
-		var tenant model.Tenant
-		if err := db.First(&tenant, tenantID).Error; err != nil {
-			handler.NotFound(c, errcode.CodeTenantNotFound, errcode.GetMessage(errcode.CodeTenantNotFound))
-			c.Abort()
-			return
+		// 优先从 context 读取（RequireTenantAdmin 或 ServiceAuthMiddleware 已加载）
+		if tenantI, exists := c.Get("tenant"); exists {
+			tenant = tenantI.(*model.Tenant)
+		} else {
+			// fallback：从 DB 查询
+			tenantIDI, exists := c.Get("tenant_id")
+			if !exists {
+				handler.Forbidden(c, errcode.CodeTenantNotFound, errcode.GetMessage(errcode.CodeTenantNotFound))
+				c.Abort()
+				return
+			}
+			tenantID := tenantIDI.(uint64)
+
+			var t model.Tenant
+			if err := db.First(&t, tenantID).Error; err != nil {
+				handler.NotFound(c, errcode.CodeTenantNotFound, errcode.GetMessage(errcode.CodeTenantNotFound))
+				c.Abort()
+				return
+			}
+			tenant = &t
 		}
 
 		if tenant.Status == model.TenantStatusExpired {

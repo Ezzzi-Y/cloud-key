@@ -319,6 +319,27 @@ func (h *AuthHandler) Profile(c *gin.Context) {
 		InternalError(c)
 		return
 	}
+
+	// 租户管理员：附加租户状态信息
+	role := getRole(c)
+	if role == model.RoleTenantAdmin {
+		if tenantI, exists := c.Get("tenant"); exists {
+			tenant := tenantI.(*model.Tenant)
+			Success(c, gin.H{
+				"id":              user.ID,
+				"username":        user.Username,
+				"role":            user.Role,
+				"tenant_id":       user.TenantID,
+				"totp_setup":      user.TotpSetup,
+				"is_active":       user.IsActive,
+				"created_at":      user.CreatedAt,
+				"tenant_status":   tenant.Status,
+				"tenant_expire_at": tenant.ExpireAt,
+			})
+			return
+		}
+	}
+
 	Success(c, user)
 }
 

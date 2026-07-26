@@ -103,60 +103,65 @@ func SetupRouter(
 	tenant.Use(middleware.AuthMiddleware(jwtSecret))
 	tenant.Use(middleware.RequireTenantAdmin(db))
 	{
-		// Key 管理（业务操作加 BusinessGuard）
-		tenantKeys := tenant.Group("/keys")
-		tenantKeys.POST("", middleware.TenantBusinessGuard(db), tenantKeyHandler.CreateKey)
-		tenantKeys.GET("", tenantKeyHandler.ListKeys)
-		tenantKeys.GET("/status", tenantKeyHandler.Status)
-		tenantKeys.POST("/consume", tenantKeyHandler.Consume)
-		tenantKeys.GET("/export", tenantKeyHandler.ExportKeys)
-		tenantKeys.GET("/export/json", tenantKeyHandler.ExportKeysJSON)
-		tenantKeys.GET("/:id", tenantKeyHandler.GetKey)
-		tenantKeys.PATCH("/:id", middleware.TenantBusinessGuard(db), tenantKeyHandler.UpdateKey)
-		tenantKeys.POST("/:id/adjust-balance", middleware.TenantBusinessGuard(db), tenantKeyHandler.AdjustBalance)
-		tenantKeys.PATCH("/:id/disable", middleware.TenantBusinessGuard(db), tenantKeyHandler.DisableKey)
-		tenantKeys.PATCH("/:id/enable", middleware.TenantBusinessGuard(db), tenantKeyHandler.EnableKey)
-		tenantKeys.DELETE("/:id", middleware.TenantBusinessGuard(db), tenantKeyHandler.DeleteKey)
-
-		// 服务账号（全部加 BusinessGuard）
-		tenantSA := tenant.Group("/service-accounts")
-		tenantSA.Use(middleware.TenantBusinessGuard(db))
-		{
-			tenantSA.GET("", tenantSAHandler.ListServiceAccounts)
-			tenantSA.POST("", tenantSAHandler.CreateServiceAccount)
-			tenantSA.PATCH("/:id/toggle", tenantSAHandler.ToggleServiceAccount)
-			tenantSA.DELETE("/:id", tenantSAHandler.DeleteServiceAccount)
-		}
-
-		// 统计（不 guard，expired 可查看）
-		tenantStats := tenant.Group("/stats")
-		{
-			tenantStats.GET("/dashboard", tenantStatsHandler.Dashboard)
-			tenantStats.GET("/overview", tenantStatsHandler.Overview)
-			tenantStats.GET("/trends", tenantStatsHandler.Trends)
-			tenantStats.GET("/top-keys", tenantStatsHandler.TopKeys)
-		}
-
-		// 使用日志（不 guard）
-		tenantLogs := tenant.Group("/usage-logs")
-		{
-			tenantLogs.GET("", tenantUsageLogHandler.ListLogs)
-			tenantLogs.GET("/export", tenantUsageLogHandler.ExportLogs)
-		}
-
-		// 额度流转日志（不 guard）
-		tenantBalanceLogs := tenant.Group("/balance-logs")
-		{
-			tenantBalanceLogs.GET("", tenantBalanceLogHandler.ListLogs)
-			tenantBalanceLogs.GET("/export", tenantBalanceLogHandler.ExportLogs)
-		}
-
-		// 个人设置
+		// 个人设置（不拦截 disabled，供前端探测租户状态）
 		tenant.GET("/profile", authHandler.Profile)
 		tenant.PUT("/password", authHandler.ChangePassword)
 		tenant.POST("/totp/setup", authHandler.SetupTOTP)
 		tenant.POST("/totp/confirm", authHandler.ConfirmTOTP)
 		tenant.GET("/login-logs", tenantUsageLogHandler.LoginLogs)
+
+		// 以下路由受 TenantDisabledGuard 保护（disabled 租户不可访问）
+		guarded := tenant.Group("")
+		guarded.Use(middleware.TenantDisabledGuard())
+		{
+			// Key 管理（业务操作加 BusinessGuard）
+			tenantKeys := guarded.Group("/keys")
+			tenantKeys.POST("", middleware.TenantBusinessGuard(db), tenantKeyHandler.CreateKey)
+			tenantKeys.GET("", tenantKeyHandler.ListKeys)
+			tenantKeys.GET("/status", tenantKeyHandler.Status)
+			tenantKeys.POST("/consume", middleware.TenantBusinessGuard(db), tenantKeyHandler.Consume)
+			tenantKeys.GET("/export", tenantKeyHandler.ExportKeys)
+			tenantKeys.GET("/export/json", tenantKeyHandler.ExportKeysJSON)
+			tenantKeys.GET("/:id", tenantKeyHandler.GetKey)
+			tenantKeys.PATCH("/:id", middleware.TenantBusinessGuard(db), tenantKeyHandler.UpdateKey)
+			tenantKeys.POST("/:id/adjust-balance", middleware.TenantBusinessGuard(db), tenantKeyHandler.AdjustBalance)
+			tenantKeys.PATCH("/:id/disable", middleware.TenantBusinessGuard(db), tenantKeyHandler.DisableKey)
+			tenantKeys.PATCH("/:id/enable", middleware.TenantBusinessGuard(db), tenantKeyHandler.EnableKey)
+			tenantKeys.DELETE("/:id", middleware.TenantBusinessGuard(db), tenantKeyHandler.DeleteKey)
+
+			// 服务账号（全部加 BusinessGuard）
+			tenantSA := guarded.Group("/service-accounts")
+			tenantSA.Use(middleware.TenantBusinessGuard(db))
+			{
+				tenantSA.GET("", tenantSAHandler.ListServiceAccounts)
+				tenantSA.POST("", tenantSAHandler.CreateServiceAccount)
+				tenantSA.PATCH("/:id/toggle", tenantSAHandler.ToggleServiceAccount)
+				tenantSA.DELETE("/:id", tenantSAHandler.DeleteServiceAccount)
+			}
+
+			// 统计（不 guard，expired 可查看）
+			tenantStats := guarded.Group("/stats")
+			{
+				tenantStats.GET("/dashboard", tenantStatsHandler.Dashboard)
+				tenantStats.GET("/overview", tenantStatsHandler.Overview)
+				tenantStats.GET("/trends", tenantStatsHandler.Trends)
+				tenantStats.GET("/top-keys", tenantStatsHandler.TopKeys)
+			}
+
+			// 使用日志（不 guard）
+			tenantLogs := guarded.Group("/usage-logs")
+			{
+				tenantLogs.GET("", tenantUsageLogHandler.ListLogs)
+				tenantLogs.GET("/export", tenantUsageLogHandler.ExportLogs)
+			}
+
+			// 额度流转日志（不 guard）
+			tenantBalanceLogs := guarded.Group("/balance-logs")
+			{
+				tenantBalanceLogs.GET("", tenantBalanceLogHandler.ListLogs)
+				tenantBalanceLogs.GET("/export", tenantBalanceLogHandler.ExportLogs)
+			}
+		}
 	}
 
 	// ========== 服务账号 API ==========

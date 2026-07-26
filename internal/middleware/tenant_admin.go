@@ -39,22 +39,10 @@ func RequireTenantAdmin(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 查询租户，验证租户存在且未过期/禁用
+		// 查询租户并存入上下文（不拦截状态，由 TenantDisabledGuard / TenantBusinessGuard 处理）
 		var tenant model.Tenant
 		if err := db.First(&tenant, tenantID).Error; err != nil {
 			handler.NotFound(c, errcode.CodeTenantNotFound, errcode.GetMessage(errcode.CodeTenantNotFound))
-			c.Abort()
-			return
-		}
-
-		if tenant.Status == model.TenantStatusExpired {
-			handler.Forbidden(c, errcode.CodeTenantExpired, errcode.GetMessage(errcode.CodeTenantExpired))
-			c.Abort()
-			return
-		}
-
-		if tenant.Status == model.TenantStatusDisabled {
-			handler.Forbidden(c, errcode.CodeTenantDisabled, errcode.GetMessage(errcode.CodeTenantDisabled))
 			c.Abort()
 			return
 		}

@@ -12,6 +12,7 @@ export interface PaginatedData<T> {
 }
 
 export type UserRole = 'super_admin' | 'tenant_admin'
+export type TenantStatus = 'active' | 'expired' | 'disabled'
 
 export interface LoginResponse {
   token: string
@@ -221,4 +222,6 @@ export interface UserProfile {
   totp_setup: boolean
   is_active: boolean
   created_at: string
+  tenant_status?: TenantStatus
+  tenant_expire_at?: string | null
 }
