@@ -3,7 +3,6 @@
 .idea
 .vscode
 sdk/
-docs/
 web/node_modules
 web/dist
 logs/
