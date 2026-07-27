@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { login, verify2FA, setupTOTPInit, confirmTOTPInit } from '@/api/auth'
@@ -37,8 +37,15 @@ export default function LoginPage() {
   const [qrUrl, setQrUrl] = useState('')
   const [secret, setSecret] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login: authLogin } = useAuth()
+  const { login: authLogin, isAuthenticated, role } = useAuth()
   const navigate = useNavigate()
+
+  // 已登录用户重定向到对应仪表盘
+  useEffect(() => {
+    if (isAuthenticated && role) {
+      navigate(role === 'super_admin' ? '/super/' : '/tenant/', { replace: true })
+    }
+  }, [isAuthenticated, role, navigate])
 
   const handleApiError = (res: ApiResponse) => {
     toast.error(res.message || '操作失败')

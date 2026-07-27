@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
-import { AuthProvider } from '@/hooks/useAuth'
+import { AuthProvider, useAuth } from '@/hooks/useAuth'
 import RequireAuth from '@/components/RequireAuth'
 import SuperAdminLayout from '@/layouts/SuperAdminLayout'
 import TenantAdminLayout from '@/layouts/TenantAdminLayout'
@@ -26,6 +26,15 @@ const Loading = () => (
     <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
   </div>
 )
+
+function HomeRedirect() {
+  const { isAuthenticated, role } = useAuth()
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (role === 'super_admin') return <Navigate to="/super/" replace />
+  if (role === 'tenant_admin') return <Navigate to="/tenant/" replace />
+  // role 尚未从 getProfile 返回，等待中
+  return <Loading />
+}
 
 export default function App() {
   return (
@@ -53,7 +62,7 @@ export default function App() {
               <Route path="profile" element={<TenantProfile />} />
             </Route>
           </Route>
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<HomeRedirect />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
