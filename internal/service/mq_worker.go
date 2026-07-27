@@ -228,6 +228,21 @@ func (w *MQWorker) handleConsume(d amqp.Delivery) error {
 		if err := w.rdb.ZIncrBy(ctx, topAmountZSetKey(event.TenantID), float64(event.Amount), member).Err(); err != nil {
 			zap.L().Debug("top_amount ZINCRBY failed", zap.Error(err))
 		}
+
+		// 更新单 key 使用统计 ZSET
+		today := now.Format("2006-01-02")
+		callsKey := keyUsageCallsKey(event.TenantID, event.KeyID)
+		amountKey := keyUsageAmountKey(event.TenantID, event.KeyID)
+		if err := w.rdb.ZIncrBy(ctx, callsKey, 1, today).Err(); err != nil {
+			zap.L().Debug("key_usage calls ZINCRBY failed", zap.Error(err))
+		} else {
+			w.rdb.Expire(ctx, callsKey, 31*24*time.Hour)
+		}
+		if err := w.rdb.ZIncrBy(ctx, amountKey, float64(event.Amount), today).Err(); err != nil {
+			zap.L().Debug("key_usage amount ZINCRBY failed", zap.Error(err))
+		} else {
+			w.rdb.Expire(ctx, amountKey, 31*24*time.Hour)
+		}
 	}
 
 	zap.L().Debug("ConsumeEvent 处理成功",

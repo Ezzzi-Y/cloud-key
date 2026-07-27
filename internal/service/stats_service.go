@@ -231,6 +231,284 @@ func endOfDay(t time.Time) time.Time {
 	return time.Date(y, m, d, 23, 59, 59, 0, t.Location())
 }
 
+// keyUsageCallsKey 返回单 Key 每日调用次数 ZSET key。
+func keyUsageCallsKey(tenantID, keyID uint64) string {
+	return fmt.Sprintf("key_usage:calls:%d:%d", tenantID, keyID)
+}
+
+// keyUsageAmountKey 返回单 Key 每日额度消耗 ZSET key。
+func keyUsageAmountKey(tenantID, keyID uint64) string {
+	return fmt.Sprintf("key_usage:amount:%d:%d", tenantID, keyID)
+}
+
+// keyUsageRefreshLockKey 返回限制刷新频率的 Redis key。
+func keyUsageRefreshLockKey(tenantID, keyID uint64) string {
+	return fmt.Sprintf("key_usage_refresh_lock:%d:%d", tenantID, keyID)
+}
+
+// KeyUsagePoint 单日使用数据点。
+type KeyUsagePoint struct {
+	Date   string `json:"date"`
+	Calls  int64  `json:"calls"`
+	Amount int64  `json:"amount"`
+}
+
+// KeyUsageStats 单个 Key 的使用情况统计。
+type KeyUsageStats struct {
+	KeyAlias      string          `json:"key_alias"`
+	KeySuffix     string          `json:"key_suffix"`
+	Points        []KeyUsagePoint `json:"points"`
+	CanRefresh    bool            `json:"can_refresh"`
+	NextRefreshAt *time.Time      `json:"next_refresh_at"`
+}
+
+// GetKeyUsage 查询单个 Key 近 30 天的使用情况（调用次数 + 额度消耗）。
+// 优先从 Redis ZSET 读取，miss 时降级到 MySQL。
+func (s *StatsService) GetKeyUsage(tenantID, keyID uint64) (*KeyUsageStats, error) {
+	// 查询 key 基本信息
+	var keyInfo struct {
+		Alias    string
+		KeySuffix string
+	}
+	if err := s.db.Model(&model.Key{}).
+		Where("id = ? AND tenant_id = ?", keyID, tenantID).
+		Select("alias, key_suffix").
+		Scan(&keyInfo).Error; err != nil {
+		return nil, err
+	}
+
+	stats := &KeyUsageStats{
+		KeyAlias:   keyInfo.Alias,
+		KeySuffix:  keyInfo.KeySuffix,
+		CanRefresh: s.canRefreshKeyUsage(tenantID, keyID),
+		NextRefreshAt: s.keyUsageNextRefreshAt(tenantID, keyID),
+	}
+
+	// 尝试从 Redis 读取
+	if s.rdb != nil {
+		points, err := s.getKeyUsageFromRedis(tenantID, keyID)
+		if err == nil && len(points) > 0 {
+			stats.Points = points
+			return stats, nil
+		}
+		if err != nil {
+			zap.L().Debug("key_usage Redis read failed, falling back to SQL", zap.Error(err))
+		}
+	}
+
+	// Redis miss → MySQL 降级
+	points, err := s.getKeyUsageFromDB(tenantID, keyID)
+	if err != nil {
+		return nil, err
+	}
+	stats.Points = points
+	return stats, nil
+}
+
+// getKeyUsageFromRedis 从 Redis ZSET 读取单 Key 近 30 天使用数据。
+func (s *StatsService) getKeyUsageFromRedis(tenantID, keyID uint64) ([]KeyUsagePoint, error) {
+	ctx := context.Background()
+	now := time.Now()
+	startDate := now.AddDate(0, 0, -29).Format("2006-01-02")
+	endDate := now.Format("2006-01-02")
+
+	callsKey := keyUsageCallsKey(tenantID, keyID)
+	amountKey := keyUsageAmountKey(tenantID, keyID)
+
+	callsScores, err := s.rdb.ZRangeByScoreWithScores(ctx, callsKey, &redis.ZRangeBy{
+		Min: startDate, Max: endDate,
+	}).Result()
+	if err != nil {
+		return nil, err
+	}
+	amountScores, err := s.rdb.ZRangeByScoreWithScores(ctx, amountKey, &redis.ZRangeBy{
+		Min: startDate, Max: endDate,
+	}).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	// 如果完全没有数据，返回 nil 触发 fallback
+	if len(callsScores) == 0 && len(amountScores) == 0 {
+		return nil, nil
+	}
+
+	// 构建 map
+	callsMap := make(map[string]int64, len(callsScores))
+	for _, z := range callsScores {
+		callsMap[z.Member.(string)] = int64(z.Score)
+	}
+	amountMap := make(map[string]int64, len(amountScores))
+	for _, z := range amountScores {
+		amountMap[z.Member.(string)] = int64(z.Score)
+	}
+
+	// 填充 30 天连续数据
+	points := make([]KeyUsagePoint, 0, 30)
+	for i := 29; i >= 0; i-- {
+		d := now.AddDate(0, 0, -i)
+		date := d.Format("2006-01-02")
+		points = append(points, KeyUsagePoint{
+			Date:   date,
+			Calls:  callsMap[date],
+			Amount: amountMap[date],
+		})
+	}
+	return points, nil
+}
+
+// getKeyUsageFromDB 从 MySQL usage_logs 查询单 Key 近 30 天使用数据。
+func (s *StatsService) getKeyUsageFromDB(tenantID, keyID uint64) ([]KeyUsagePoint, error) {
+	now := time.Now()
+	startTime := now.AddDate(0, 0, -29)
+	startDate := startTime.Format("2006-01-02")
+
+	type dbRow struct {
+		Date   string
+		Calls  int64
+		Amount int64
+	}
+	var rows []dbRow
+	if err := s.db.Model(&model.UsageLog{}).
+		Select("DATE_FORMAT(created_at, '%Y-%m-%d') as date, COUNT(*) as calls, COALESCE(SUM(amount), 0) as amount").
+		Where("tenant_id = ? AND key_id = ? AND created_at >= ?", tenantID, keyID, startDate).
+		Group("date").Order("date ASC").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	rowMap := make(map[string]dbRow, len(rows))
+	for _, r := range rows {
+		rowMap[r.Date] = r
+	}
+
+	// 填充 30 天连续数据
+	points := make([]KeyUsagePoint, 0, 30)
+	for i := 29; i >= 0; i-- {
+		d := now.AddDate(0, 0, -i)
+		date := d.Format("2006-01-02")
+		p := KeyUsagePoint{Date: date}
+		if r, ok := rowMap[date]; ok {
+			p.Calls = r.Calls
+			p.Amount = r.Amount
+		}
+		points = append(points, p)
+	}
+	return points, nil
+}
+
+// canRefreshKeyUsage 检查该 Key 今天是否还能刷新使用统计。
+func (s *StatsService) canRefreshKeyUsage(tenantID, keyID uint64) bool {
+	if s.rdb == nil {
+		return true
+	}
+	ctx := context.Background()
+	exists, err := s.rdb.Exists(ctx, keyUsageRefreshLockKey(tenantID, keyID)).Result()
+	if err != nil {
+		return true
+	}
+	return exists == 0
+}
+
+// keyUsageNextRefreshAt 返回下次可刷新的时间。
+func (s *StatsService) keyUsageNextRefreshAt(tenantID, keyID uint64) *time.Time {
+	if s.rdb == nil {
+		return nil
+	}
+	ctx := context.Background()
+	ttl, err := s.rdb.TTL(ctx, keyUsageRefreshLockKey(tenantID, keyID)).Result()
+	if err != nil || ttl <= 0 {
+		return nil
+	}
+	next := time.Now().Add(ttl)
+	return &next
+}
+
+// RefreshKeyUsage 从 MySQL 重建单 Key 近 30 天使用统计到 Redis ZSET。
+// 限频：同一个 Key 每 24 小时只能刷新一次。
+func (s *StatsService) RefreshKeyUsage(tenantID, keyID uint64) error {
+	if s.rdb == nil {
+		return fmt.Errorf("redis not available")
+	}
+
+	ctx := context.Background()
+	lockKey := keyUsageRefreshLockKey(tenantID, keyID)
+
+	// 尝试获取锁（SETNX + 24h TTL）
+	ok, err := s.rdb.SetNX(ctx, lockKey, 1, 24*time.Hour).Result()
+	if err != nil {
+		return fmt.Errorf("setnx lock: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("already refreshed")
+	}
+
+	now := time.Now()
+	startDate := now.AddDate(0, 0, -29).Format("2006-01-02")
+
+	// 查询调用次数
+	type dayCount struct {
+		Date  string
+		Count int64
+	}
+	var callRows []dayCount
+	if err := s.db.Model(&model.UsageLog{}).
+		Select("DATE_FORMAT(created_at, '%Y-%m-%d') as date, COUNT(*) as count").
+		Where("tenant_id = ? AND key_id = ? AND created_at >= ?", tenantID, keyID, startDate).
+		Group("date").Scan(&callRows).Error; err != nil {
+		return fmt.Errorf("query calls: %w", err)
+	}
+
+	// 查询额度消耗
+	type dayAmount struct {
+		Date   string
+		Amount int64
+	}
+	var amountRows []dayAmount
+	if err := s.db.Model(&model.UsageLog{}).
+		Select("DATE_FORMAT(created_at, '%Y-%m-%d') as date, COALESCE(SUM(amount), 0) as amount").
+		Where("tenant_id = ? AND key_id = ? AND created_at >= ?", tenantID, keyID, startDate).
+		Group("date").Scan(&amountRows).Error; err != nil {
+		return fmt.Errorf("query amount: %w", err)
+	}
+
+	// 构建 ZSET members
+	callMembers := make([]redis.Z, 0, len(callRows))
+	for _, r := range callRows {
+		callMembers = append(callMembers, redis.Z{Score: float64(r.Count), Member: r.Date})
+	}
+	amountMembers := make([]redis.Z, 0, len(amountRows))
+	for _, r := range amountRows {
+		amountMembers = append(amountMembers, redis.Z{Score: float64(r.Amount), Member: r.Date})
+	}
+
+	callsKey := keyUsageCallsKey(tenantID, keyID)
+	amountKey := keyUsageAmountKey(tenantID, keyID)
+
+	// 原子替换：先删除旧数据，再写入新数据
+	pipe := s.rdb.Pipeline()
+	pipe.Del(ctx, callsKey)
+	pipe.Del(ctx, amountKey)
+	if len(callMembers) > 0 {
+		pipe.ZAdd(ctx, callsKey, callMembers...)
+	}
+	if len(amountMembers) > 0 {
+		pipe.ZAdd(ctx, amountKey, amountMembers...)
+	}
+	pipe.Expire(ctx, callsKey, 31*24*time.Hour)
+	pipe.Expire(ctx, amountKey, 31*24*time.Hour)
+	if _, err := pipe.Exec(ctx); err != nil {
+		return fmt.Errorf("pipeline exec: %w", err)
+	}
+
+	zap.L().Info("key usage 统计刷新完成",
+		zap.Uint64("tenant_id", tenantID),
+		zap.Uint64("key_id", keyID),
+		zap.Int("call_days", len(callMembers)),
+		zap.Int("amount_days", len(amountMembers)))
+	return nil
+}
+
 type TopItem struct {
 	KeyAlias string `json:"key_alias"`
 	Count    int64  `json:"count"`

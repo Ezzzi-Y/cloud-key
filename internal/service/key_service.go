@@ -523,6 +523,21 @@ func (s *KeyService) consumeViaMySQL(rawKey string, amount int64, tenantID uint6
 			if err := s.rdb.ZIncrBy(ctx, topAmountZSetKey(tenantID), float64(amount), member).Err(); err != nil {
 				zap.L().Debug("top_amount ZINCRBY failed", zap.Error(err))
 			}
+
+			// 更新单 key 使用统计 ZSET
+			today := time.Now().Format("2006-01-02")
+			callsKey := keyUsageCallsKey(tenantID, key.ID)
+			amountKey := keyUsageAmountKey(tenantID, key.ID)
+			if err := s.rdb.ZIncrBy(ctx, callsKey, 1, today).Err(); err != nil {
+				zap.L().Debug("key_usage calls ZINCRBY failed", zap.Error(err))
+			} else {
+				s.rdb.Expire(ctx, callsKey, 31*24*time.Hour)
+			}
+			if err := s.rdb.ZIncrBy(ctx, amountKey, float64(amount), today).Err(); err != nil {
+				zap.L().Debug("key_usage amount ZINCRBY failed", zap.Error(err))
+			} else {
+				s.rdb.Expire(ctx, amountKey, 31*24*time.Hour)
+			}
 		}
 
 		// MySQL 降级路径直接写入使用日志（正常路径由 MQ Worker 写入）

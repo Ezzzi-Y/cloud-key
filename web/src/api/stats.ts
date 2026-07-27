@@ -1,5 +1,5 @@
 import api from './client'
-import type { ApiResponse, DashboardData, KeyOverview, TrendPoint, TopItem } from '@/types'
+import type { ApiResponse, DashboardData, KeyOverview, TrendPoint, TopItem, KeyUsageStats } from '@/types'
 
 export function getDashboard() {
   return api.get<unknown, ApiResponse<DashboardData>>('/tenant/stats/dashboard')
@@ -25,4 +25,12 @@ export function getTopAmount() {
 
 export function refreshTopStats() {
   return api.post<unknown, ApiResponse<null>>('/tenant/stats/refresh-top')
+}
+
+export function getKeyUsage(keyId: number) {
+  return api.get<unknown, ApiResponse<KeyUsageStats>>(`/tenant/keys/${keyId}/usage`)
+}
+
+export function refreshKeyUsage(keyId: number) {
+  return api.post<unknown, ApiResponse<null>>(`/tenant/keys/${keyId}/usage/refresh`)
 }

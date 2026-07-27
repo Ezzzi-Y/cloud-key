@@ -160,6 +160,8 @@ func SetupRouter(
 			tenantKeys.PATCH("/:id/disable", middleware.TenantBusinessGuard(db), tenantKeyHandler.DisableKey)
 			tenantKeys.PATCH("/:id/enable", middleware.TenantBusinessGuard(db), tenantKeyHandler.EnableKey)
 			tenantKeys.DELETE("/:id", middleware.TenantBusinessGuard(db), tenantKeyHandler.DeleteKey)
+			tenantKeys.GET("/:id/usage", tenantStatsHandler.GetKeyUsage)
+			tenantKeys.POST("/:id/usage/refresh", middleware.TenantBusinessGuard(db), tenantStatsHandler.RefreshKeyUsage)
 
 			// 服务账号（全部加 BusinessGuard）
 			tenantSA := guarded.Group("/service-accounts")

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listKeys, createKey, disableKey, enableKey, deleteKey, exportKeysCSV, exportKeysJSON, updateKey, adjustKeyBalance } from '@/api/keys'
-import type { KeyListParams, CreateKeyRequest, KeyStatus, Key } from '@/types'
+import { getKeyUsage, refreshKeyUsage } from '@/api/stats'
+import type { KeyListParams, CreateKeyRequest, KeyStatus, Key, KeyUsageStats } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,7 +17,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { SkeletonTable } from '@/components/SkeletonTable'
 import { TablePagination } from '@/components/TablePagination'
 import { toast } from 'sonner'
-import { Plus, Download, RefreshCw, MoreHorizontal, Edit, Ban, CheckCircle, Trash2, FileDown, TrendingUp } from 'lucide-react'
+import { Plus, Download, RefreshCw, MoreHorizontal, Edit, Ban, CheckCircle, Trash2, FileDown, TrendingUp, BarChart3 } from 'lucide-react'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 export default function KeyManagement() {
   const [page, setPage] = useState(1)
@@ -32,6 +34,7 @@ export default function KeyManagement() {
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null)
   const [rawKey, setRawKey] = useState('')
   const [selectedKey, setSelectedKey] = useState<{ id: number; alias: string } | null>(null)
+  const [usageTarget, setUsageTarget] = useState<{ id: number; alias: string } | null>(null)
   const [newAlias, setNewAlias] = useState('')
   const [newAmount, setNewAmount] = useState(100)
   const [saving, setSaving] = useState(false)
@@ -75,6 +78,22 @@ export default function KeyManagement() {
         toast.success(`额度已调整：${res.data.before_amount} → ${res.data.after_amount}`)
         queryClient.invalidateQueries({ queryKey: ['tenant-keys'] })
         setAdjustOpen(false)
+      } else toast.error(res.message)
+    },
+  })
+
+  const { data: usageData, isLoading: usageLoading } = useQuery({
+    queryKey: ['key-usage', usageTarget?.id],
+    queryFn: () => usageTarget ? getKeyUsage(usageTarget.id).then((r) => (r.code === 0 ? r.data : null)) : null,
+    enabled: !!usageTarget,
+  })
+
+  const usageRefreshMutation = useMutation({
+    mutationFn: (keyId: number) => refreshKeyUsage(keyId),
+    onSuccess: (res, keyId) => {
+      if (res.code === 0) {
+        toast.success('使用统计已刷新')
+        queryClient.invalidateQueries({ queryKey: ['key-usage', keyId] })
       } else toast.error(res.message)
     },
   })
@@ -215,6 +234,9 @@ export default function KeyManagement() {
                             <DropdownMenuItem onClick={() => { setAdjustTarget({ id: key.id, alias: key.alias, remaining: key.remaining_amount }); setAdjustDelta(''); setAdjustRemark(''); setAdjustOpen(true) }}>
                               <TrendingUp className="mr-2 h-4 w-4" />调整额度
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { setUsageTarget({ id: key.id, alias: key.alias }) }}>
+                              <BarChart3 className="mr-2 h-4 w-4" />使用情况
+                            </DropdownMenuItem>
                             {key.status === 'active' && (
                               <DropdownMenuItem onClick={() => toggleDisableMutation.mutate(key.id)}>
                                 <Ban className="mr-2 h-4 w-4" />禁用
@@ -306,6 +328,95 @@ export default function KeyManagement() {
           <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)}>删除</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!usageTarget} onOpenChange={(open) => { if (!open) setUsageTarget(null) }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <div className="flex items-center justify-between pr-8">
+              <DialogTitle>{usageTarget?.alias || '-'} 使用情况</DialogTitle>
+              {usageData && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!usageData.can_refresh || usageRefreshMutation.isPending}
+                  onClick={() => usageTarget && usageRefreshMutation.mutate(usageTarget.id)}
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${usageRefreshMutation.isPending ? 'animate-spin' : ''}`} />
+                  {usageRefreshMutation.isPending
+                    ? '刷新中...'
+                    : !usageData.can_refresh && usageData.next_refresh_at
+                      ? `已刷新 · 明天 ${new Date(usageData.next_refresh_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} 可再次统计`
+                      : '重新统计'}
+                </Button>
+              )}
+            </div>
+            <DialogDescription>近 30 天的调用次数与额度消耗趋势</DialogDescription>
+          </DialogHeader>
+
+          {usageLoading ? (
+            <div className="space-y-4">
+              <div className="h-48 flex items-center justify-center"><RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            </div>
+          ) : usageData && usageData.points.length > 0 ? (
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-sm font-medium mb-2">调用次数</h4>
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={usageData.points}>
+                    <defs>
+                      <linearGradient id="usageCallsGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="date" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: 'var(--radius)',
+                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                      }}
+                    />
+                    <Area type="monotone" dataKey="calls" name="调用次数" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#usageCallsGradient)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              <div>
+                <h4 className="text-sm font-medium mb-2">额度消耗</h4>
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={usageData.points}>
+                    <defs>
+                      <linearGradient id="usageAmountGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="date" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: 'var(--radius)',
+                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                      }}
+                    />
+                    <Area type="monotone" dataKey="amount" name="消耗额度" stroke="hsl(142 71% 45%)" strokeWidth={2} fill="url(#usageAmountGradient)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ) : (
+            <div className="flex h-48 items-center justify-center text-muted-foreground">
+              暂无使用记录
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

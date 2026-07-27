@@ -20,6 +20,8 @@ export interface LoginResponse {
   role: UserRole
   tenant_id: number | null
   username: string
+  tenant_status?: TenantStatus | null
+  tenant_expire_at?: string | null
 }
 
 export interface LoginStep1Data {
@@ -174,6 +176,20 @@ export interface TopItem {
   ip?: string
   count: number
   total_amount: number
+}
+
+export interface KeyUsagePoint {
+  date: string
+  calls: number
+  amount: number
+}
+
+export interface KeyUsageStats {
+  key_alias: string
+  key_suffix: string
+  points: KeyUsagePoint[]
+  can_refresh: boolean
+  next_refresh_at: string | null
 }
 
 export interface BalanceLog {

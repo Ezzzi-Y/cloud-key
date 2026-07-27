@@ -3,6 +3,7 @@ package handler
 import (
 	"CloudKey/internal/errcode"
 	"CloudKey/internal/service"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -167,6 +168,59 @@ func (h *TenantStatsHandler) RefreshTopStats(c *gin.Context) {
 	}
 
 	if err := h.keySvc.RefreshTopStats(tenantID); err != nil {
+		if err.Error() == "already refreshed" {
+			BadRequest(c, errcode.CodeForbidden, "24小时内已刷新过，请稍后再试")
+			return
+		}
+		InternalError(c)
+		return
+	}
+	Success(c, nil)
+}
+
+// GetKeyUsage 单个 Key 使用情况统计
+// @Summary     单个 Key 使用情况
+// @Tags        租户-统计
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       id path int true "Key ID"
+// @Success     200 {object} Response "使用情况数据"
+// @Failure     400 {object} Response "参数错误"
+// @Router      /tenant/keys/{id}/usage [get]
+func (h *TenantStatsHandler) GetKeyUsage(c *gin.Context) {
+	tenantID := getTenantID(c)
+	keyID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		BadRequest(c, errcode.CodeForbidden, "无效的 Key ID")
+		return
+	}
+
+	stats, err := h.statsSvc.GetKeyUsage(tenantID, keyID)
+	if err != nil {
+		InternalError(c)
+		return
+	}
+	Success(c, stats)
+}
+
+// RefreshKeyUsage 手动刷新单个 Key 使用统计
+// @Summary     刷新单个 Key 使用统计
+// @Tags        租户-统计
+// @Produce     json
+// @Security    ApiKeyAuth
+// @Param       id path int true "Key ID"
+// @Success     200 {object} Response "刷新成功"
+// @Failure     400 {object} Response "参数错误或今天已刷新过"
+// @Router      /tenant/keys/{id}/usage/refresh [post]
+func (h *TenantStatsHandler) RefreshKeyUsage(c *gin.Context) {
+	tenantID := getTenantID(c)
+	keyID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		BadRequest(c, errcode.CodeForbidden, "无效的 Key ID")
+		return
+	}
+
+	if err := h.statsSvc.RefreshKeyUsage(tenantID, keyID); err != nil {
 		if err.Error() == "already refreshed" {
 			BadRequest(c, errcode.CodeForbidden, "24小时内已刷新过，请稍后再试")
 			return
