@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom'
 
 export default function TenantDashboard() {
   const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today')
+  const [trendMetric, setTrendMetric] = useState<'calls' | 'amount'>('calls')
 
   const { data: dash, isLoading } = useQuery({
     queryKey: ['tenant-dashboard'],
@@ -120,18 +121,33 @@ export default function TenantDashboard() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">调用趋势</CardTitle>
-            <div className="flex gap-1 rounded-lg bg-muted p-1">
-              {(['today', 'week', 'month'] as const).map((p) => (
-                <Button
-                  key={p}
-                  variant={period === p ? 'default' : 'ghost'}
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => setPeriod(p)}
-                >
-                  {p === 'today' ? '今日' : p === 'week' ? '本周' : '本月'}
-                </Button>
-              ))}
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1 rounded-lg bg-muted p-1">
+                {(['calls', 'amount'] as const).map((m) => (
+                  <Button
+                    key={m}
+                    variant={trendMetric === m ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setTrendMetric(m)}
+                  >
+                    {m === 'calls' ? '调用数' : '额度消耗'}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex gap-1 rounded-lg bg-muted p-1">
+                {(['today', 'week', 'month'] as const).map((p) => (
+                  <Button
+                    key={p}
+                    variant={period === p ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setPeriod(p)}
+                  >
+                    {p === 'today' ? '今日' : p === 'week' ? '本周' : '本月'}
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -141,14 +157,15 @@ export default function TenantDashboard() {
               <AreaChart data={trends}>
                 <defs>
                   <linearGradient id="callGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    <stop offset="5%" stopColor={trendMetric === 'calls' ? 'hsl(var(--primary))' : '#f59e0b'} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={trendMetric === 'calls' ? 'hsl(var(--primary))' : '#f59e0b'} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="date" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip
+                  formatter={(value: number) => [value.toLocaleString(), trendMetric === 'calls' ? '调用数' : '额度消耗']}
                   contentStyle={{
                     backgroundColor: 'hsl(var(--card))',
                     border: '1px solid hsl(var(--border))',
@@ -158,8 +175,8 @@ export default function TenantDashboard() {
                 />
                 <Area
                   type="monotone"
-                  dataKey="calls"
-                  stroke="hsl(var(--primary))"
+                  dataKey={trendMetric}
+                  stroke={trendMetric === 'calls' ? 'hsl(var(--primary))' : '#f59e0b'}
                   strokeWidth={2}
                   fill="url(#callGradient)"
                 />

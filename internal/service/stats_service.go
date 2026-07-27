@@ -78,8 +78,9 @@ func (s *StatsService) GetKeyOverview(dateRange *DateRange, tenantID uint64) (*K
 }
 
 type TrendPoint struct {
-	Date  string `json:"date"`
-	Calls int64  `json:"calls"`
+	Date   string `json:"date"`
+	Calls  int64  `json:"calls"`
+	Amount int64  `json:"amount"`
 }
 
 func (s *StatsService) GetTrends(period string, dateRange *DateRange, tenantID uint64) ([]TrendPoint, error) {
@@ -110,8 +111,13 @@ func (s *StatsService) getTrendsFromRedis(period string, tenantID uint64) ([]Tre
 
 	switch period {
 	case "today":
-		key := trendHourlyKey(tenantID)
-		vals, err := s.rdb.HGetAll(ctx, key).Result()
+		callsKey := trendHourlyKey(tenantID)
+		amountKey := trendHourlyAmountKey(tenantID)
+		callsVals, err := s.rdb.HGetAll(ctx, callsKey).Result()
+		if err != nil {
+			return nil, err
+		}
+		amountVals, err := s.rdb.HGetAll(ctx, amountKey).Result()
 		if err != nil {
 			return nil, err
 		}
@@ -120,19 +126,29 @@ func (s *StatsService) getTrendsFromRedis(period string, tenantID uint64) ([]Tre
 		for h := 0; h < 24; h++ {
 			field := fmt.Sprintf("%02d", h)
 			calls := int64(0)
-			if v, ok := vals[field]; ok {
+			if v, ok := callsVals[field]; ok {
 				calls, _ = strconv.ParseInt(v, 10, 64)
 			}
+			amount := int64(0)
+			if v, ok := amountVals[field]; ok {
+				amount, _ = strconv.ParseInt(v, 10, 64)
+			}
 			points = append(points, TrendPoint{
-				Date:  fmt.Sprintf("%s %s", todayPrefix, field),
-				Calls: calls,
+				Date:   fmt.Sprintf("%s %s", todayPrefix, field),
+				Calls:  calls,
+				Amount: amount,
 			})
 		}
 		return points, nil
 
 	case "week":
-		key := trendDailyKey(tenantID)
-		vals, err := s.rdb.HGetAll(ctx, key).Result()
+		callsKey := trendDailyKey(tenantID)
+		amountKey := trendDailyAmountKey(tenantID)
+		callsVals, err := s.rdb.HGetAll(ctx, callsKey).Result()
+		if err != nil {
+			return nil, err
+		}
+		amountVals, err := s.rdb.HGetAll(ctx, amountKey).Result()
 		if err != nil {
 			return nil, err
 		}
@@ -141,16 +157,25 @@ func (s *StatsService) getTrendsFromRedis(period string, tenantID uint64) ([]Tre
 			d := now.AddDate(0, 0, -i)
 			field := d.Format("2006-01-02")
 			calls := int64(0)
-			if v, ok := vals[field]; ok {
+			if v, ok := callsVals[field]; ok {
 				calls, _ = strconv.ParseInt(v, 10, 64)
 			}
-			points = append(points, TrendPoint{Date: field, Calls: calls})
+			amount := int64(0)
+			if v, ok := amountVals[field]; ok {
+				amount, _ = strconv.ParseInt(v, 10, 64)
+			}
+			points = append(points, TrendPoint{Date: field, Calls: calls, Amount: amount})
 		}
 		return points, nil
 
 	case "month":
-		key := trendDailyKey(tenantID)
-		vals, err := s.rdb.HGetAll(ctx, key).Result()
+		callsKey := trendDailyKey(tenantID)
+		amountKey := trendDailyAmountKey(tenantID)
+		callsVals, err := s.rdb.HGetAll(ctx, callsKey).Result()
+		if err != nil {
+			return nil, err
+		}
+		amountVals, err := s.rdb.HGetAll(ctx, amountKey).Result()
 		if err != nil {
 			return nil, err
 		}
@@ -159,10 +184,14 @@ func (s *StatsService) getTrendsFromRedis(period string, tenantID uint64) ([]Tre
 			d := now.AddDate(0, 0, -i)
 			field := d.Format("2006-01-02")
 			calls := int64(0)
-			if v, ok := vals[field]; ok {
+			if v, ok := callsVals[field]; ok {
 				calls, _ = strconv.ParseInt(v, 10, 64)
 			}
-			points = append(points, TrendPoint{Date: field, Calls: calls})
+			amount := int64(0)
+			if v, ok := amountVals[field]; ok {
+				amount, _ = strconv.ParseInt(v, 10, 64)
+			}
+			points = append(points, TrendPoint{Date: field, Calls: calls, Amount: amount})
 		}
 		return points, nil
 	}
@@ -199,7 +228,7 @@ func (s *StatsService) getTrendsFromDB(period string, dateRange *DateRange, tena
 	}
 
 	db := s.db.Model(&model.UsageLog{}).
-		Select("DATE_FORMAT(created_at, ?) as date, COUNT(*) as calls", dateFormat).
+		Select("DATE_FORMAT(created_at, ?) as date, COUNT(*) as calls, COALESCE(SUM(amount), 0) as amount", dateFormat).
 		Where("created_at >= ?", startTime).
 		Where("tenant_id = ?", tenantID)
 	db = applyDateFilter(db, dateRange)
@@ -213,6 +242,16 @@ func (s *StatsService) getTrendsFromDB(period string, dateRange *DateRange, tena
 	}
 
 	return points, nil
+}
+
+// trendHourlyAmountKey returns the Redis Hash key for hourly trend amount counters.
+func trendHourlyAmountKey(tenantID uint64) string {
+	return fmt.Sprintf("ck:trend:hourly_amount:%d", tenantID)
+}
+
+// trendDailyAmountKey returns the Redis Hash key for daily trend amount counters.
+func trendDailyAmountKey(tenantID uint64) string {
+	return fmt.Sprintf("ck:trend:daily_amount:%d", tenantID)
 }
 
 // trendHourlyKey returns the Redis Hash key for hourly trend counters.

@@ -164,6 +164,7 @@ export interface KeyOverview {
 export interface TrendPoint {
   date: string
   calls: number
+  amount: number
 }
 
 export interface TrendData {

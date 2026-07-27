@@ -209,15 +209,27 @@ func (w *MQWorker) handleConsume(d amqp.Delivery) error {
 		ctx := context.Background()
 		hourKey := trendHourlyKey(event.TenantID)
 		dayKey := trendDailyKey(event.TenantID)
+		hourAmountKey := trendHourlyAmountKey(event.TenantID)
+		dayAmountKey := trendDailyAmountKey(event.TenantID)
 		if err := w.rdb.HIncrBy(ctx, hourKey, now.Format("15"), 1).Err(); err != nil {
 			zap.L().Debug("trend hourly HINCRBY failed", zap.Error(err))
 		} else {
 			w.rdb.ExpireAt(ctx, hourKey, endOfDay(now))
 		}
+		if err := w.rdb.HIncrBy(ctx, hourAmountKey, now.Format("15"), event.Amount).Err(); err != nil {
+			zap.L().Debug("trend hourly amount HINCRBY failed", zap.Error(err))
+		} else {
+			w.rdb.ExpireAt(ctx, hourAmountKey, endOfDay(now))
+		}
 		if err := w.rdb.HIncrBy(ctx, dayKey, now.Format("2006-01-02"), 1).Err(); err != nil {
 			zap.L().Debug("trend daily HINCRBY failed", zap.Error(err))
 		} else {
 			w.rdb.Expire(ctx, dayKey, 30*24*time.Hour)
+		}
+		if err := w.rdb.HIncrBy(ctx, dayAmountKey, now.Format("2006-01-02"), event.Amount).Err(); err != nil {
+			zap.L().Debug("trend daily amount HINCRBY failed", zap.Error(err))
+		} else {
+			w.rdb.Expire(ctx, dayAmountKey, 30*24*time.Hour)
 		}
 
 		// 更新 top_keys 和 top_amount ZSET
