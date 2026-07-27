@@ -14,7 +14,7 @@ interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-  login: (token: string, role: UserRole, tenantId: number | null, username: string) => void
+  login: (token: string, role: UserRole, tenantId: number | null, username: string, tenantStatus?: TenantStatus | null, tenantExpireAt?: string | null) => void
   logout: () => void
 }
 
@@ -76,9 +76,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const login = useCallback((token: string, role: UserRole, tenantId: number | null, username: string) => {
+  const login = useCallback((token: string, role: UserRole, tenantId: number | null, username: string, tenantStatus?: TenantStatus | null, tenantExpireAt?: string | null) => {
     localStorage.setItem('ck_token', token)
-    setState({ token, role, tenantId, username, isAuthenticated: true, tenantStatus: null, tenantExpireAt: null })
+    setState({ token, role, tenantId, username, isAuthenticated: true, tenantStatus: tenantStatus ?? null, tenantExpireAt: tenantExpireAt ?? null })
   }, [])
 
   const logout = useCallback(() => {

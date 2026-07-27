@@ -80,7 +80,7 @@ export default function LoginPage() {
       const res = await verify2FA(userId, totpCode, preAuthToken)
       if (res.code !== 0) { handleApiError(res); return }
       const data = res.data as LoginResponse
-      authLogin(data.token, data.role, data.tenant_id, data.username)
+      authLogin(data.token, data.role, data.tenant_id, data.username, data.tenant_status, data.tenant_expire_at)
       navigate(data.role === 'super_admin' ? '/super/' : '/tenant/')
     } catch {
       toast.error('验证失败')
@@ -111,7 +111,7 @@ export default function LoginPage() {
       const res = await confirmTOTPInit(userId, totpCode, preAuthToken)
       if (res.code !== 0) { handleApiError(res); return }
       const data = res.data as LoginResponse
-      authLogin(data.token, data.role, data.tenant_id, data.username)
+      authLogin(data.token, data.role, data.tenant_id, data.username, data.tenant_status, data.tenant_expire_at)
       navigate(data.role === 'super_admin' ? '/super/' : '/tenant/')
     } catch {
       toast.error('验证器绑定确认失败')

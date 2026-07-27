@@ -123,11 +123,13 @@ func (h *AuthHandler) Verify2FA(c *gin.Context) {
 	h.loginLogSvc.RecordLogin(req.UserID, resp.TenantID, c.ClientIP(), c.GetHeader("User-Agent"), true)
 
 	Success(c, gin.H{
-		"token":      resp.Token,
-		"token_type": "Bearer",
-		"role":       resp.Role,
-		"tenant_id":  resp.TenantID,
-		"username":   resp.Username,
+		"token":            resp.Token,
+		"token_type":       "Bearer",
+		"role":             resp.Role,
+		"tenant_id":        resp.TenantID,
+		"username":         resp.Username,
+		"tenant_status":    resp.TenantStatus,
+		"tenant_expire_at": resp.TenantExpireAt,
 	})
 }
 
@@ -289,11 +291,13 @@ func (h *AuthHandler) ConfirmTOTPPublic(c *gin.Context) {
 	h.loginLogSvc.RecordLogin(req.UserID, resp.TenantID, c.ClientIP(), c.GetHeader("User-Agent"), true)
 
 	Success(c, gin.H{
-		"token":      resp.Token,
-		"token_type": "Bearer",
-		"role":       resp.Role,
-		"tenant_id":  resp.TenantID,
-		"username":   resp.Username,
+		"token":            resp.Token,
+		"token_type":       "Bearer",
+		"role":             resp.Role,
+		"tenant_id":        resp.TenantID,
+		"username":         resp.Username,
+		"tenant_status":    resp.TenantStatus,
+		"tenant_expire_at": resp.TenantExpireAt,
 	})
 }
 

@@ -161,12 +161,14 @@ func (s *AuthService) GenerateLoginJWT(userID uint64) (*LoginResponse, error) {
 		return nil, fmt.Errorf("sign JWT: %w", err)
 	}
 
-	return &LoginResponse{
+	resp := &LoginResponse{
 		Token:    tokenString,
 		Role:     user.Role,
 		TenantID: user.TenantID,
 		Username: user.Username,
-	}, nil
+	}
+	resp.fillTenantInfo(s.db)
+	return resp, nil
 }
 
 type LoginResult struct {
@@ -262,14 +264,30 @@ func (s *AuthService) VerifyTOTP(userID uint64, code string, preAuthToken string
 		TenantID: user.TenantID,
 		Username: user.Username,
 	}
+	resp.fillTenantInfo(s.db)
 	return tokenString, resp, nil
 }
 
 type LoginResponse struct {
-	Token    string         `json:"token"`
-	Role     model.UserRole `json:"role"`
-	TenantID *uint64        `json:"tenant_id"`
-	Username string         `json:"username"`
+	Token          string          `json:"token"`
+	Role           model.UserRole  `json:"role"`
+	TenantID       *uint64         `json:"tenant_id"`
+	Username       string          `json:"username"`
+	TenantStatus   *model.TenantStatus `json:"tenant_status,omitempty"`
+	TenantExpireAt *time.Time      `json:"tenant_expire_at,omitempty"`
+}
+
+// fillTenantInfo looks up the tenant by TenantID and populates TenantStatus and TenantExpireAt.
+func (r *LoginResponse) fillTenantInfo(db *gorm.DB) {
+	if r.TenantID == nil {
+		return
+	}
+	var tenant model.Tenant
+	if err := db.Select("status", "expire_at").First(&tenant, *r.TenantID).Error; err != nil {
+		return
+	}
+	r.TenantStatus = &tenant.Status
+	r.TenantExpireAt = tenant.ExpireAt
 }
 
 // GenerateTOTPSecret generates a new TOTP key and stores it in Redis as pending.

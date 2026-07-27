@@ -30,7 +30,21 @@ export default function TenantDetail() {
 
   useEffect(() => {
     if (tenant) {
-      setName(tenant.name); setStatus(tenant.status); setExpireAt(tenant.expire_at || '')
+      setName(tenant.name)
+      setStatus(tenant.status)
+      if (tenant.expire_at) {
+        // Backend returns RFC3339 e.g. "2025-01-15T14:30:00+08:00"
+        // datetime-local input needs "YYYY-MM-DDTHH:mm" (no timezone)
+        const dt = new Date(tenant.expire_at)
+        const yyyy = dt.getFullYear()
+        const mm = String(dt.getMonth() + 1).padStart(2, '0')
+        const dd = String(dt.getDate()).padStart(2, '0')
+        const hh = String(dt.getHours()).padStart(2, '0')
+        const mi = String(dt.getMinutes()).padStart(2, '0')
+        setExpireAt(`${yyyy}-${mm}-${dd}T${hh}:${mi}`)
+      } else {
+        setExpireAt('')
+      }
     }
   }, [tenant])
 
@@ -54,8 +68,10 @@ export default function TenantDetail() {
   })
 
   const handleSave = () => {
+    // expireAt is "YYYY-MM-DDTHH:mm", convert to "YYYY-MM-DD HH:MM:SS" for backend
+    const formatted = expireAt ? expireAt.replace('T', ' ') + ':00' : ''
     updateMutation.mutate({
-      name, status: status as 'active' | 'expired' | 'disabled', expire_at: expireAt || '',
+      name, status: status as 'active' | 'expired' | 'disabled', expire_at: formatted,
     })
   }
 
@@ -97,7 +113,7 @@ export default function TenantDetail() {
               </Select>
             </div>
             <div className="space-y-2"><Label>到期时间（留空表示永不过期）</Label>
-              <Input type="datetime-local" value={expireAt ? expireAt.replace(' ', 'T') : ''} onChange={(e) => setExpireAt(e.target.value.replace('T', ' '))} />
+              <Input type="datetime-local" value={expireAt} onChange={(e) => setExpireAt(e.target.value)} />
             </div>
           </div>
         </CardContent>
