@@ -33,11 +33,35 @@ export default function KeyManagement() {
   const [adjustRemark, setAdjustRemark] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null)
   const [rawKey, setRawKey] = useState('')
-  const [selectedKey, setSelectedKey] = useState<{ id: number; alias: string } | null>(null)
+  const [selectedKey, setSelectedKey] = useState<{ id: number; alias: string; rate_limit: number | null; rate_limit_window: number | null } | null>(null)
   const [usageTarget, setUsageTarget] = useState<{ id: number; alias: string } | null>(null)
   const [newAlias, setNewAlias] = useState('')
   const [newAmount, setNewAmount] = useState(100)
   const [saving, setSaving] = useState(false)
+
+  // 限流配置 - 创建
+  const [createRlMode, setCreateRlMode] = useState<'default' | 'none' | 'custom'>('default')
+  const [createRlCount, setCreateRlCount] = useState(100)
+  const [createRlWindow, setCreateRlWindow] = useState(60)
+  const [createRlUnit, setCreateRlUnit] = useState<'s' | 'm' | 'h'>('s')
+
+  // 限流配置 - 编辑
+  const [editRlMode, setEditRlMode] = useState<'default' | 'none' | 'custom'>('default')
+  const [editRlCount, setEditRlCount] = useState(100)
+  const [editRlWindow, setEditRlWindow] = useState(60)
+  const [editRlUnit, setEditRlUnit] = useState<'s' | 'm' | 'h'>('s')
+
+  const rlWindowToSeconds = (val: number, unit: 's' | 'm' | 'h') => {
+    if (unit === 'm') return val * 60
+    if (unit === 'h') return val * 3600
+    return val
+  }
+  const rlSecondsToDisplay = (secs: number): { val: number; unit: 's' | 'm' | 'h' } => {
+    if (secs >= 3600 && secs % 3600 === 0) return { val: secs / 3600, unit: 'h' }
+    if (secs >= 60 && secs % 60 === 0) return { val: secs / 60, unit: 'm' }
+    return { val: secs, unit: 's' }
+  }
+
   const queryClient = useQueryClient()
 
   const params: KeyListParams = { page, page_size: 20 }
@@ -99,10 +123,22 @@ export default function KeyManagement() {
   })
 
   const handleCreate = () => {
-    createMutation.mutate({ alias: newAlias, remaining_amount: newAmount })
+    const req: CreateKeyRequest = { alias: newAlias, remaining_amount: newAmount }
+    if (createRlMode === 'none') {
+      req.rate_limit = 0
+      req.rate_limit_window = 0
+    } else if (createRlMode === 'custom') {
+      req.rate_limit = createRlCount
+      req.rate_limit_window = rlWindowToSeconds(createRlWindow, createRlUnit)
+    }
+    // 'default' → 不传，使用租户默认
+    createMutation.mutate(req)
   }
 
-  const closeCreate = () => { setRawKey(''); setCreateOpen(false); setNewAlias(''); setNewAmount(100) }
+  const closeCreate = () => {
+    setRawKey(''); setCreateOpen(false); setNewAlias(''); setNewAmount(100)
+    setCreateRlMode('default'); setCreateRlCount(100); setCreateRlWindow(60); setCreateRlUnit('s')
+  }
 
   const handleExportCSV = async () => {
     try {
@@ -124,7 +160,19 @@ export default function KeyManagement() {
     if (selectedKey) {
       setSaving(true)
       try {
-        const res = await updateKey(selectedKey.id, { alias: selectedKey.alias })
+        const data: { alias: string; rate_limit?: number | null; rate_limit_window?: number | null } = { alias: selectedKey.alias }
+        if (editRlMode === 'none') {
+          data.rate_limit = 0
+          data.rate_limit_window = 0
+        } else if (editRlMode === 'custom') {
+          data.rate_limit = editRlCount
+          data.rate_limit_window = rlWindowToSeconds(editRlWindow, editRlUnit)
+        } else {
+          // 'default' → 设为 null 使用租户默认
+          data.rate_limit = null
+          data.rate_limit_window = null
+        }
+        const res = await updateKey(selectedKey.id, data)
         if (res.code === 0) { toast.success('Key 已更新'); queryClient.invalidateQueries({ queryKey: ['tenant-keys'] }) }
         else toast.error(res.message)
         setEditOpen(false)
@@ -157,6 +205,31 @@ export default function KeyManagement() {
                   <div className="space-y-4">
                     <div className="space-y-2"><Label>别名</Label><Input value={newAlias} onChange={(e) => setNewAlias(e.target.value)} placeholder="可选" /></div>
                     <div className="space-y-2"><Label>额度</Label><Input type="number" value={newAmount} onChange={(e) => setNewAmount(Number(e.target.value))} /></div>
+                    <div className="space-y-2">
+                      <Label>限流策略</Label>
+                      <Select value={createRlMode} onValueChange={(v) => setCreateRlMode(v as 'default' | 'none' | 'custom')}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">使用租户默认</SelectItem>
+                          <SelectItem value="none">不限速</SelectItem>
+                          <SelectItem value="custom">自定义限速</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {createRlMode === 'custom' && (
+                        <div className="flex gap-2 mt-2">
+                          <Input type="number" value={createRlCount} onChange={(e) => setCreateRlCount(Number(e.target.value))} min={1} className="flex-1" placeholder="次数" />
+                          <Input type="number" value={createRlWindow} onChange={(e) => setCreateRlWindow(Number(e.target.value))} min={1} className="flex-1" placeholder="窗口" />
+                          <Select value={createRlUnit} onValueChange={(v) => setCreateRlUnit(v as 's' | 'm' | 'h')}>
+                            <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="s">秒</SelectItem>
+                              <SelectItem value="m">分钟</SelectItem>
+                              <SelectItem value="h">小时</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setCreateOpen(false)}>取消</Button>
@@ -193,7 +266,7 @@ export default function KeyManagement() {
       </div>
 
       {isLoading ? (
-        <SkeletonTable rows={5} cols={7} />
+        <SkeletonTable rows={5} cols={8} />
       ) : (
         <Card>
           <CardContent className="p-0">
@@ -201,18 +274,26 @@ export default function KeyManagement() {
               <TableHeader>
                 <TableRow>
                   <TableHead>别名</TableHead><TableHead>Key</TableHead><TableHead>剩余额度</TableHead>
+                  <TableHead>限流</TableHead>
                   <TableHead>状态</TableHead><TableHead>创建时间</TableHead><TableHead>最后使用</TableHead><TableHead className="w-12">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data?.list.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">暂无 Key 数据</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">暂无 Key 数据</TableCell></TableRow>
                 ) : (
                   data?.list.map((key: Key) => (
                     <TableRow key={key.id} className="group">
                       <TableCell className="font-medium">{key.alias || '-'}</TableCell>
                       <TableCell className="font-mono text-sm text-muted-foreground">{key.key_prefix}****{key.key_suffix}</TableCell>
                       <TableCell>{key.remaining_amount}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {key.rate_limit != null && key.rate_limit > 0 && key.rate_limit_window != null && key.rate_limit_window > 0
+                          ? `${key.rate_limit}次/${key.rate_limit_window >= 3600 ? key.rate_limit_window / 3600 + 'h' : key.rate_limit_window >= 60 ? key.rate_limit_window / 60 + 'm' : key.rate_limit_window + 's'}`
+                          : key.rate_limit === 0
+                            ? '不限速'
+                            : '继承默认'}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={key.status === 'active' ? 'secondary' : key.status === 'exhausted' ? 'outline' : key.status === 'disabled' ? 'destructive' : 'warning'}>
                           {key.status === 'active' ? '可用' : key.status === 'exhausted' ? '已用尽' : key.status === 'disabled' ? '已禁用' : '已过期'}
@@ -228,7 +309,22 @@ export default function KeyManagement() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => { setSelectedKey({ id: key.id, alias: key.alias }); setEditOpen(true) }}>
+                            <DropdownMenuItem onClick={() => {
+                              setSelectedKey({ id: key.id, alias: key.alias, rate_limit: key.rate_limit, rate_limit_window: key.rate_limit_window })
+                              // 初始化编辑限流状态
+                              if (key.rate_limit === null && key.rate_limit_window === null) {
+                                setEditRlMode('default')
+                              } else if (key.rate_limit === 0) {
+                                setEditRlMode('none')
+                              } else if (key.rate_limit != null && key.rate_limit_window != null) {
+                                setEditRlMode('custom')
+                                setEditRlCount(key.rate_limit)
+                                const d = rlSecondsToDisplay(key.rate_limit_window)
+                                setEditRlWindow(d.val)
+                                setEditRlUnit(d.unit)
+                              }
+                              setEditOpen(true)
+                            }}>
                               <Edit className="mr-2 h-4 w-4" />编辑
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setAdjustTarget({ id: key.id, alias: key.alias, remaining: key.remaining_amount }); setAdjustDelta(''); setAdjustRemark(''); setAdjustOpen(true) }}>
@@ -270,6 +366,31 @@ export default function KeyManagement() {
           <DialogHeader><DialogTitle>编辑 Key</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2"><Label>别名</Label><Input value={selectedKey?.alias || ''} onChange={(e) => setSelectedKey((p) => p ? { ...p, alias: e.target.value } : null)} /></div>
+            <div className="space-y-2">
+              <Label>限流策略</Label>
+              <Select value={editRlMode} onValueChange={(v) => setEditRlMode(v as 'default' | 'none' | 'custom')}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">使用租户默认</SelectItem>
+                  <SelectItem value="none">不限速</SelectItem>
+                  <SelectItem value="custom">自定义限速</SelectItem>
+                </SelectContent>
+              </Select>
+              {editRlMode === 'custom' && (
+                <div className="flex gap-2 mt-2">
+                  <Input type="number" value={editRlCount} onChange={(e) => setEditRlCount(Number(e.target.value))} min={1} className="flex-1" placeholder="次数" />
+                  <Input type="number" value={editRlWindow} onChange={(e) => setEditRlWindow(Number(e.target.value))} min={1} className="flex-1" placeholder="窗口" />
+                  <Select value={editRlUnit} onValueChange={(v) => setEditRlUnit(v as 's' | 'm' | 'h')}>
+                    <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="s">秒</SelectItem>
+                      <SelectItem value="m">分钟</SelectItem>
+                      <SelectItem value="h">小时</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>取消</Button>

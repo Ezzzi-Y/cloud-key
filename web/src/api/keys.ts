@@ -53,12 +53,16 @@ export interface KeyConfig {
   key_prefix: string
   key_length: number
   key_suffix_length: number
+  default_rate_limit: number | null
+  default_rate_limit_window: number | null
 }
 
 export interface UpdateKeyConfigRequest {
   key_prefix?: string
   key_length?: number
   key_suffix_length?: number
+  default_rate_limit?: number | null
+  default_rate_limit_window?: number | null
 }
 
 export function getKeyConfig() {

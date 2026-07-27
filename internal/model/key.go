@@ -27,6 +27,8 @@ type Key struct {
 	UsedAt          *time.Time `gorm:"default:null" json:"used_at"`
 	ExpireAt        *time.Time `gorm:"default:null" json:"expire_at"`
 	MaxUsage        *int64     `gorm:"default:null" json:"max_usage"`
+	RateLimit       *int       `gorm:"default:null" json:"rate_limit"`        // 每窗口最大请求数，nil=使用租户默认，0=不限速
+	RateLimitWindow *int       `gorm:"default:null" json:"rate_limit_window"` // 窗口大小（秒）
 }
 
 func (Key) TableName() string { return "keys" }

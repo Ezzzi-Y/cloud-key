@@ -71,6 +71,42 @@ return cjson.encode({
 })
 `)
 
+// rateLimitCheckScript Key 限流滑动窗口 Lua 脚本
+// KEYS[1] = rl:key:<keyID>  (ZSET)
+// ARGV[1] = 窗口大小（秒）
+// ARGV[2] = 最大请求数
+// ARGV[3] = 当前时间（纳秒时间戳）
+// ARGV[4] = 唯一请求标识
+//
+// 返回 {allowed(1|0), retryAfter(秒)}
+var rateLimitCheckScript = redis.NewScript(`
+local key = KEYS[1]
+local window = tonumber(ARGV[1])
+local maxReq = tonumber(ARGV[2])
+local now = tonumber(ARGV[3])
+local uid = ARGV[4]
+
+local windowNs = window * 1000000000
+local start = now - windowNs
+
+redis.call('ZREMRANGEBYSCORE', key, 0, start)
+local count = redis.call('ZCARD', key)
+
+if count >= maxReq then
+    local oldest = redis.call('ZRANGEBYSCORE', key, start, '+inf', 'LIMIT', 0, 1)
+    if #oldest > 0 then
+        local retryAfter = math.ceil((tonumber(oldest[1]) + windowNs - now) / 1000000000)
+        if retryAfter < 1 then retryAfter = 1 end
+        return {0, retryAfter}
+    end
+    return {0, window}
+end
+
+redis.call('ZADD', key, now, uid)
+redis.call('EXPIRE', key, window)
+return {1, 0}
+`)
+
 // adjustLuaScript 管理员调额 Lua 脚本
 // KEYS[1] = ck:<keyHash>
 // ARGV[1] = delta (正=增加, 负=减少)

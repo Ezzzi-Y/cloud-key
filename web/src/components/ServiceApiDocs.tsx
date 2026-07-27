@@ -257,19 +257,12 @@ const EXAMPLES: Record<string, CodeExample> = {
   -H "X-Service-Key: sk_your_service_key" \\
   -H "Content-Type: application/json" \\
   -d '{"alias":"my-key","remaining_amount":100}'`,
-    java: `import com.github.ezzzi_y.CloudKeyClient;
-import com.github.ezzzi_y.api.ServiceKeysApi;
-import com.github.ezzzi_y.model.CreateKeyRequest;
+    java: `import com.github.ezzzi_y.CloudKey;
 
-CloudKeyClient client = new CloudKeyClient("sk_your_service_key");
-ServiceKeysApi api = new ServiceKeysApi(client);
+CloudKey ck = new CloudKey("sk_your_service_key");
 
-CreateKeyRequest req = new CreateKeyRequest()
-    .alias("my-key")
-    .remainingAmount(100L);
-
-var result = api.serviceCreateKey(req);
-System.out.println("Key: " + result.getRawKey());`,
+var key = ck.keys().create("my-key", 100L);
+System.out.println("Key: " + key.getRawKey());`,
     js: `const res = await fetch('/api/service/keys', {
   method: 'POST',
   headers: {
@@ -287,13 +280,7 @@ console.log('Key:', data.raw_key);`,
   -H "X-Request-Id: $(uuidgen)" \\
   -H "Content-Type: application/json" \\
   -d '{"key":"ck_abc123","amount":10}'`,
-    java: `import com.github.ezzzi_y.model.ConsumeKeyRequest;
-
-ConsumeKeyRequest req = new ConsumeKeyRequest()
-    .key("ck_abc123")
-    .amount(10L);
-
-var result = api.serviceConsumeKey(req);
+    java: `var result = ck.keys().consume("ck_abc123", 10L);
 System.out.println("Remaining: " + result.getRemainingAmount());`,
     js: `const res = await fetch('/api/service/keys/consume', {
   method: 'POST',
@@ -321,15 +308,9 @@ curl -X POST https://your-domain.com/api/service/keys/1/adjust-balance \\
   -H "X-Request-Id: $(uuidgen)" \\
   -H "Content-Type: application/json" \\
   -d '{"delta":-20,"remark":"扣款"}'`,
-    java: `import com.github.ezzzi_y.model.AdjustBalanceRequest;
-
-AdjustBalanceRequest req = new AdjustBalanceRequest()
-    .delta(50L)
-    .remark("充值");
-
-var result = api.serviceAdjustBalance(1L, req);
-System.out.println("Before: " + result.getBeforeAmount());
-System.out.println("After: " + result.getAfterAmount());`,
+    java: `var adj = ck.keys().adjustBalance(1, 50L, "充值");
+System.out.println("Before: " + adj.getBeforeAmount());
+System.out.println("After: " + adj.getAfterAmount());`,
     js: `const res = await fetch('/api/service/keys/1/adjust-balance', {
   method: 'POST',
   headers: {

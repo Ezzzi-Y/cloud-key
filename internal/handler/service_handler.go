@@ -59,10 +59,28 @@ func (h *TenantServiceAccountHandler) ServiceCreateKey(c *gin.Context) {
 	var req struct {
 		Alias           string `json:"alias" binding:"required"`
 		RemainingAmount int64  `json:"remaining_amount" binding:"required"`
+		RateLimit       *int   `json:"rate_limit"`
+		RateLimitWindow *int   `json:"rate_limit_window"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		BadRequest(c, errcode.CodeServiceKeyInvalid, "参数错误")
 		return
+	}
+
+	// 限流配置校验
+	if req.RateLimit != nil || req.RateLimitWindow != nil {
+		if req.RateLimit == nil || req.RateLimitWindow == nil {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "限流次数和窗口大小必须同时设置")
+			return
+		}
+		if *req.RateLimit < 0 {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "限流次数不能为负数")
+			return
+		}
+		if *req.RateLimitWindow < 1 {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "限流窗口大小必须大于 0")
+			return
+		}
 	}
 
 	createdBy := "sa:" + sa.Name
@@ -75,6 +93,7 @@ func (h *TenantServiceAccountHandler) ServiceCreateKey(c *gin.Context) {
 
 	result, err := h.keySvc.CreateKey(service.CreateKeyRequest{
 		Alias: req.Alias, RemainingAmount: req.RemainingAmount, CreatedBy: createdBy,
+		RateLimit: req.RateLimit, RateLimitWindow: req.RateLimitWindow,
 	}, sa.TenantID, prefix, keyLen, suffixLen)
 	if err != nil {
 		InternalError(c)
@@ -200,7 +219,7 @@ type serviceConsumeReq struct {
 
 // ServiceConsumeKey 服务账号扣减卡密额度
 // @Summary     服务账号扣减卡密额度
-// @Description 通过 X-Service-Key 认证，扣减指定卡密的剩余额度
+// @Description 通过 X-Service-Key 认证，扣减指定卡密的剩余额度。支持限流：若 Key 配置了限流规则，超过限制时返回 429。
 // @Tags        服务账号API
 // @Accept      json
 // @Produce     json
@@ -209,6 +228,7 @@ type serviceConsumeReq struct {
 // @Success     200 {object} Response "扣减结果"
 // @Failure     400 {object} Response "参数错误或卡密无效"
 // @Failure     401 {object} Response "服务账号密钥无效"
+// @Failure     429 {object} Response "请求频率超限"
 // @Router      /service/keys/consume [post]
 func (h *TenantServiceAccountHandler) ServiceConsumeKey(c *gin.Context) {
 	tenantID, ok := getServiceTenantID(c)
@@ -228,6 +248,24 @@ func (h *TenantServiceAccountHandler) ServiceConsumeKey(c *gin.Context) {
 	// 幂等检查
 	requestID := c.GetString("request_id")
 	if claimed, _ := IdempotentCheck(c, h.rdb, requestID); !claimed {
+		return
+	}
+
+	// 限流检查（在实际消费之前）
+	rlAllowed, rlRetry, rlCode, rlErr := h.keySvc.CheckConsumeRateLimit(req.Key, tenantID)
+	if rlErr != nil {
+		CacheIdempotentError(h.rdb, requestID, http.StatusInternalServerError, errcode.CodeInternalError)
+		InternalError(c)
+		return
+	}
+	if rlCode != 0 {
+		CacheIdempotentError(h.rdb, requestID, http.StatusBadRequest, rlCode)
+		BadRequest(c, rlCode, errcode.GetMessage(rlCode))
+		return
+	}
+	if !rlAllowed {
+		CacheIdempotentError(h.rdb, requestID, http.StatusTooManyRequests, errcode.CodeKeyRateLimited)
+		TooManyRequests(c, rlRetry)
 		return
 	}
 
@@ -312,6 +350,22 @@ func (h *TenantServiceAccountHandler) ServiceUpdateKey(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		BadRequest(c, http.StatusBadRequest, "参数错误")
 		return
+	}
+
+	// 限流配置校验
+	if req.RateLimit != nil || req.RateLimitWindow != nil {
+		if req.RateLimit == nil || req.RateLimitWindow == nil {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "限流次数和窗口大小必须同时设置")
+			return
+		}
+		if *req.RateLimit < 0 {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "限流次数不能为负数")
+			return
+		}
+		if *req.RateLimitWindow < 1 {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "限流窗口大小必须大于 0")
+			return
+		}
 	}
 
 	if err := h.keySvc.UpdateKey(id, tenantID, req); err != nil {

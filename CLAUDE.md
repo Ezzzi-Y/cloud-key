@@ -21,11 +21,13 @@ CloudKey 是一个卡密管理系统，提供 API Key 的创建、消费、额�
 │   └── web/                   # 嵌入的前端 SPA
 ├── sdk/java/
 │   ├── api/openapi.yaml       # SDK 专用 OpenAPI 3.0 spec（手动维护）
-│   ├── templates/             # 自定义 Mustache 模板（CloudKey 前缀）
-│   ├── src/main/java/com/github/ezzzi_y/  # SDK 源码
+│   ├── src/main/java/com/github/ezzzi_y/
+│   │   ├── CloudKey.java      # SDK 入口 [手写]
+│   │   ├── gen/               # OpenAPI 生成的通信层（不手动修改）
+│   │   └── service/           # 手写 SDK 服务层 + 精简 model
 │   ├── build.gradle           # Gradle 构建
 │   └── pom.xml                # Maven 构建
-├── scripts/post-gen-rename.sh # SDK 生成后重命名脚本
+├── scripts/regenerate-sdk.sh  # SDK gen/ 层重新生成脚本
 ├── docs/                      # swaggo 生成的 Swagger 2.0 spec
 └── web/                       # React 前端源码
 ```
@@ -73,71 +75,61 @@ CloudKey 是一个卡密管理系统，提供 API Key 的创建、消费、额�
 - 实例化新 Service 和 Handler
 - 注入到 `router.SetupRouter()`
 
-## Java SDK 更新流程
+## Java SDK 架构
 
-当 `/service/*` 路由发生变化时，必须更新 SDK。完整流程：
+SDK 采用分层架构：`gen/` 放 OpenAPI 生成的通信层，手写 `service/` 层提供面向用户的 API。
 
-### 步骤 1: 更新 OpenAPI Spec
-编辑 `sdk/java/api/openapi.yaml`：
-- 新增/修改 paths、schemas
-- 确保 operationId 使用 camelCase
-- 更新 `info.version`
-
-### 步骤 2: 更新 SDK 版本号
-同时修改：
-- `sdk/java/build.gradle` 中的 `version`
-- `sdk/java/pom.xml` 中的 `<version>`
-
-### 步骤 3: 生成 SDK
-```bash
-cd sdk/java
-openapi-generator-cli generate -i api/openapi.yaml -g java -o . --template-dir templates
+```
+com.github.ezzzi_y/
+  CloudKey.java                 # SDK 入口 [手写]
+  CloudKeyOptions.java          # 配置项 [手写]
+  CloudKeyException.java        # SDK 异常 [手写]
+  gen/                          # OpenAPI 生成，不手动修改
+    CloudKeyClient.java         # OkHttp 客户端
+    api/                        # ServiceKeysApi, BalanceLogsApi
+    model/                      # 全部生成的 model
+    auth/                       # 认证
+  service/                      # 手写 SDK 服务层
+    KeyService.java
+    BalanceLogService.java
+    model/                      # 精简版 SDK model
 ```
 
-### 步骤 4: 运行重命名脚本
-```bash
-bash scripts/post-gen-rename.sh
-```
-此脚本将 `ApiClient` → `CloudKeyClient` 等工具类重命名。
+### SDK 使用方式
 
-### 步骤 5: 复制新文件到正确包路径
-生成器默认输出到 `org/openapitools/client/`，需要手动复制到 `com/github/ezzzi_y/`：
-
-```bash
-cd sdk/java/src/main/java
-
-# 复制新增的 model 文件
-for f in org/openapitools/client/model/<NewModel>.java; do
-  fname=$(basename "$f")
-  cp "$f" "com/github/ezzzi_y/model/$fname"
-  sed -i 's/package org\.openapitools\.client\.model;/package com.github.ezzzi_y.model;/' "com/github/ezzzi_y/model/$fname"
-  sed -i 's/import org\.openapitools\.client/import com.github.ezzzi_y/g' "com/github/ezzzi_y/model/$fname"
-done
-
-# 复制新增/更新的 api 文件
-for f in org/openapitools/client/api/<UpdatedApi>.java; do
-  fname=$(basename "$f")
-  cp "$f" "com/github/ezzzi_y/api/$fname"
-  sed -i 's/package org\.openapitools\.client\.api;/package com.github.ezzzi_y.api;/' "com/github/ezzzi_y/api/$fname"
-  sed -i 's/import org\.openapitools\.client/import com.github.ezzzi_y/g' "com/github/ezzzi_y/api/$fname"
-done
+```java
+CloudKey ck = new CloudKey("sk_your_service_key");
+ck.keys().create("my-key", 100L);
+ck.keys().consume("ck_abc123", 10L);
+ck.keys().adjustBalance(1, 50L, "充值");
+ck.balanceLogs().list(q -> q.page(1).pageSize(20));
 ```
 
-### 步骤 6: 再次运行重命名脚本
+### Java SDK 更新流程
+
+当 `/service/*` 路由变化时，更新 SDK：
+
+#### 步骤 1: 更新 OpenAPI Spec
+编辑 `sdk/java/api/openapi.yaml`
+
+#### 步骤 2: 更新 SDK 版本号
+修改 `build.gradle` 和 `pom.xml` 中的 version
+
+#### 步骤 3: 重新生成 gen/ 通信层
 ```bash
-bash scripts/post-gen-rename.sh
+bash scripts/regenerate-sdk.sh
 ```
 
-### 步骤 7: 清理生成器临时目录
-```bash
-rm -rf sdk/java/src/main/java/org
-rm -rf sdk/java/src/test/java/org
-```
+#### 步骤 4: 如有新端点，更新手写 SDK 层
+在 `service/KeyService.java` 或 `service/BalanceLogService.java` 中添加对应方法
 
-### 步骤 8: 验证编译
+#### 步骤 5: 验证编译
 ```bash
 cd sdk/java && ./gradlew build -x test
 ```
+
+#### 步骤 6: 更新前端文档
+更新 `web/src/components/ServiceApiDocs.tsx` 中的 Java 示例代码
 
 ## 构建验证
 

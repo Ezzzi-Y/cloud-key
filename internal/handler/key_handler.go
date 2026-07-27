@@ -135,6 +135,8 @@ func (h *TenantKeyHandler) Consume(c *gin.Context) {
 type CreateKeyJSON struct {
 	Alias           string `json:"alias" binding:"required" example:"测试卡密"`
 	RemainingAmount int64  `json:"remaining_amount" binding:"required" example:"100"`
+	RateLimit       *int   `json:"rate_limit"`        // nil=使用租户默认，0=不限速
+	RateLimitWindow *int   `json:"rate_limit_window"` // 窗口大小（秒）
 }
 
 func (h *TenantKeyHandler) getTenantKeyConfig(tenantID uint64) (string, int, int, error) {
@@ -163,6 +165,22 @@ func (h *TenantKeyHandler) CreateKey(c *gin.Context) {
 		return
 	}
 
+	// 限流配置校验
+	if req.RateLimit != nil || req.RateLimitWindow != nil {
+		if req.RateLimit == nil || req.RateLimitWindow == nil {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "限流次数和窗口大小必须同时设置")
+			return
+		}
+		if *req.RateLimit < 0 {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "限流次数不能为负数")
+			return
+		}
+		if *req.RateLimitWindow < 1 {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "限流窗口大小必须大于 0")
+			return
+		}
+	}
+
 	tenantID := getTenantID(c)
 
 	keyPrefix, keyLen, suffixLen, err := h.getTenantKeyConfig(tenantID)
@@ -175,6 +193,7 @@ func (h *TenantKeyHandler) CreateKey(c *gin.Context) {
 
 	result, err := h.keySvc.CreateKey(service.CreateKeyRequest{
 		Alias: req.Alias, RemainingAmount: req.RemainingAmount, CreatedBy: createdBy,
+		RateLimit: req.RateLimit, RateLimitWindow: req.RateLimitWindow,
 	}, tenantID, keyPrefix, keyLen, suffixLen)
 	if err != nil {
 		InternalError(c)
@@ -285,6 +304,22 @@ func (h *TenantKeyHandler) UpdateKey(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		BadRequest(c, http.StatusBadRequest, "参数错误")
 		return
+	}
+
+	// 限流配置校验：两个字段必须同时设置或同时为 nil
+	if req.RateLimit != nil || req.RateLimitWindow != nil {
+		if req.RateLimit == nil || req.RateLimitWindow == nil {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "限流次数和窗口大小必须同时设置")
+			return
+		}
+		if *req.RateLimit < 0 {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "限流次数不能为负数")
+			return
+		}
+		if *req.RateLimitWindow < 1 {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "限流窗口大小必须大于 0")
+			return
+		}
 	}
 
 	if err := h.keySvc.UpdateKey(id, tenantID, req); err != nil {
@@ -485,18 +520,22 @@ func (h *TenantKeyHandler) GetKeyConfig(c *gin.Context) {
 	}
 
 	Success(c, gin.H{
-		"key_prefix":        tenant.KeyPrefix,
-		"key_length":        tenant.KeyLength,
-		"key_suffix_length": tenant.KeySuffixLength,
+		"key_prefix":                 tenant.KeyPrefix,
+		"key_length":                 tenant.KeyLength,
+		"key_suffix_length":          tenant.KeySuffixLength,
+		"default_rate_limit":         tenant.DefaultRateLimit,
+		"default_rate_limit_window":  tenant.DefaultRateLimitWindow,
 	})
 }
 
 var keyPrefixRegexp = regexp.MustCompile(`^[a-zA-Z0-9_]+-$`)
 
 type UpdateKeyConfigRequest struct {
-	KeyPrefix       *string `json:"key_prefix"`
-	KeyLength       *int    `json:"key_length"`
-	KeySuffixLength *int    `json:"key_suffix_length"`
+	KeyPrefix               *string `json:"key_prefix"`
+	KeyLength               *int    `json:"key_length"`
+	KeySuffixLength         *int    `json:"key_suffix_length"`
+	DefaultRateLimit        *int    `json:"default_rate_limit"`        // nil=不更新，0=不限速
+	DefaultRateLimitWindow  *int    `json:"default_rate_limit_window"` // nil=不更新
 }
 
 // UpdateKeyConfig 更新当前租户的 Key 配置
@@ -563,20 +602,50 @@ func (h *TenantKeyHandler) UpdateKeyConfig(c *gin.Context) {
 		return
 	}
 
+	// 限流配置校验：两个字段必须同时设置或同时为 nil
+	var defaultRateLimit, defaultRateLimitWindow *int
+	if req.DefaultRateLimit != nil || req.DefaultRateLimitWindow != nil {
+		if req.DefaultRateLimit == nil || req.DefaultRateLimitWindow == nil {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "限流次数和窗口大小必须同时设置")
+			return
+		}
+		if *req.DefaultRateLimit < 0 {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "限流次数不能为负数")
+			return
+		}
+		if *req.DefaultRateLimitWindow < 1 {
+			BadRequest(c, errcode.CodeKeyConfigInvalid, "限流窗口大小必须大于 0")
+			return
+		}
+		defaultRateLimit = req.DefaultRateLimit
+		defaultRateLimitWindow = req.DefaultRateLimitWindow
+	}
+
 	updates := map[string]interface{}{
 		"key_prefix":        prefix,
 		"key_length":        keyLen,
 		"key_suffix_length": suffixLen,
+	}
+	if defaultRateLimit != nil {
+		updates["default_rate_limit"] = *defaultRateLimit
+		updates["default_rate_limit_window"] = *defaultRateLimitWindow
 	}
 	if err := h.db.Model(&model.Tenant{}).Where("id = ?", tenantID).Updates(updates).Error; err != nil {
 		InternalError(c)
 		return
 	}
 
+	// 租户默认限流变更后，清除该租户下所有 key 的缓存，使新配置生效
+	if defaultRateLimit != nil {
+		h.keySvc.InvalidateTenantKeyCaches(tenantID)
+	}
+
 	Success(c, gin.H{
-		"key_prefix":        prefix,
-		"key_length":        keyLen,
-		"key_suffix_length": suffixLen,
+		"key_prefix":                 prefix,
+		"key_length":                 keyLen,
+		"key_suffix_length":          suffixLen,
+		"default_rate_limit":         tenant.DefaultRateLimit,
+		"default_rate_limit_window":  tenant.DefaultRateLimitWindow,
 	})
 }
 

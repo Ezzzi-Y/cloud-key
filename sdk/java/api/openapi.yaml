@@ -3,7 +3,7 @@ info:
   contact: {}
   description: 卡密管理系统 - 服务账号 SDK
   title: CloudKey Service Account API
-  version: "2.3"
+  version: "2.4"
 servers:
 - url: //localhost:8080/api
 paths:
@@ -161,6 +161,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/Result"
           description: "租户已到期或已被禁用（code 4001=到期, 4002=禁用）"
+        "429":
+          description: "请求频率超限（code 7005），响应头 Retry-After 表示建议等待秒数"
+          headers:
+            Retry-After:
+              description: 建议等待的秒数
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
       security:
       - ServiceKeyAuth: []
       summary: 服务账号扣减卡密额度
@@ -799,6 +810,14 @@ components:
           format: int64
           nullable: true
           type: integer
+        rate_limit:
+          description: "每窗口最大请求数，null=使用租户默认，0=不限速"
+          nullable: true
+          type: integer
+        rate_limit_window:
+          description: "限流窗口大小（秒）"
+          nullable: true
+          type: integer
       type: object
     PageData:
       example:
@@ -854,6 +873,14 @@ components:
           type: string
         remaining_amount:
           format: int64
+          type: integer
+        rate_limit:
+          description: "每窗口最大请求数，null=使用租户默认，0=不限速"
+          nullable: true
+          type: integer
+        rate_limit_window:
+          description: "限流窗口大小（秒）"
+          nullable: true
           type: integer
       required:
       - alias
@@ -1142,6 +1169,14 @@ components:
       properties:
         alias:
           type: string
+        rate_limit:
+          description: "每窗口最大请求数，null=使用租户默认，0=不限速"
+          nullable: true
+          type: integer
+        rate_limit_window:
+          description: "限流窗口大小（秒）"
+          nullable: true
+          type: integer
       type: object
     AdjustBalanceRequest:
       example:

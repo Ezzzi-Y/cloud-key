@@ -37,6 +37,22 @@ func newBizError(code int) *BizError {
 	return &BizError{Code: code, Message: fmt.Sprintf("biz error: %d", code)}
 }
 
+// rateLimitToInt 将 *int 转换为 int，nil 视为 -1（表示使用租户默认值）
+func rateLimitToInt(v *int) int {
+	if v == nil {
+		return -1
+	}
+	return *v
+}
+
+// intToRateLimitPtr 将 int 转换为 *int，-1 视为 nil（使用租户默认值），0 视为不限速
+func intToRateLimitPtr(v int) *int {
+	if v <= 0 {
+		return nil
+	}
+	return &v
+}
+
 type KeyService struct {
 	db      *gorm.DB
 	rdb     *redis.Client
@@ -62,6 +78,11 @@ func topAmountZSetKey(tenantID uint64) string {
 	return "top_amount:" + strconv.FormatUint(tenantID, 10)
 }
 
+// rateLimitKey returns the Redis ZSET key for per-key rate limiting.
+func rateLimitKey(keyID uint64) string {
+	return "rl:key:" + strconv.FormatUint(keyID, 10)
+}
+
 func (s *KeyService) generateRawKeyWithConfig(prefix string, keyLen int) (string, error) {
 	bytes := make([]byte, keyLen)
 	if _, err := rand.Read(bytes); err != nil {
@@ -81,6 +102,8 @@ type CreateKeyRequest struct {
 	CreatedBy       string     `json:"created_by"`
 	ExpireAt        *time.Time `json:"expire_at"`
 	MaxUsage        *int64     `json:"max_usage"`
+	RateLimit       *int       `json:"rate_limit"`        // nil=使用租户默认，0=不限速
+	RateLimitWindow *int       `json:"rate_limit_window"` // 窗口大小（秒）
 }
 
 type CreateKeyResult struct {
@@ -113,6 +136,8 @@ func (s *KeyService) CreateKey(req CreateKeyRequest, tenantID uint64, keyPrefix 
 		CreatedBy:       req.CreatedBy,
 		ExpireAt:        req.ExpireAt,
 		MaxUsage:        req.MaxUsage,
+		RateLimit:       req.RateLimit,
+		RateLimitWindow: req.RateLimitWindow,
 	}
 
 	if err := s.db.Create(&key).Error; err != nil {
@@ -136,16 +161,18 @@ func (s *KeyService) syncCacheOnCreate(key *model.Key) {
 		expireTs = key.ExpireAt.UnixMilli()
 	}
 	if err := s.rdb.HSet(ctx, ck, map[string]interface{}{
-		"id":         key.ID,
-		"tenant_id":  key.TenantID,
-		"alias":      key.Alias,
-		"key_suffix": key.KeySuffix,
-		"remaining":  key.RemainingAmount,
-		"status":     string(key.Status),
-		"version":    key.Version,
-		"expire_at":  expireTs,
-		"created_at": key.CreatedAt.UnixMilli(),
-		"used_at":    0,
+		"id":               key.ID,
+		"tenant_id":        key.TenantID,
+		"alias":            key.Alias,
+		"key_suffix":       key.KeySuffix,
+		"remaining":        key.RemainingAmount,
+		"status":           string(key.Status),
+		"version":          key.Version,
+		"expire_at":        expireTs,
+		"created_at":       key.CreatedAt.UnixMilli(),
+		"used_at":          0,
+		"rate_limit":       rateLimitToInt(key.RateLimit),
+		"rate_limit_window": rateLimitToInt(key.RateLimitWindow),
 	}).Err(); err != nil {
 		zap.L().Debug("syncCacheOnCreate failed", zap.Error(err))
 	}
@@ -233,16 +260,18 @@ func (s *KeyService) LookupKey(rawKey string, tenantID uint64) (*model.Key, erro
 			usedAtTs = key.UsedAt.UnixMilli()
 		}
 		if err := s.rdb.HSet(ctx, ck, map[string]interface{}{
-			"id":         key.ID,
-			"tenant_id":  key.TenantID,
-			"alias":      key.Alias,
-			"key_suffix": key.KeySuffix,
-			"remaining":  key.RemainingAmount,
-			"status":     string(key.Status),
-			"version":    key.Version,
-			"expire_at":  expireTs,
-			"created_at": key.CreatedAt.UnixMilli(),
-			"used_at":    usedAtTs,
+			"id":               key.ID,
+			"tenant_id":        key.TenantID,
+			"alias":            key.Alias,
+			"key_suffix":       key.KeySuffix,
+			"remaining":        key.RemainingAmount,
+			"status":           string(key.Status),
+			"version":          key.Version,
+			"expire_at":        expireTs,
+			"created_at":       key.CreatedAt.UnixMilli(),
+			"used_at":          usedAtTs,
+			"rate_limit":       rateLimitToInt(key.RateLimit),
+			"rate_limit_window": rateLimitToInt(key.RateLimitWindow),
 		}).Err(); err != nil {
 			log.Error("LookupKey: Redis HSet 回填失败", zap.Error(err))
 		} else {
@@ -295,6 +324,19 @@ func buildKeyFromHash(fields map[string]string, tenantID uint64) (*model.Key, bo
 		t := time.UnixMilli(usedAtMs)
 		key.UsedAt = &t
 	}
+
+	// 解析限流配置：-1 表示使用租户默认值，0 表示不限速，正整数表示限流值
+	if rl, err := strconv.Atoi(fields["rate_limit"]); err == nil && rl >= 0 {
+		key.RateLimit = &rl
+	} else if rl == -1 {
+		key.RateLimit = nil // 使用租户默认值
+	}
+	if rlw, err := strconv.Atoi(fields["rate_limit_window"]); err == nil && rlw >= 0 {
+		key.RateLimitWindow = &rlw
+	} else if rlw == -1 {
+		key.RateLimitWindow = nil
+	}
+
 	return key, true
 }
 
@@ -567,6 +609,32 @@ func (s *KeyService) consumeViaMySQL(rawKey string, amount int64, tenantID uint6
 	return nil, 0, fmt.Errorf("concurrency conflict after %d retries", maxRetries)
 }
 
+// CheckConsumeRateLimit 检查 key 的消费限流（供 handler 在 consume 前调用）。
+// 返回 (allowed, retryAfter, bizCode, error)。
+// allowed=false 时 retryAfter 表示建议等待秒数；bizCode 非 0 表示 key 异常。
+func (s *KeyService) CheckConsumeRateLimit(rawKey string, tenantID uint64) (bool, int, int, error) {
+	if s.rdb == nil {
+		return true, 0, 0, nil // Redis 不可用时限流跳过
+	}
+
+	key, err := s.LookupKey(rawKey, tenantID)
+	if err != nil {
+		return false, 0, 0, err
+	}
+	if key == nil {
+		return false, 0, errcode.CodeKeyNotFound, nil
+	}
+
+	allowed, retryAfter, err := s.checkKeyRateLimit(key, tenantID)
+	if err != nil {
+		return false, 0, 0, err
+	}
+	if !allowed {
+		return false, retryAfter, 0, nil
+	}
+	return true, 0, 0, nil
+}
+
 func (s *KeyService) ConsumeKeyByTenant(rawKey string, amount int64, tenantID uint64, meta *ConsumeMeta) (*ConsumeResult, int, error) {
 	if amount <= 0 {
 		return nil, 0, fmt.Errorf("invalid amount: %d", amount)
@@ -665,14 +733,31 @@ func (s *KeyService) ListKeysByTenant(tenantID uint64, page, pageSize int) ([]mo
 }
 
 type UpdateKeyRequest struct {
-	Alias *string `json:"alias"`
+	Alias           *string `json:"alias"`
+	RateLimit       *int    `json:"rate_limit"`        // nil=不更新，0=不限速
+	RateLimitWindow *int    `json:"rate_limit_window"` // nil=不更新
 }
 
 func (s *KeyService) UpdateKey(id, tenantID uint64, req UpdateKeyRequest) error {
-	if req.Alias == nil {
+	updates := make(map[string]interface{})
+	if req.Alias != nil {
+		updates["alias"] = *req.Alias
+	}
+	if req.RateLimit != nil {
+		updates["rate_limit"] = *req.RateLimit
+	}
+	if req.RateLimitWindow != nil {
+		updates["rate_limit_window"] = *req.RateLimitWindow
+	}
+	if len(updates) == 0 {
 		return nil
 	}
-	return s.db.Model(&model.Key{}).Where("id = ? AND tenant_id = ?", id, tenantID).Update("alias", *req.Alias).Error
+	if err := s.db.Model(&model.Key{}).Where("id = ? AND tenant_id = ?", id, tenantID).Updates(updates).Error; err != nil {
+		return err
+	}
+	// 更新缓存中的限流字段
+	s.syncCacheRateLimit(id, tenantID, updates)
+	return nil
 }
 
 type AdjustBalanceRequest struct {
@@ -852,6 +937,115 @@ func (s *KeyService) syncCacheOnStatusChange(keyHash string, status model.KeySta
 	if err := s.rdb.HSet(ctx, ck, "status", string(status)).Err(); err != nil {
 		zap.L().Debug("syncCacheOnStatusChange failed", zap.Error(err))
 	}
+}
+
+// syncCacheRateLimit 更新缓存中的限流字段
+func (s *KeyService) syncCacheRateLimit(keyID, tenantID uint64, updates map[string]interface{}) {
+	if s.rdb == nil {
+		return
+	}
+	// 需要先获取 keyHash 才能定位缓存 key
+	var key model.Key
+	if err := s.db.Select("key_hash").Where("id = ? AND tenant_id = ?", keyID, tenantID).First(&key).Error; err != nil {
+		return
+	}
+	ctx := context.Background()
+	ck := cacheKey(key.KeyHash)
+	cacheUpdates := make(map[string]interface{})
+	if v, ok := updates["rate_limit"]; ok {
+		if iv, ok := v.(int); ok {
+			cacheUpdates["rate_limit"] = iv
+		}
+	}
+	if v, ok := updates["rate_limit_window"]; ok {
+		if iv, ok := v.(int); ok {
+			cacheUpdates["rate_limit_window"] = iv
+		}
+	}
+	if len(cacheUpdates) > 0 {
+		if err := s.rdb.HSet(ctx, ck, cacheUpdates).Err(); err != nil {
+			zap.L().Debug("syncCacheRateLimit failed", zap.Error(err))
+		}
+	}
+}
+
+// GetTenantDefaultRateLimit 从数据库获取租户的默认限流配置
+func (s *KeyService) GetTenantDefaultRateLimit(tenantID uint64) (rateLimit *int, rateLimitWindow *int, err error) {
+	var tenant model.Tenant
+	if err := s.db.Select("default_rate_limit", "default_rate_limit_window").
+		Where("id = ?", tenantID).First(&tenant).Error; err != nil {
+		return nil, nil, err
+	}
+	return tenant.DefaultRateLimit, tenant.DefaultRateLimitWindow, nil
+}
+
+// InvalidateTenantKeyCaches 清除租户下所有 key 的缓存（用于租户默认限流配置变更后）
+func (s *KeyService) InvalidateTenantKeyCaches(tenantID uint64) {
+	if s.rdb == nil {
+		return
+	}
+	var keys []model.Key
+	if err := s.db.Select("key_hash").Where("tenant_id = ?", tenantID).Find(&keys).Error; err != nil {
+		zap.L().Debug("InvalidateTenantKeyCaches: query failed", zap.Error(err))
+		return
+	}
+	ctx := context.Background()
+	for _, k := range keys {
+		s.rdb.Del(ctx, cacheKey(k.KeyHash))
+	}
+}
+
+// checkKeyRateLimit 检查 key 是否触发限流。
+// 需要 key 包含 ID、RateLimit、RateLimitWindow 字段。
+// 返回 (allowed, retryAfter, error)。Redis 错误时 fail-open（放行）。
+func (s *KeyService) checkKeyRateLimit(key *model.Key, tenantID uint64) (bool, int, error) {
+	if s.rdb == nil {
+		return true, 0, nil
+	}
+
+	// 解析 key 的限流配置：nil=使用租户默认，0=不限速
+	rateLimit := 0
+	rateLimitWindow := 0
+
+	if key.RateLimit != nil && key.RateLimitWindow != nil {
+		rateLimit = *key.RateLimit
+		rateLimitWindow = *key.RateLimitWindow
+	} else {
+		// Key 未配置，使用租户默认值
+		tenantRL, tenantRLW, err := s.GetTenantDefaultRateLimit(tenantID)
+		if err != nil {
+			zap.L().Warn("checkKeyRateLimit: 获取租户默认限流配置失败",
+				zap.Uint64("tenant_id", tenantID), zap.Error(err))
+			return true, 0, nil // fail-open
+		}
+		if tenantRL != nil && tenantRLW != nil {
+			rateLimit = *tenantRL
+			rateLimitWindow = *tenantRLW
+		}
+	}
+
+	// 不限速
+	if rateLimit <= 0 || rateLimitWindow <= 0 {
+		return true, 0, nil
+	}
+
+	ctx := context.Background()
+	now := time.Now().UnixNano()
+	uid := fmt.Sprintf("%d:%d", now, key.ID)
+
+	rlKey := rateLimitKey(key.ID)
+	result, err := rateLimitCheckScript.Run(ctx, s.rdb, []string{rlKey},
+		rateLimitWindow, rateLimit, now, uid).Int64Slice()
+	if err != nil {
+		zap.L().Warn("checkKeyRateLimit: Redis 脚本执行失败，fail-open",
+			zap.Uint64("key_id", key.ID), zap.Error(err))
+		return true, 0, nil
+	}
+
+	if len(result) >= 2 && result[0] == 0 {
+		return false, int(result[1]), nil
+	}
+	return true, 0, nil
 }
 
 func (s *KeyService) DisableKey(id, tenantID uint64) error {

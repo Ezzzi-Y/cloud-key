@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -53,6 +55,23 @@ export default function TenantProfile() {
   const [lengthError, setLengthError] = useState('')
   const [suffixError, setSuffixError] = useState('')
 
+  // 限流配置
+  const [rlEnabled, setRlEnabled] = useState(false)
+  const [rlCount, setRlCount] = useState(100)
+  const [rlWindow, setRlWindow] = useState(60)
+  const [rlWindowUnit, setRlWindowUnit] = useState<'s' | 'm' | 'h'>('s')
+
+  const windowToSeconds = (val: number, unit: 's' | 'm' | 'h') => {
+    if (unit === 'm') return val * 60
+    if (unit === 'h') return val * 3600
+    return val
+  }
+  const secondsToDisplay = (secs: number): { val: number; unit: 's' | 'm' | 'h' } => {
+    if (secs >= 3600 && secs % 3600 === 0) return { val: secs / 3600, unit: 'h' }
+    if (secs >= 60 && secs % 60 === 0) return { val: secs / 60, unit: 'm' }
+    return { val: secs, unit: 's' }
+  }
+
   const { data: keyConfig } = useQuery({
     queryKey: ['tenant-key-config'],
     queryFn: () => getKeyConfig().then((r) => (r.code === 0 ? (r.data as KeyConfigType) : null)),
@@ -63,6 +82,16 @@ export default function TenantProfile() {
       setKeyPrefix(keyConfig.key_prefix)
       setKeyLength(keyConfig.key_length)
       setKeySuffixLength(keyConfig.key_suffix_length)
+      // 限流配置
+      if (keyConfig.default_rate_limit != null && keyConfig.default_rate_limit > 0 && keyConfig.default_rate_limit_window != null && keyConfig.default_rate_limit_window > 0) {
+        setRlEnabled(true)
+        setRlCount(keyConfig.default_rate_limit)
+        const d = secondsToDisplay(keyConfig.default_rate_limit_window)
+        setRlWindow(d.val)
+        setRlWindowUnit(d.unit)
+      } else {
+        setRlEnabled(false)
+      }
     }
   }, [keyConfig])
 
@@ -96,7 +125,17 @@ export default function TenantProfile() {
 
   const handleKeyConfigSave = () => {
     if (!validateKeyConfig()) return
-    keyConfigMutation.mutate({ key_prefix: keyPrefix, key_length: keyLength, key_suffix_length: keySuffixLength })
+    const data: UpdateKeyConfigRequest = {
+      key_prefix: keyPrefix, key_length: keyLength, key_suffix_length: keySuffixLength,
+    }
+    if (rlEnabled) {
+      data.default_rate_limit = rlCount
+      data.default_rate_limit_window = windowToSeconds(rlWindow, rlWindowUnit)
+    } else {
+      data.default_rate_limit = null
+      data.default_rate_limit_window = null
+    }
+    keyConfigMutation.mutate(data)
   }
 
   return (
@@ -154,6 +193,36 @@ export default function TenantProfile() {
                   <p className="text-xs text-muted-foreground">平台存储用于显示的位数，平台不完整存储Key。最少4位</p>
                   {suffixError && <p className="text-xs text-destructive">{suffixError}</p>}
                 </div>
+              </div>
+              <div className="border-t pt-4 space-y-4">
+                <div className="flex items-center gap-3">
+                  <Switch checked={rlEnabled} onCheckedChange={setRlEnabled} />
+                  <Label>默认限速</Label>
+                  {!rlEnabled && <span className="text-xs text-muted-foreground">当前：不限速</span>}
+                </div>
+                {rlEnabled && (
+                  <div className="grid gap-4 md:grid-cols-2 max-w-md">
+                    <div className="space-y-2">
+                      <Label>请求次数</Label>
+                      <Input type="number" value={rlCount} onChange={(e) => setRlCount(Number(e.target.value))} min={1} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>时间窗口</Label>
+                      <div className="flex gap-2">
+                        <Input type="number" value={rlWindow} onChange={(e) => setRlWindow(Number(e.target.value))} min={1} className="flex-1" />
+                        <Select value={rlWindowUnit} onValueChange={(v) => setRlWindowUnit(v as 's' | 'm' | 'h')}>
+                          <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="s">秒</SelectItem>
+                            <SelectItem value="m">分钟</SelectItem>
+                            <SelectItem value="h">小时</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground col-span-2">每 {rlWindow}{{s:'秒',m:'分钟',h:'小时'}[rlWindowUnit]} 最多 {rlCount} 次请求，新创建的 Key 默认使用此配置</p>
+                  </div>
+                )}
               </div>
               <div className="rounded-md bg-muted p-4">
                 <p className="text-sm text-muted-foreground mb-1">生成示例：</p>

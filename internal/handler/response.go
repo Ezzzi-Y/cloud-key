@@ -3,6 +3,7 @@ package handler
 import (
 	"CloudKey/internal/errcode"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -59,4 +60,9 @@ func NotFound(c *gin.Context, code int, message string) {
 
 func InternalError(c *gin.Context) {
 	Error(c, http.StatusInternalServerError, errcode.CodeInternalError, errcode.GetMessage(errcode.CodeInternalError))
+}
+
+func TooManyRequests(c *gin.Context, retryAfter int) {
+	c.Header("Retry-After", strconv.Itoa(retryAfter))
+	Error(c, http.StatusTooManyRequests, errcode.CodeKeyRateLimited, errcode.GetMessage(errcode.CodeKeyRateLimited))
 }

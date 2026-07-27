@@ -64,15 +64,21 @@ export interface Key {
   used_at: string | null
   expire_at: string | null
   max_usage: number | null
+  rate_limit: number | null
+  rate_limit_window: number | null
 }
 
 export interface CreateKeyRequest {
   alias: string
   remaining_amount: number
+  rate_limit?: number | null
+  rate_limit_window?: number | null
 }
 
 export interface UpdateKeyRequest {
   alias?: string
+  rate_limit?: number | null
+  rate_limit_window?: number | null
 }
 
 export interface KeyListParams {
