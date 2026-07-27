@@ -39,6 +39,16 @@ public class CloudKey {
     }
 
     /**
+     * 使用服务账号密钥和自定义 Base URL 创建 SDK 实例。
+     *
+     * @param serviceKey 服务账号密钥（sk_ 前缀）
+     * @param baseUrl    API 基础地址，如 "https://your-domain.com/api"
+     */
+    public CloudKey(String serviceKey, String baseUrl) {
+        this(new CloudKeyOptions(serviceKey).baseUrl(baseUrl));
+    }
+
+    /**
      * 使用完整配置创建 SDK 实例。
      *
      * @param options 配置选项
