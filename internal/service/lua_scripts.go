@@ -93,11 +93,14 @@ redis.call('ZREMRANGEBYSCORE', key, 0, start)
 local count = redis.call('ZCARD', key)
 
 if count >= maxReq then
-    local oldest = redis.call('ZRANGEBYSCORE', key, start, '+inf', 'LIMIT', 0, 1)
+    local oldest = redis.call('ZRANGEBYSCORE', key, start, '+inf', 'WITHSCORES', 'LIMIT', 0, 1)
     if #oldest > 0 then
-        local retryAfter = math.ceil((tonumber(oldest[1]) + windowNs - now) / 1000000000)
-        if retryAfter < 1 then retryAfter = 1 end
-        return {0, retryAfter}
+        local oldestScore = tonumber(oldest[2])
+        if oldestScore then
+            local retryAfter = math.ceil((oldestScore + windowNs - now) / 1000000000)
+            if retryAfter < 1 then retryAfter = 1 end
+            return {0, retryAfter}
+        end
     end
     return {0, window}
 end
