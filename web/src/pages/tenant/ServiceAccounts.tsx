@@ -50,42 +50,40 @@ export default function ServiceAccounts() {
     <Tabs defaultValue="manage" className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold tracking-tight">服务账号</h2>
-        <TabsList>
-          <TabsTrigger value="manage">服务账号管理</TabsTrigger>
-          <TabsTrigger value="docs">API 接入文档</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center gap-2">
+          <TabsList>
+            <TabsTrigger value="manage">服务账号管理</TabsTrigger>
+            <TabsTrigger value="docs">API 接入文档</TabsTrigger>
+          </TabsList>
+          <Button variant="outline" size="icon" onClick={() => queryClient.invalidateQueries({ queryKey: ['tenant-service-accounts'] })}><RefreshCw className="h-4 w-4" /></Button>
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />创建服务账号</Button></DialogTrigger>
+            <DialogContent>
+              {!rawKey ? (
+                <>
+                  <DialogHeader><DialogTitle>创建服务账号</DialogTitle><DialogDescription>密钥仅在创建时显示一次</DialogDescription></DialogHeader>
+                  <div className="space-y-4"><div className="space-y-2"><Label>账号名称</Label><Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="例如：my-service" /></div></div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setCreateOpen(false)}>取消</Button>
+                    <Button onClick={() => createMutation.mutate(newName.trim())} disabled={!newName.trim() || createMutation.isPending}>
+                      {createMutation.isPending ? '创建中...' : '创建'}
+                    </Button>
+                  </DialogFooter>
+                </>
+              ) : (
+                <>
+                  <DialogHeader><DialogTitle>创建成功</DialogTitle><DialogDescription>请立即保存以下密钥</DialogDescription></DialogHeader>
+                  <div className="rounded-lg bg-muted p-4"><code className="break-all text-sm font-bold">{rawKey}</code></div>
+                  <DialogFooter><Button onClick={closeCreate}>我已保存，关闭</Button></DialogFooter>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <TabsContent value="manage">
         <div className="space-y-6">
-          <div className="flex justify-end">
-            <div className="flex gap-2">
-              <Button variant="outline" size="icon" onClick={() => queryClient.invalidateQueries({ queryKey: ['tenant-service-accounts'] })}><RefreshCw className="h-4 w-4" /></Button>
-              <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />创建服务账号</Button></DialogTrigger>
-                <DialogContent>
-                  {!rawKey ? (
-                    <>
-                      <DialogHeader><DialogTitle>创建服务账号</DialogTitle><DialogDescription>密钥仅在创建时显示一次</DialogDescription></DialogHeader>
-                      <div className="space-y-4"><div className="space-y-2"><Label>账号名称</Label><Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="例如：my-service" /></div></div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setCreateOpen(false)}>取消</Button>
-                        <Button onClick={() => createMutation.mutate(newName.trim())} disabled={!newName.trim() || createMutation.isPending}>
-                          {createMutation.isPending ? '创建中...' : '创建'}
-                        </Button>
-                      </DialogFooter>
-                    </>
-                  ) : (
-                    <>
-                      <DialogHeader><DialogTitle>创建成功</DialogTitle><DialogDescription>请立即保存以下密钥</DialogDescription></DialogHeader>
-                      <div className="rounded-lg bg-muted p-4"><code className="break-all text-sm font-bold">{rawKey}</code></div>
-                      <DialogFooter><Button onClick={closeCreate}>我已保存，关闭</Button></DialogFooter>
-                    </>
-                  )}
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
 
       {isLoading ? (
         <SkeletonTable rows={3} cols={4} />

@@ -6,6 +6,7 @@ import type { TenantListItem } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -113,7 +114,7 @@ export default function TenantDetail() {
               </Select>
             </div>
             <div className="space-y-2"><Label>到期时间（留空表示永不过期）</Label>
-              <Input type="datetime-local" value={expireAt} onChange={(e) => setExpireAt(e.target.value)} />
+              <DateTimePicker value={expireAt} onChange={setExpireAt} placeholder="选择到期时间" clearable />
             </div>
           </div>
         </CardContent>

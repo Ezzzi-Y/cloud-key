@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { SkeletonTable } from '@/components/SkeletonTable'
 import { TablePagination } from '@/components/TablePagination'
@@ -62,8 +63,8 @@ export default function BalanceLogs() {
       <div className="flex flex-wrap items-center gap-4">
         <Input placeholder="别名前缀搜索..." value={alias} onChange={(e) => { setAlias(e.target.value); setPage(1) }} className="max-w-[160px]" />
         <Input placeholder="后缀精准搜索..." value={keySuffix} onChange={(e) => { setKeySuffix(e.target.value); setPage(1) }} className="max-w-[160px]" />
-        <Input type="datetime-local" value={startTime} onChange={(e) => { setStartTime(e.target.value); setPage(1) }} className="max-w-[200px]" />
-        <Input type="datetime-local" value={endTime} onChange={(e) => { setEndTime(e.target.value); setPage(1) }} className="max-w-[200px]" />
+        <DateTimePicker value={startTime} onChange={(v) => { setStartTime(v); setPage(1) }} placeholder="开始时间" />
+        <DateTimePicker value={endTime} onChange={(v) => { setEndTime(v); setPage(1) }} placeholder="结束时间" />
         <div className="ml-auto flex gap-2">
           <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="mr-2 h-4 w-4" />刷新</Button>
           <Button variant="outline" size="sm" onClick={handleExport}>
