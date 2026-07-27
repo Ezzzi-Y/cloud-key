@@ -7,7 +7,7 @@ import java.time.Duration;
  */
 public class CloudKeyOptions {
 
-    private static final String SDK_VERSION = "3.0.2";
+    private static final String SDK_VERSION = "3.0.3";
     private static final String DEFAULT_USER_AGENT = "CloudKey-Java-SDK/" + SDK_VERSION;
 
     private final String serviceKey;

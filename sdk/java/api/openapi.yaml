@@ -888,27 +888,33 @@ components:
       type: object
     CreateKeyData:
       example:
-        raw_key: raw_key
-        key:
-          id: 6
-          tenant_id: 1
-          alias: alias
-          key_prefix: key_prefix
-          key_suffix: key_suffix
-          remaining_amount: 5
-          status: active
-          created_by: created_by
-          created_at: 2000-01-23T04:56:07.000+00:00
-          updated_at: 2000-01-23T04:56:07.000+00:00
-          used_at: 2000-01-23T04:56:07.000+00:00
-          expire_at: 2000-01-23T04:56:07.000+00:00
-          max_usage: 2
+        id: 4
+        alias: my-key
+        raw_key: sk-xxxx
+        key_suffix: 3775
+        remaining_amount: 100
+        status: active
       properties:
+        id:
+          description: 卡密 ID
+          format: int64
+          type: integer
+        alias:
+          description: 卡密别名
+          type: string
         raw_key:
           description: 创建时返回的原始密钥（仅此处可见）
           type: string
-        key:
-          $ref: "#/components/schemas/Key"
+        key_suffix:
+          description: 密钥后缀
+          type: string
+        remaining_amount:
+          description: 剩余额度
+          format: int64
+          type: integer
+        status:
+          description: 卡密状态
+          type: string
       type: object
     CreateKeyResponse:
       allOf:

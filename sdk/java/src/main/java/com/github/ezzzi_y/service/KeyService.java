@@ -41,11 +41,10 @@ public class KeyService {
         var req = new CreateKeyRequest().alias(alias).remainingAmount(remainingAmount);
         var resp = wrap(() -> api.createKey(req));
         var data = resp.getData();
-        var key = data.getKey();
         return new CreateKeyResult(
-                key != null ? key.getId() : 0L,
+                data.getId() != null ? data.getId() : 0L,
                 data.getRawKey(),
-                alias
+                data.getAlias()
         );
     }
 
