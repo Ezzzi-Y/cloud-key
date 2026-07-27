@@ -259,7 +259,7 @@ const EXAMPLES: Record<string, CodeExample> = {
   -d '{"alias":"my-key","remaining_amount":100}'`,
     java: `import com.github.ezzzi_y.CloudKey;
 
-CloudKey ck = new CloudKey("sk_your_service_key");
+CloudKey ck = new CloudKey("svc_your_service_key");
 
 var key = ck.keys().create("my-key", 100L);
 System.out.println("Key: " + key.getRawKey());`,
