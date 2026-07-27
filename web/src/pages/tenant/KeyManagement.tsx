@@ -216,17 +216,26 @@ export default function KeyManagement() {
                         </SelectContent>
                       </Select>
                       {createRlMode === 'custom' && (
-                        <div className="flex gap-2 mt-2">
-                          <Input type="number" value={createRlCount} onChange={(e) => setCreateRlCount(Number(e.target.value))} min={1} className="flex-1" placeholder="次数" />
-                          <Input type="number" value={createRlWindow} onChange={(e) => setCreateRlWindow(Number(e.target.value))} min={1} className="flex-1" placeholder="窗口" />
-                          <Select value={createRlUnit} onValueChange={(v) => setCreateRlUnit(v as 's' | 'm' | 'h')}>
-                            <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="s">秒</SelectItem>
-                              <SelectItem value="m">分钟</SelectItem>
-                              <SelectItem value="h">小时</SelectItem>
-                            </SelectContent>
-                          </Select>
+                        <div className="grid grid-cols-2 gap-3 mt-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs">最大请求次数</Label>
+                            <Input type="number" value={createRlCount} onChange={(e) => setCreateRlCount(Number(e.target.value))} min={1} placeholder="如 100" />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">时间窗口</Label>
+                            <div className="flex gap-1">
+                              <Input type="number" value={createRlWindow} onChange={(e) => setCreateRlWindow(Number(e.target.value))} min={1} className="flex-1" placeholder="如 60" />
+                              <Select value={createRlUnit} onValueChange={(v) => setCreateRlUnit(v as 's' | 'm' | 'h')}>
+                                <SelectTrigger className="w-16"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="s">秒</SelectItem>
+                                  <SelectItem value="m">分钟</SelectItem>
+                                  <SelectItem value="h">小时</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground col-span-2">每 {createRlWindow}{{s:'秒',m:'分钟',h:'小时'}[createRlUnit]} 最多 {createRlCount} 次请求</p>
                         </div>
                       )}
                     </div>
@@ -377,17 +386,26 @@ export default function KeyManagement() {
                 </SelectContent>
               </Select>
               {editRlMode === 'custom' && (
-                <div className="flex gap-2 mt-2">
-                  <Input type="number" value={editRlCount} onChange={(e) => setEditRlCount(Number(e.target.value))} min={1} className="flex-1" placeholder="次数" />
-                  <Input type="number" value={editRlWindow} onChange={(e) => setEditRlWindow(Number(e.target.value))} min={1} className="flex-1" placeholder="窗口" />
-                  <Select value={editRlUnit} onValueChange={(v) => setEditRlUnit(v as 's' | 'm' | 'h')}>
-                    <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="s">秒</SelectItem>
-                      <SelectItem value="m">分钟</SelectItem>
-                      <SelectItem value="h">小时</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-3 mt-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">最大请求次数</Label>
+                    <Input type="number" value={editRlCount} onChange={(e) => setEditRlCount(Number(e.target.value))} min={1} placeholder="如 100" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">时间窗口</Label>
+                    <div className="flex gap-1">
+                      <Input type="number" value={editRlWindow} onChange={(e) => setEditRlWindow(Number(e.target.value))} min={1} className="flex-1" placeholder="如 60" />
+                      <Select value={editRlUnit} onValueChange={(v) => setEditRlUnit(v as 's' | 'm' | 'h')}>
+                        <SelectTrigger className="w-16"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="s">秒</SelectItem>
+                          <SelectItem value="m">分钟</SelectItem>
+                          <SelectItem value="h">小时</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground col-span-2">每 {editRlWindow}{{s:'秒',m:'分钟',h:'小时'}[editRlUnit]} 最多 {editRlCount} 次请求</p>
                 </div>
               )}
             </div>
