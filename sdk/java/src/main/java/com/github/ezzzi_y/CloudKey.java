@@ -57,6 +57,7 @@ public class CloudKey {
         CloudKeyClient client = new CloudKeyClient();
         client.setBasePath(options.getBaseUrl());
         client.setApiKey(options.getServiceKey());
+        client.setUserAgent(options.getUserAgent());
         client.getHttpClient().newBuilder()
                 .connectTimeout(options.getConnectTimeout().toMillis(), TimeUnit.MILLISECONDS)
                 .readTimeout(options.getReadTimeout().toMillis(), TimeUnit.MILLISECONDS)

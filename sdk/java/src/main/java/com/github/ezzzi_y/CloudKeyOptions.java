@@ -7,10 +7,14 @@ import java.time.Duration;
  */
 public class CloudKeyOptions {
 
+    private static final String SDK_VERSION = "3.0.2";
+    private static final String DEFAULT_USER_AGENT = "CloudKey-Java-SDK/" + SDK_VERSION;
+
     private final String serviceKey;
     private String baseUrl = "http://localhost:8080/api";
     private Duration connectTimeout = Duration.ofSeconds(10);
     private Duration readTimeout = Duration.ofSeconds(30);
+    private String userAgent = DEFAULT_USER_AGENT;
 
     public CloudKeyOptions(String serviceKey) {
         if (serviceKey == null || serviceKey.isBlank()) {
@@ -47,6 +51,15 @@ public class CloudKeyOptions {
 
     public CloudKeyOptions readTimeout(Duration readTimeout) {
         this.readTimeout = readTimeout;
+        return this;
+    }
+
+    public String getUserAgent() {
+        return userAgent;
+    }
+
+    public CloudKeyOptions userAgent(String userAgent) {
+        this.userAgent = userAgent;
         return this;
     }
 }
