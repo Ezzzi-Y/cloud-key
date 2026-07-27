@@ -177,6 +177,14 @@ func (s *TenantService) ResetPassword(tenantID uint64) (string, error) {
 	return newPass, nil
 }
 
+// ExpireTenants 将已过期的 active 租户标记为 expired
+func (s *TenantService) ExpireTenants() (int64, error) {
+	result := s.db.Model(&model.Tenant{}).
+		Where("status = ? AND expire_at IS NOT NULL AND expire_at <= NOW()", model.TenantStatusActive).
+		Update("status", model.TenantStatusExpired)
+	return result.RowsAffected, result.Error
+}
+
 func generateRandomPassword(length int) string {
 	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$"
 	bytes := make([]byte, length)

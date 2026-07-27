@@ -103,6 +103,22 @@ func main() {
 		}
 	}()
 
+	// 定时标记过期租户（每天零点执行）
+	go func() {
+		for {
+			now := time.Now()
+			next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+			time.Sleep(time.Until(next))
+
+			count, err := tenantSvc.ExpireTenants()
+			if err != nil {
+				zap.L().Error("标记过期租户失败", zap.Error(err))
+			} else if count > 0 {
+				zap.L().Info("标记过期租户", zap.Int64("count", count))
+			}
+		}
+	}()
+
 	// Init defaults
 	if err := configSvc.InitDefaultConfigs(); err != nil {
 		zap.L().Warn("初始化默认配置失败", zap.Error(err))
