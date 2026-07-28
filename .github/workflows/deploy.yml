@@ -7,6 +7,9 @@ on:
       - 'sdk/**'
       - 'docs/**'
       - '*.md'
+      - '.gitignore'
+      - '.github/**'
+      - 'internal/web/dist/**'
   workflow_dispatch:
 
 env:
