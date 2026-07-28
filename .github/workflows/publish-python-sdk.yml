@@ -11,8 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write  # Required for PyPI Trusted Publisher
-    # environment: pypi  # uncomment if you configure a specific environment on PyPI/GitHub
 
     steps:
       - uses: actions/checkout@v4
@@ -44,23 +42,4 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: sdk/python/dist/
-
-  github-release:
-    needs: publish
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Python SDK ${{ github.ref_name }}
-          body: |
-            ## Python SDK
-
-            ```bash
-            pip install cloudkey-sdk==${GITHUB_REF_NAME#python-sdk-v}
-            ```
-          generate_release_notes: true
+          password: ${{ secrets.PYPI_API_TOKEN }}
