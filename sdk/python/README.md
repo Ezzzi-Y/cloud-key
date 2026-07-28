@@ -5,7 +5,7 @@
 ## 安装
 
 ```bash
-pip install cloudkey-python
+pip install cloudkey-sdk
 ```
 
 ## 快速开始

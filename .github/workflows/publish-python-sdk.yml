@@ -12,7 +12,7 @@ jobs:
     permissions:
       contents: read
       id-token: write  # Required for PyPI Trusted Publisher
-    environment: pypi
+    # environment: pypi  # uncomment if you configure a specific environment on PyPI/GitHub
 
     steps:
       - uses: actions/checkout@v4
@@ -61,6 +61,6 @@ jobs:
             ## Python SDK
 
             ```bash
-            pip install cloudkey-python==${GITHUB_REF_NAME#python-sdk-v}
+            pip install cloudkey-sdk==${GITHUB_REF_NAME#python-sdk-v}
             ```
           generate_release_notes: true
