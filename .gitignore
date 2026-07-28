@@ -3,7 +3,7 @@ config.yaml
 
 # 编译产物
 *.exe
-cloudkey
+/cloudkey
 
 # 日志文件
 logs/
