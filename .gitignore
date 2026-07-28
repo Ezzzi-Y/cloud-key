@@ -42,3 +42,4 @@ sdk/java/.gradle/
 sdk/java/*.class
 sdk/java/out/
 *.exe~
+sdk/python/dist/
