@@ -120,7 +120,6 @@ export default function KeyVerify() {
           {queryResult && (
             <div className="mt-4 rounded border p-4 space-y-3">
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <div><div className="text-sm text-muted-foreground">数据来源</div><Badge variant="outline">{queryResult.source}</Badge></div>
                 {queryResult.key_alias && <div><div className="text-sm text-muted-foreground">卡密别名</div><div className="font-medium">{queryResult.key_alias}</div></div>}
                 {queryResult.key_suffix && <div><div className="text-sm text-muted-foreground">卡密后缀</div><div className="font-mono">{queryResult.key_suffix}</div></div>}
                 {queryResult.amount != null && <div><div className="text-sm text-muted-foreground">消费量</div><div className="font-medium">{queryResult.amount}</div></div>}
@@ -133,7 +132,7 @@ export default function KeyVerify() {
               </div>
               {queryResult.data && (
                 <div className="grid gap-4 md:grid-cols-3 border-t pt-3">
-                  <div><div className="text-sm text-muted-foreground">剩余额度（缓存）</div><div className="text-lg font-bold">{queryResult.data.remaining_amount}</div></div>
+                  <div><div className="text-sm text-muted-foreground">剩余额度</div><div className="text-lg font-bold">{queryResult.data.remaining_amount}</div></div>
                   <div><div className="text-sm text-muted-foreground">状态</div><Badge variant={queryResult.data.exhausted ? 'outline' : 'secondary'}>{queryResult.data.exhausted ? '已用尽' : queryResult.data.status}</Badge></div>
                 </div>
               )}

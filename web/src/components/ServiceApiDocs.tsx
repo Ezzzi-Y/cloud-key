@@ -217,7 +217,6 @@ const GROUPS: Record<string, EndpointGroup> = {
           { name: 'request_id', type: 'string', required: true, desc: '请求 ID（UUID）' },
         ],
         response: [
-          { name: 'source', type: 'string', desc: '数据来源：cache / usage_log / balance_log' },
           { name: 'request_id', type: 'string', desc: '请求 ID' },
           { name: 'data', type: 'object', desc: '操作结果（字段因操作类型而异）' },
         ],
@@ -627,8 +626,8 @@ export default function ServiceApiDocs() {
             <h3 className="mb-3 text-lg font-semibold">幂等机制</h3>
             <div className="mb-4 space-y-2 text-sm text-muted-foreground">
               <p>消费和额度调整接口支持幂等调用，防止因网络重试导致重复操作。</p>
-              <p>请求携带 <code className="rounded bg-muted px-1 py-0.5 text-xs">X-Request-Id</code>（UUID），服务端在 Redis 中缓存结果 24 小时。相同 ID 的后续请求直接返回缓存结果。</p>
-              <p>通过 <code className="rounded bg-muted px-1 py-0.5 text-xs">GET /service/consume-result?request_id=xxx</code> 查询操作结果，优先查 Redis，过期后 fallback 到数据库日志。</p>
+              <p>请求携带 <code className="rounded bg-muted px-1 py-0.5 text-xs">X-Request-Id</code>（UUID），服务端会缓存结果 24 小时。相同 ID 的后续请求直接返回缓存结果。</p>
+              <p>通过 <code className="rounded bg-muted px-1 py-0.5 text-xs">GET /service/consume-result?request_id=xxx</code> 查询操作结果。</p>
             </div>
             <LangTabs exampleKey="consumeResult" />
           </section>

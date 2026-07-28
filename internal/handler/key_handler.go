@@ -677,7 +677,6 @@ func (h *TenantKeyHandler) GetConsumeResult(c *gin.Context) {
 	cached, err := LookupIdempotentResult(h.rdb, requestID)
 	if err == nil && cached != nil {
 		Success(c, gin.H{
-			"source":      "cache",
 			"request_id":  requestID,
 			"http_status": cached.HTTPStatus,
 			"code":        cached.Code,
@@ -691,7 +690,6 @@ func (h *TenantKeyHandler) GetConsumeResult(c *gin.Context) {
 	if err := h.db.Where("request_id = ? AND tenant_id = ?", requestID, tenantID).
 		Order("created_at DESC").First(&usageLog).Error; err == nil {
 		Success(c, gin.H{
-			"source":     "usage_log",
 			"request_id": requestID,
 			"key_id":     usageLog.KeyID,
 			"key_alias":  usageLog.KeyAlias,
@@ -708,7 +706,6 @@ func (h *TenantKeyHandler) GetConsumeResult(c *gin.Context) {
 	if err := h.db.Where("request_id = ? AND tenant_id = ?", requestID, tenantID).
 		Order("created_at DESC").First(&balanceLog).Error; err == nil {
 		Success(c, gin.H{
-			"source":        "balance_log",
 			"request_id":    requestID,
 			"key_id":        balanceLog.KeyID,
 			"key_alias":     balanceLog.KeyAlias,

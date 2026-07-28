@@ -233,7 +233,6 @@ export interface AdjustBalanceResult {
 }
 
 export interface ConsumeResultQuery {
-  source: string
   request_id: string
   key_id?: number
   key_alias?: string
