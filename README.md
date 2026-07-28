@@ -19,6 +19,7 @@ CloudKey 提供 API Key 的创建、分发、验证、扣减和审计全链路�
 - **使用日志与导出** — 完整的消费和余额变更审计日志，支持筛选，CSV / JSON 双格式导出
 - **前端嵌入式部署** — React SPA 编译后嵌入 Go 二进制文件，单文件部署
 - **Java SDK** — 通过 OpenAPI Generator 自动生成，发布到 GitHub Packages
+- **Python SDK** — 基于 httpx，发布到 PyPI
 
 ## 🛠 技术栈
 
@@ -57,7 +58,7 @@ CloudKey 提供 API Key 的创建、分发、验证、扣减和审计全链路�
 | 数据库 | MySQL 8.0+ |
 | 缓存 / 消息 | Redis 6.0+、RabbitMQ |
 | 容器化 | Docker (多阶段构建) + Docker Compose |
-| CI/CD | GitHub Actions (SDK 发布到 GitHub Packages) |
+| CI/CD | GitHub Actions (Java SDK → GitHub Packages, Python SDK → PyPI) |
 
 ## 📁 项目结构
 
@@ -79,9 +80,13 @@ CloudKey/
 │   ├── log/                 # 日志初始化
 │   └── web/                 # 前端 embed.FS 嵌入
 ├── web/                     # React SPA 前端源码
-├── sdk/java/                # Java SDK (OkHttp, v2.2.0)
-│   ├── api/openapi.yaml     # SDK 专用 OpenAPI 3.0 spec（手动维护）
-│   └── src/.../com/github/ezzzi_y/  # SDK 源码
+├── sdk/
+│   ├── java/                # Java SDK
+│   │   ├── api/openapi.yaml # SDK 专用 OpenAPI 3.0 spec
+│   │   └── src/...          # SDK 源码
+│   └── python/              # Python SDK
+│       ├── pyproject.toml   # 构建配置
+│       └── cloudkey/        # SDK 源码
 ├── scripts/                 # SDK 生成后重命名脚本
 ├── docs/                    # Swaggo 生成的 Swagger 2.0 文档
 └── .github/workflows/       # CI（SDK 发布到 GitHub Packages）
@@ -215,28 +220,25 @@ security:
 
 详细 API 文档请访问 `/swagger/index.html`（需开启 debug 模式）。
 
-## ☕ Java SDK
+## ☕ SDK
 
-通过 OpenAPI Generator 从 `sdk/java/api/openapi.yaml` 生成，覆盖 `/service/*` 端点。
+支持 **Java** 和 **Python** 两种 SDK，覆盖 `/service/*` 端点。Java SDK 发布到 GitHub Packages，Python SDK 发布到 PyPI。
 
-**包名：** `com.github.ezzzi_y`
-**版本：** 2.2.0
-**HTTP 客户端：** OkHttp 4.12.0
-**支持：** Gradle + Maven，发布到 GitHub Packages
+```bash
+# Python
+pip install cloudkey-sdk
+```
 
 ```xml
-<!-- Maven -->
+<!-- Java (Maven) -->
 <dependency>
   <groupId>com.github.ezzzi-y</groupId>
   <artifactId>cloudkey-client</artifactId>
-  <version>2.2.0</version>
+  <version>LATEST</version>
 </dependency>
 ```
 
-```groovy
-// Gradle
-implementation 'com.github.ezzzi-y:cloudkey-client:2.2.0'
-```
+详见各 SDK 目录下的 README。
 
 ## 📄 许可证
 
