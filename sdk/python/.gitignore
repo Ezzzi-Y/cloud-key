@@ -1,0 +1,3 @@
+# Re-include cloudkey/ which is excluded by repo root's /cloudkey pattern
+# (that pattern targets the Go binary, not this Python package)
+!cloudkey/

@@ -17,5 +17,6 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/Ezzi/CloudKey"
 
-[tool.hatch.build.targets.wheel]
+[tool.hatch.build]
 packages = ["cloudkey"]
+ignore-vcs = false
