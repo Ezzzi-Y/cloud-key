@@ -19,14 +19,25 @@ CloudKey 是一个卡密管理系统，提供 API Key 的创建、消费、额�
 │   ├── database/              # 数据库连接
 │   ├── log/                   # 日志
 │   └── web/                   # 嵌入的前端 SPA
-├── sdk/java/
-│   ├── api/openapi.yaml       # SDK 专用 OpenAPI 3.0 spec（手动维护）
-│   ├── src/main/java/com/github/ezzzi_y/
-│   │   ├── CloudKey.java      # SDK 入口 [手写]
-│   │   ├── gen/               # OpenAPI 生成的通信层（不手动修改）
-│   │   └── service/           # 手写 SDK 服务层 + 精简 model
-│   ├── build.gradle           # Gradle 构建
-│   └── pom.xml                # Maven 构建
+├── sdk/
+│   ├── java/
+│   │   ├── api/openapi.yaml       # SDK 专用 OpenAPI 3.0 spec（手动维护）
+│   │   ├── src/main/java/com/github/ezzzi_y/
+│   │   │   ├── CloudKey.java      # SDK 入口 [手写]
+│   │   │   ├── gen/               # OpenAPI 生成的通信层（不手动修改）
+│   │   │   └── service/           # 手写 SDK 服务层 + 精简 model
+│   │   ├── build.gradle           # Gradle 构建
+│   │   └── pom.xml                # Maven 构建
+│   └── python/
+│       ├── pyproject.toml         # Python 包构建配置
+│       ├── README.md              # 使用文档
+│       └── cloudkey/              # SDK 源码
+│           ├── __init__.py        # SDK 入口 + CloudKey 主类
+│           ├── _client.py         # HTTP 客户端（httpx 封装）
+│           ├── _exceptions.py     # CloudKeyException
+│           ├── _models.py         # dataclass DTO
+│           ├── key_service.py     # KeyService 便捷层
+│           └── balance_log_service.py  # BalanceLogService 便捷层
 ├── scripts/regenerate-sdk.sh  # SDK gen/ 层重新生成脚本
 ├── docs/                      # swaggo 生成的 Swagger 2.0 spec
 └── web/                       # React 前端源码
@@ -39,7 +50,7 @@ CloudKey 是一个卡密管理系统，提供 API Key 的创建、消费、额�
 1. **Go Server Spec** (`docs/swagger.yaml`) — 由 `swag init` 从 Go 注释自动生成，覆盖全部端点
 2. **Java SDK Spec** (`sdk/java/api/openapi.yaml`) — **手动维护**，仅覆盖 `/service/*` 端点
 
-修改 API 时必须同时更新两者。
+修改 API 时必须同时更新两者，**以及 Python SDK 的 `sdk/python/cloudkey/` 下对应的服务层代码**。
 
 ## Go 后端开发流程
 
@@ -131,6 +142,48 @@ cd sdk/java && ./gradlew build -x test
 #### 步骤 6: 更新前端文档
 更新 `web/src/components/ServiceApiDocs.tsx` 中的 Java 示例代码
 
+## Python SDK 架构
+
+Python SDK 采用全手写方案（不用 OpenAPI Generator），HTTP 客户端基于 `httpx`，model 使用 `dataclasses`。
+
+```
+sdk/python/
+  pyproject.toml               # 构建配置（hatchling）
+  README.md                    # 使用文档
+  cloudkey/
+    __init__.py                # SDK 入口 + CloudKey 主类
+    _client.py                 # HTTP 客户端（httpx 封装）
+    _exceptions.py             # CloudKeyException
+    _models.py                 # dataclass DTO
+    key_service.py             # KeyService（卡密管理）
+    balance_log_service.py     # BalanceLogService（余额日志）
+```
+
+### Python SDK 使用方式
+
+```python
+from cloudkey import CloudKey
+
+ck = CloudKey("sk_your_service_key")
+ck.keys.create("my-key", 100)
+ck.keys.consume("ck_abc123", amount=10)
+ck.keys.adjust_balance(1, 50, "充值")
+ck.balance_logs.list(page=1, page_size=20)
+ck.close()
+```
+
+### Python SDK 更新流程
+
+当 `/service/*` 路由变化时，同步更新 Python SDK：
+
+1. 更新 `sdk/python/cloudkey/key_service.py` 或 `balance_log_service.py` 中的方法
+2. 如有新响应字段，更新 `_models.py` 中的 dataclass
+3. 更新 `pyproject.toml` 中的版本号
+4. 更新 README.md 中的 API 参考
+5. 验证：`cd sdk/python && pip install -e . && python -c "from cloudkey import CloudKey"`
+
+发布：推送 `python-sdk-v*` tag 触发 GitHub Actions 自动发布到 PyPI。
+
 ## 构建验证
 
 每次变更后必须验证：
@@ -140,6 +193,9 @@ go build ./...
 
 # Java SDK
 cd sdk/java && ./gradlew build -x test
+
+# Python SDK
+cd sdk/python && pip install -e . && python -c "from cloudkey import CloudKey"
 ```
 
 ## 关键约定

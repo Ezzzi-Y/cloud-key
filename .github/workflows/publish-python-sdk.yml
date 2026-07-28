@@ -1,0 +1,66 @@
+name: Publish Python SDK to PyPI
+
+on:
+  push:
+    tags:
+      - 'python-sdk-v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Required for PyPI Trusted Publisher
+    environment: pypi
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#python-sdk-v}" >> $GITHUB_OUTPUT
+
+      - name: Set version
+        working-directory: sdk/python
+        run: |
+          sed -i "s/^version = .*/version = '${{ steps.version.outputs.VERSION }}'/" pyproject.toml
+          sed -i "s/^__version__ = .*/__version__ = \"${{ steps.version.outputs.VERSION }}\"/" cloudkey/__init__.py
+          sed -i "s|CloudKey-Python-SDK/.*|CloudKey-Python-SDK/${{ steps.version.outputs.VERSION }}\"|" cloudkey/_client.py
+
+      - name: Build
+        working-directory: sdk/python
+        run: python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdk/python/dist/
+
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Python SDK ${{ github.ref_name }}
+          body: |
+            ## Python SDK
+
+            ```bash
+            pip install cloudkey-python==${GITHUB_REF_NAME#python-sdk-v}
+            ```
+          generate_release_notes: true

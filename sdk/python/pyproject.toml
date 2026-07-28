@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cloudkey-python"
+version = "1.0.0"
+description = "CloudKey Python SDK - 卡密管理系统服务账号客户端"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [{ name = "Ezzi" }]
+dependencies = [
+    "httpx>=0.27",
+]
+
+[project.urls]
+Homepage = "https://github.com/Ezzi/CloudKey"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cloudkey"]
