@@ -71,29 +71,48 @@ return cjson.encode({
 })
 `)
 
-// rateLimitCheckScript Key 限流滑动窗口 Lua 脚本
-// KEYS[1] = rl:key:<keyID>  (ZSET)
-// ARGV[1] = 窗口大小（秒）
-// ARGV[2] = 最大请求数
+// rateLimitCheckScript Key 限流滑动窗口 Lua 脚本（含租户默认配置查找）
+//
+// KEYS[1] = rl:key:<keyID>     (ZSET，滑动窗口)
+// KEYS[2] = ck:trl:<tenantID>  (Hash，租户默认限流配置)
+// ARGV[1] = key 的 rate_limit 值（-1 表示使用租户默认）
+// ARGV[2] = key 的 rate_limit_window 值
 // ARGV[3] = 当前时间（纳秒时间戳）
 // ARGV[4] = 唯一请求标识
 //
-// 返回 {allowed(1|0), retryAfter(秒)}
+// 返回 {allowed(1|0), retryAfter(秒)} 或 {-2, 0} 表示租户配置未缓存（需回源）
 var rateLimitCheckScript = redis.NewScript(`
-local key = KEYS[1]
-local window = tonumber(ARGV[1])
-local maxReq = tonumber(ARGV[2])
+local rlKey = KEYS[1]
+local tenantKey = KEYS[2]
+
+local rateLimit = tonumber(ARGV[1])
+local rateLimitWindow = tonumber(ARGV[2])
 local now = tonumber(ARGV[3])
 local uid = ARGV[4]
 
-local windowNs = window * 1000000000
+-- Key 未配置限流（-1=nil），从租户默认配置读取
+if rateLimit == -1 or rateLimitWindow == -1 then
+    if redis.call('EXISTS', tenantKey) == 0 then
+        return {-2, 0}
+    end
+    rateLimit = tonumber(redis.call('HGET', tenantKey, 'rate_limit') or '-1')
+    rateLimitWindow = tonumber(redis.call('HGET', tenantKey, 'rate_limit_window') or '-1')
+end
+
+-- 不限速
+if rateLimit <= 0 or rateLimitWindow <= 0 then
+    return {1, 0}
+end
+
+-- 滑动窗口限流检查
+local windowNs = rateLimitWindow * 1000000000
 local start = now - windowNs
 
-redis.call('ZREMRANGEBYSCORE', key, 0, start)
-local count = redis.call('ZCARD', key)
+redis.call('ZREMRANGEBYSCORE', rlKey, 0, start)
+local count = redis.call('ZCARD', rlKey)
 
-if count >= maxReq then
-    local oldest = redis.call('ZRANGEBYSCORE', key, start, '+inf', 'WITHSCORES', 'LIMIT', 0, 1)
+if count >= rateLimit then
+    local oldest = redis.call('ZRANGEBYSCORE', rlKey, start, '+inf', 'WITHSCORES', 'LIMIT', 0, 1)
     if #oldest > 0 then
         local oldestScore = tonumber(oldest[2])
         if oldestScore then
@@ -102,11 +121,11 @@ if count >= maxReq then
             return {0, retryAfter}
         end
     end
-    return {0, window}
+    return {0, rateLimitWindow}
 end
 
-redis.call('ZADD', key, now, uid)
-redis.call('EXPIRE', key, window)
+redis.call('ZADD', rlKey, now, uid)
+redis.call('EXPIRE', rlKey, rateLimitWindow)
 return {1, 0}
 `)
 

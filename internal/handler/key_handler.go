@@ -629,14 +629,18 @@ func (h *TenantKeyHandler) UpdateKeyConfig(c *gin.Context) {
 	if defaultRateLimit != nil {
 		updates["default_rate_limit"] = *defaultRateLimit
 		updates["default_rate_limit_window"] = *defaultRateLimitWindow
+
+		// 双写：先更新 Redis，再更新 DB，最后再更新 Redis
+		h.keySvc.SyncTenantRateLimitConfig(tenantID, defaultRateLimit, defaultRateLimitWindow)
 	}
 	if err := h.db.Model(&model.Tenant{}).Where("id = ?", tenantID).Updates(updates).Error; err != nil {
 		InternalError(c)
 		return
 	}
 
-	// 租户默认限流变更后，清除该租户下所有 key 的缓存，使新配置生效
+	// 租户默认限流变更后，双写 Redis + 清除 key 缓存
 	if defaultRateLimit != nil {
+		h.keySvc.SyncTenantRateLimitConfig(tenantID, defaultRateLimit, defaultRateLimitWindow)
 		h.keySvc.InvalidateTenantKeyCaches(tenantID)
 	}
 

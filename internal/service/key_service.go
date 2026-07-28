@@ -79,6 +79,11 @@ func topAmountZSetKey(tenantID uint64) string {
 }
 
 // rateLimitKey returns the Redis ZSET key for per-key rate limiting.
+// tenantRateLimitKey 返回租户默认限流配置的 Redis 缓存 key
+func tenantRateLimitKey(tenantID uint64) string {
+	return "ck:trl:" + strconv.FormatUint(tenantID, 10)
+}
+
 func rateLimitKey(keyID uint64) string {
 	return "rl:key:" + strconv.FormatUint(keyID, 10)
 }
@@ -979,6 +984,63 @@ func (s *KeyService) GetTenantDefaultRateLimit(tenantID uint64) (rateLimit *int,
 	return tenant.DefaultRateLimit, tenant.DefaultRateLimitWindow, nil
 }
 
+// ensureTenantRateLimitCached 确保租户默认限流配置已在 Redis 中缓存。
+// 常驻 Redis，无 TTL。cache-aside + singleflight 防击穿。不限速时存 -1 哨兵。
+func (s *KeyService) ensureTenantRateLimitCached(tenantID uint64) {
+	if s.rdb == nil {
+		return
+	}
+
+	trlKey := tenantRateLimitKey(tenantID)
+	ctx := context.Background()
+
+	if exists, _ := s.rdb.Exists(ctx, trlKey).Result(); exists == 1 {
+		return
+	}
+
+	sfKey := "trl:" + strconv.FormatUint(tenantID, 10)
+	_, _, _ = s.sfGroup.Do(sfKey, func() (interface{}, error) {
+		// 二次检查，防止并发穿透
+		if exists, _ := s.rdb.Exists(ctx, trlKey).Result(); exists == 1 {
+			return nil, nil
+		}
+
+		var tenant model.Tenant
+		if err := s.db.Select("default_rate_limit", "default_rate_limit_window").
+			Where("id = ?", tenantID).First(&tenant).Error; err != nil {
+			zap.L().Warn("ensureTenantRateLimitCached: MySQL 查询失败",
+				zap.Uint64("tenant_id", tenantID), zap.Error(err))
+			return nil, nil // 不缓存错误，后续重试
+		}
+
+		rl := rateLimitToInt(tenant.DefaultRateLimit)
+		rlW := rateLimitToInt(tenant.DefaultRateLimitWindow)
+
+		if err := s.rdb.HSet(ctx, trlKey, map[string]interface{}{
+			"rate_limit":        rl,
+			"rate_limit_window": rlW,
+		}).Err(); err != nil {
+			zap.L().Debug("ensureTenantRateLimitCached: Redis 写入失败", zap.Error(err))
+		}
+		return nil, nil
+	})
+}
+
+// SyncTenantRateLimitConfig 写穿同步租户限流配置到 Redis（常驻，无 TTL）。
+func (s *KeyService) SyncTenantRateLimitConfig(tenantID uint64, rateLimit, rateLimitWindow *int) {
+	if s.rdb == nil {
+		return
+	}
+	ctx := context.Background()
+	trlKey := tenantRateLimitKey(tenantID)
+	if err := s.rdb.HSet(ctx, trlKey, map[string]interface{}{
+		"rate_limit":        rateLimitToInt(rateLimit),
+		"rate_limit_window": rateLimitToInt(rateLimitWindow),
+	}).Err(); err != nil {
+		zap.L().Debug("SyncTenantRateLimitConfig failed", zap.Error(err))
+	}
+}
+
 // InvalidateTenantKeyCaches 清除租户下所有 key 的缓存（用于租户默认限流配置变更后）
 func (s *KeyService) InvalidateTenantKeyCaches(tenantID uint64) {
 	if s.rdb == nil {
@@ -996,54 +1058,34 @@ func (s *KeyService) InvalidateTenantKeyCaches(tenantID uint64) {
 }
 
 // checkKeyRateLimit 检查 key 是否触发限流。
-// 需要 key 包含 ID、RateLimit、RateLimitWindow 字段。
-// 返回 (allowed, retryAfter, error)。Redis 错误时 fail-open（放行）。
+// Lua 脚本内原子完成：读取 key 限流配置 → 未配置时读取租户默认配置 → 滑动窗口检查。
+// Redis 错误或租户配置未缓存时 fail-open（放行）。
 func (s *KeyService) checkKeyRateLimit(key *model.Key, tenantID uint64) (bool, int, error) {
 	if s.rdb == nil {
 		return true, 0, nil
 	}
 
-	// 解析 key 的限流配置：nil=使用租户默认，0=不限速
-	rateLimit := 0
-	rateLimitWindow := 0
-
-	if key.RateLimit != nil && key.RateLimitWindow != nil {
-		rateLimit = *key.RateLimit
-		rateLimitWindow = *key.RateLimitWindow
-	} else {
-		// Key 未配置，使用租户默认值
-		tenantRL, tenantRLW, err := s.GetTenantDefaultRateLimit(tenantID)
-		if err != nil {
-			zap.L().Warn("checkKeyRateLimit: 获取租户默认限流配置失败",
-				zap.Uint64("tenant_id", tenantID), zap.Error(err))
-			return true, 0, nil // fail-open
-		}
-		if tenantRL != nil && tenantRLW != nil {
-			rateLimit = *tenantRL
-			rateLimitWindow = *tenantRLW
-		}
-	}
-
-	// 不限速
-	if rateLimit <= 0 || rateLimitWindow <= 0 {
-		return true, 0, nil
-	}
+	// 确保租户默认限流配置已在 Redis 中
+	s.ensureTenantRateLimitCached(tenantID)
 
 	ctx := context.Background()
 	now := time.Now().UnixNano()
 	uid := fmt.Sprintf("%d:%d", now, key.ID)
 
-	rlKey := rateLimitKey(key.ID)
-	result, err := rateLimitCheckScript.Run(ctx, s.rdb, []string{rlKey},
-		rateLimitWindow, rateLimit, now, uid).Int64Slice()
+	keys := []string{rateLimitKey(key.ID), tenantRateLimitKey(tenantID)}
+	args := []interface{}{rateLimitToInt(key.RateLimit), rateLimitToInt(key.RateLimitWindow), now, uid}
+
+	result, err := rateLimitCheckScript.Run(ctx, s.rdb, keys, args...).Int64Slice()
 	if err != nil {
 		zap.L().Warn("checkKeyRateLimit: Redis 脚本执行失败，fail-open",
 			zap.Uint64("key_id", key.ID), zap.Error(err))
 		return true, 0, nil
 	}
 
-	if len(result) >= 2 && result[0] == 0 {
-		return false, int(result[1]), nil
+	if len(result) >= 2 {
+		if result[0] == 0 {
+			return false, int(result[1]), nil
+		}
 	}
 	return true, 0, nil
 }
