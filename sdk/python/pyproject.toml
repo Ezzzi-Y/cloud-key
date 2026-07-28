@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cloudkey-sdk"
-version = "1.0.0"
+version = "1.0.1"
 description = "CloudKey Python SDK - 卡密管理系统服务账号客户端"
 readme = "README.md"
 license = "MIT"

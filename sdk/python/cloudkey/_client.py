@@ -10,7 +10,7 @@ from ._exceptions import CloudKeyException
 
 _DEFAULT_CONNECT_TIMEOUT = 10.0
 _DEFAULT_READ_TIMEOUT = 30.0
-_SDK_VERSION = "1.0.0"
+_SDK_VERSION = "1.0.1"
 
 
 class _HttpClient:
