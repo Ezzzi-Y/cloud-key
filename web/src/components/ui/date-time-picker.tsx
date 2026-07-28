@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale/zh-CN'
-import { CalendarIcon, X } from 'lucide-react'
+import { CalendarIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
@@ -65,11 +65,11 @@ export function DateTimePicker({
     }
   }
 
-  const handleClear = (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleClear = () => {
     onChange('')
     setTempDate(undefined)
     setTempTime('')
+    setOpen(false)
   }
 
   const displayText = value
@@ -91,12 +91,6 @@ export function DateTimePicker({
           <span className="flex-1 truncate">
             {displayText || placeholder}
           </span>
-          {clearable && value && (
-            <X
-              className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50 hover:opacity-100"
-              onClick={handleClear}
-            />
-          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -117,6 +111,13 @@ export function DateTimePicker({
             />
           </label>
         </div>
+        {clearable && value && (
+          <div className="border-t px-3 py-2">
+            <Button variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={handleClear}>
+              清除
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   )

@@ -85,7 +85,7 @@ export default function SuperDashboard() {
                       {t.status === 'active' ? '活跃' : t.status === 'expired' ? '已过期' : '已禁用'}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{t.expire_at || '永不过期'}</TableCell>
+                  <TableCell className="text-muted-foreground">{t.expire_at ? new Date(t.expire_at).toLocaleString('zh-CN') : '永不过期'}</TableCell>
                   <TableCell className="text-right font-mono">{t.key_count}</TableCell>
                   <TableCell className="text-right font-mono">{t.user_count}</TableCell>
                   <TableCell className="text-right">
